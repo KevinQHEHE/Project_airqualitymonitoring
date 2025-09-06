@@ -1,0 +1,6 @@
+/backend/app/blueprints/*      @devweb
+/backend/app/templates/*       @devweb
+/backend/app/repositories/*    @de1 @de2
+/backend/app/services/*        @de1 @de2
+/docs/*                        @baqa
+/tests/*                       @baqa @devweb @de1 @de2

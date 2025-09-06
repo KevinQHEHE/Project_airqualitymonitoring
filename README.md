@@ -77,6 +77,8 @@ This project structure provides the foundation for a comprehensive air quality m
 - **Template System**: Jinja2 templates for dashboard, authentication, and reporting
 - **Documentation**: API documentation and database schema planning
 - **CI/CD Pipeline**: GitHub Actions workflow for automated testing and deployment
+- **Database Setup**: MongoDB connection configuration and index creation
+- **Connection Testing**: MongoDB connection verification utility
 
 ### 🚧 To Be Implemented
 The following components are structured but need implementation:
@@ -86,60 +88,192 @@ The following components are structured but need implementation:
 - **Background Tasks**: Scheduled jobs for data ingestion and alerts
 - **Utility Functions**: AQI calculations, security, and data processing utilities
 - **OpenAQ Integration**: Data ingestion from external API
-- **Database Scripts**: Index creation and data seeding
 - **Test Suite**: Comprehensive testing for all components
 
 ## Quick Start
 
-1. **Clone and Setup Environment**
+### 1. Environment Setup
+
+1. **Clone Repository**
    ```bash
    git clone <repository-url>
    cd air-quality-monitoring
-   cp .env.sample .env
-   # Edit .env with your configuration
    ```
 
-2. **Install Dependencies**
+2. **Create Virtual Environment**
    ```bash
-   pip install -e .[dev]
+   python -m venv venv
+   venv\Scripts\activate  # Windows
+   # or
+   source venv/bin/activate  # Linux/Mac
    ```
 
-3. **Run Development Server**
+3. **Install Dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+### 2. Database Configuration
+
+1. **Setup MongoDB Atlas** (Recommended)
+   - Create account at [MongoDB Atlas](https://www.mongodb.com/atlas)
+   - Create a new cluster
+   - Create database user with read/write permissions
+   - Get connection string
+
+2. **Configure Environment Variables**
+   ```bash
+   cp .env.sample .env
+   ```
+   
+   Edit `.env` file with your MongoDB credentials:
+   ```properties
+   MONGO_URI=mongodb+srv://your_username:your_password@your-cluster.mongodb.net/?retryWrites=true&w=majority
+   MONGO_DB=air_quality_db
+   ```
+
+3. **Test Database Connection**
+   ```bash
+   python scripts/test_connection.py
+   ```
+
+4. **Create Database Indexes**
+   ```bash
+   python scripts/create_indexes.py
+   ```
+
+### 3. Run Application
+
+1. **Development Server**
    ```bash
    cd backend
    python -m flask --app app.wsgi:app run --debug
    ```
 
-4. **Access Application**
+2. **Access Application**
    - Dashboard: http://localhost:5000
    - API Base: http://localhost:5000/api
 
+### 4. Verify Setup
+
+After completing the above steps, you should see:
+- MongoDB connection successful
+- Database collections created: `stations`, `air_quality_data`
+- Flask application running on port 5000
+
+## Database Scripts and Utilities
+
+The project includes several database utility scripts for setup and maintenance:
+
+### Available Scripts
+
+1. **test_connection.py** - MongoDB Connection Test
+   ```bash
+   python scripts/test_connection.py
+   ```
+   - Tests MongoDB connection using .env configuration
+   - Displays database status and existing collections
+   - Returns exit code 0 for success, 1 for failure (CI/CD friendly)
+
+2. **create_indexes.py** - Database Index Creation
+   ```bash
+   python scripts/create_indexes.py
+   ```
+   - Creates optimized indexes for stations and air_quality_data collections
+   - Idempotent: safe to run multiple times
+   - Indexes created:
+     - `stations.code` (unique)
+     - `stations.loc` (2dsphere for geospatial queries)
+     - `air_quality_data.station_id + ts_utc` (compound)
+     - `air_quality_data.lat + lon + ts_utc` (compound)
+
+### Script Output Examples
+
+**Successful Connection Test:**
+```
+MongoDB Connection Test
+----------------------------------------
+Database: air_quality_db
+URI: mongodb+srv://***@cluster.mongodb.net/...
+
+Testing connection...
+SUCCESS: MongoDB connection established
+Collections found: 2
+Collection names: air_quality_data, stations
+----------------------------------------
+Status: READY
+```
+
+**Index Creation:**
+```
+[indexes] stations
+[indexes] air_quality_data
+[done] indexes ensured.
+```
+
 ## Technology Stack
 
-- **Backend Framework**: Python 3.8+, Flask
-- **Database**: MongoDB Atlas (planned)
-- **Frontend**: Jinja2 templates, Chart.js, Leaflet maps (planned)
+- **Backend Framework**: Python 3.8+, Flask 2.3+
+- **Database**: MongoDB Atlas (cloud) / MongoDB (local)
+- **Frontend**: Jinja2 templates, Bootstrap 5, Chart.js, Leaflet maps
 - **Task Scheduling**: APScheduler (planned)
-- **Data Validation**: Pydantic (planned)
+- **Data Validation**: Pydantic v2 (planned)
 - **Testing**: pytest (planned)
+- **Environment Management**: python-dotenv
 - **CI/CD**: GitHub Actions
 - **External APIs**: OpenAQ API (planned)
 
 ## Configuration
 
-Key environment variables to configure in `.env`:
-- `MONGO_URI`: MongoDB Atlas connection string
-- `MONGO_DB`: Database name
-- `MAIL_*`: Email server configuration for alerts
-- `OPENAQ_API_URL`: OpenAQ API endpoint
-- `SECRET_KEY`: Flask session encryption key
+### Environment Variables
 
-## Next Steps for Development
+Configure these variables in your `.env` file:
+
+```properties
+# MongoDB Configuration
+MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority
+MONGO_DB=air_quality_db
+
+# Flask Configuration  
+SECRET_KEY=your-secret-key-here
+FLASK_ENV=development
+FLASK_DEBUG=True
+
+# API Rate Limiting
+API_RATE_LIMIT=60/minute
+
+# Email Configuration (for alerts)
+MAIL_SERVER=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USE_TLS=True
+MAIL_USERNAME=your-email@gmail.com
+MAIL_PASSWORD=your-app-password
+
+# OpenAQ API Configuration
+OPENAQ_API_URL=https://api.openaq.org/v2
+OPENAQ_API_KEY=your-openaq-api-key
+
+# Feature Flags
+ENABLE_PDF_EXPORT=false
+```
+
+## Development Workflow
+
+### Prerequisites Checklist
+
+- [ ] Python 3.8+ installed
+- [ ] MongoDB Atlas account created (or local MongoDB running)
+- [ ] Environment variables configured in `.env`
+- [ ] Dependencies installed via `pip install -r requirements.txt`
+- [ ] Database connection tested successfully
+- [ ] Database indexes created
+
+### Next Steps for Development
 
 1. **Implement Core Services**: Start with authentication and station management
-2. **Database Integration**: Connect MongoDB and implement repository layer
-3. **API Implementation**: Complete REST endpoint implementations
-4. **OpenAQ Integration**: Build data ingestion pipeline
+2. **Database Integration**: Complete repository layer implementation
+3. **API Implementation**: Build REST endpoint functionality
+4. **OpenAQ Integration**: Develop data ingestion pipeline
 5. **Frontend Development**: Enhance dashboard with interactive features
 6. **Testing**: Add comprehensive test coverage
 7. **Background Jobs**: Implement scheduled tasks for data processing
@@ -165,6 +299,7 @@ This system aims to provide:
 1. Fork the repository
 2. Create a feature branch
 3. Implement functionality with tests
-4. Submit a pull request
+4. Ensure database scripts run successfully
+5. Submit a pull request
 
 This project follows clean architecture principles with clear separation between routes, business logic, and data access layers.
