@@ -1,0 +1,85 @@
+{
+  "$id": "https://example.com/schemas/waqi_stations.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "waqi_stations",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "_id",
+    "city"
+  ],
+  "properties": {
+    "_id": {
+      "type": "integer",
+      "description": "WAQI idx (use as _id)"
+    },
+    "city": {
+      "type": "object",
+      "required": [
+        "name",
+        "url",
+        "geo"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "geo": {
+          "type": "object",
+          "required": [
+            "type",
+            "coordinates"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "enum": [
+                "Point"
+              ]
+            },
+            "coordinates": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "number"
+              },
+              "description": "[lon, lat] — GeoJSON"
+            }
+          }
+        }
+      }
+    },
+    "time": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tz": {
+          "type": "string"
+        }
+      }
+    },
+    "attributions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "logo": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
