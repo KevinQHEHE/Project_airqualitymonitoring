@@ -1,6 +1,7 @@
 """Stations blueprint for managing air quality monitoring stations."""
 from flask import Blueprint, request, jsonify
 import logging
+from backend.app.repositories import stations_repo
 
 logger = logging.getLogger(__name__)
 
@@ -26,15 +27,42 @@ def get_stations():
         city = request.args.get('city')
         country = request.args.get('country')
         
-        # TODO: Implement station retrieval from MongoDB
-        # For now, return placeholder data
+        # Build filter criteria
+        filter_criteria = {}
+        if city:
+            filter_criteria['city'] = city
+        if country:
+            filter_criteria['country'] = country
+            
+        # Get stations using repository
+        if city:
+            stations = stations_repo.find_by_city(city)
+        elif filter_criteria:
+            stations = stations_repo.find_many(filter_criteria)
+        else:
+            stations = stations_repo.find_active_stations()
+        
+        # Convert ObjectId to string for JSON serialization
+        for station in stations:
+            if '_id' in station:
+                station['_id'] = str(station['_id'])
+        
+        # Simple pagination (for demo - in production, use MongoDB skip/limit)
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        
+        # Simple pagination (for demo - in production, use MongoDB skip/limit)
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_stations = stations[start_idx:end_idx]
+        
         return jsonify({
-            "stations": [],
+            "stations": paginated_stations,
             "pagination": {
                 "page": page,
                 "page_size": page_size,
-                "total": 0,
-                "pages": 0
+                "total": len(stations),
+                "pages": (len(stations) + page_size - 1) // page_size
             }
         }), 200
     
@@ -45,22 +73,37 @@ def get_stations():
         return jsonify({"error": "Internal server error"}), 500
 
 
-@stations_bp.route('/<int:station_id>', methods=['GET'])
+@stations_bp.route('/<station_id>', methods=['GET'])
 def get_station(station_id):
     """Get details for a specific station.
     
     Args:
-        station_id: Station ID
+        station_id: Station ID (can be numeric ID or station_id string)
         
     Returns:
         JSON: Station details or error message
     """
     try:
-        # TODO: Implement station retrieval by ID from MongoDB
-        return jsonify({
-            "station_id": station_id,
-            "message": "Station not found"
-        }), 404
+        # Try to find by station_id first (string identifier)
+        station = stations_repo.find_by_station_id(station_id)
+        
+        if not station:
+            # If not found, try numeric lookup for backwards compatibility
+            try:
+                # Convert to int and look up by numeric ID if applicable
+                numeric_id = int(station_id)
+                station = stations_repo.find_one({"id": numeric_id})
+            except ValueError:
+                pass
+        
+        if not station:
+            return jsonify({"error": "Station not found"}), 404
+        
+        # Convert ObjectId to string for JSON serialization
+        if '_id' in station:
+            station['_id'] = str(station['_id'])
+            
+        return jsonify(station), 200
     
     except Exception as e:
         logger.error(f"Get station error: {str(e)}")

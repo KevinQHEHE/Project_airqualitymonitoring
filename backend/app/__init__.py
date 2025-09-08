@@ -2,6 +2,7 @@
 from flask import Flask, jsonify
 from backend.app.config import Config
 from backend.app.extensions import init_extensions
+from backend.app import db
 
 
 def create_app(config_class=Config):
@@ -22,8 +23,25 @@ def create_app(config_class=Config):
     # Register health check endpoint
     @app.route('/api/health')
     def health_check():
-        """Health check endpoint."""
-        return jsonify({"status": "ok"})
+        """Health check endpoint with database connectivity."""
+        # Basic app health
+        response = {
+            "status": "ok",
+            "service": "air-quality-monitoring-api"
+        }
+        
+        # Database health check
+        try:
+            db_health = db.health_check()
+            response["database"] = db_health
+        except Exception as e:
+            response["database"] = {
+                "status": "unhealthy",
+                "error": str(e)
+            }
+            response["status"] = "degraded"
+        
+        return jsonify(response)
     
     # Register blueprints
     register_blueprints(app)
