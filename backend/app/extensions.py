@@ -3,7 +3,7 @@ from flask_mail import Mail
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
-from pymongo import MongoClient
+from . import db
 
 # Initialize Flask extensions
 mail = Mail()
@@ -13,10 +13,6 @@ limiter = Limiter(
 )
 login_manager = LoginManager()
 
-# MongoDB client (will be initialized in init_extensions)
-mongo_client = None
-db = None
-
 
 def init_extensions(app):
     """Initialize Flask extensions with app context.
@@ -24,8 +20,6 @@ def init_extensions(app):
     Args:
         app: Flask application instance
     """
-    global mongo_client, db
-    
     # Initialize extensions
     mail.init_app(app)
     limiter.init_app(app)
@@ -44,9 +38,5 @@ def init_extensions(app):
         # For now, return None (no user authentication)
         return None
     
-    # Initialize MongoDB connection
-    mongo_client = MongoClient(app.config['MONGO_URI'])
-    db = mongo_client[app.config['MONGO_DB']]
-    
-    # Store database reference in app context
-    app.db = db
+    # Initialize MongoDB connection using db module
+    db.init_app(app)
