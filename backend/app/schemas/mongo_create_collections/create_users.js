@@ -10,6 +10,9 @@ db.createCollection("users", {
         "role"
       ],
       "properties": {
+        "_id": {
+          "bsonType": "objectId"
+        },
         "username": {
           "bsonType": "string"
         },

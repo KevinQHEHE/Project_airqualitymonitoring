@@ -9,6 +9,9 @@ db.createCollection("waqi_daily_forecasts", {
         "pollutants"
       ],
       "properties": {
+        "_id": {
+          "bsonType": "objectId"
+        },
         "station_idx": {
           "bsonType": "int"
         },
