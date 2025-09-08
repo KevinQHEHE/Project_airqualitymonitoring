@@ -35,6 +35,7 @@ Do NOT hardcode architectures or schemas. Prefer additive, loosely coupled chang
 - Validation at boundaries (request/response, config). Return proper HTTP status codes.
 - UTC timestamps; make utilities pure when possible.
 - Idempotency for scripts & scheduled jobs (safe to re-run).
+- NO emojis or icons in production code; use plain text for messages and logs.
 
 # 4) API Design
 - JSON-only APIs unless explicitly building an HTML template.
