@@ -83,7 +83,6 @@ db.createCollection("waqi_stations", {
   }
 });
 
-db.waqi_stations.createIndex({ _id: 1 }, { unique: true });
 db.waqi_stations.createIndex({ "city.geo": "2dsphere" });
 db.waqi_stations.createIndex({ "city.name": 1 });
 db.waqi_stations.createIndex({ "city.url": 1 });
