@@ -1,6 +1,6 @@
 """WSGI entrypoint for development and production."""
 import os
-from app import create_app
+from backend.app import create_app
 
 # Create the Flask application
 app = create_app()
