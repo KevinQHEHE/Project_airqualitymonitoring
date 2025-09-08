@@ -36,6 +36,14 @@ def init_extensions(app):
     login_manager.login_message = 'Please log in to access this page.'
     login_manager.login_message_category = 'info'
     
+    # Add user_loader function (required by Flask-Login)
+    @login_manager.user_loader
+    def load_user(user_id):
+        """Load user by ID for Flask-Login."""
+        # TODO: Implement user loading from MongoDB
+        # For now, return None (no user authentication)
+        return None
+    
     # Initialize MongoDB connection
     mongo_client = MongoClient(app.config['MONGO_URI'])
     db = mongo_client[app.config['MONGO_DB']]

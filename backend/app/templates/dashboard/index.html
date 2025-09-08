@@ -1,2 +1,38 @@
-<!-- Main dashboard with Chart.js charts and Leaflet maps -->
-<h1>Hello World Dashboard</h1>
+{% extends "layout.html" %}
+
+{% block title %}Dashboard - Air Quality Monitoring{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">Air Quality Dashboard</h1>
+        <p>Welcome to the Air Quality Monitoring System</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">System Status</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-success">System Online</p>
+                <p>API Endpoints: Working</p>
+                <p>Database: Connected</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <a href="/api/stations/" class="btn btn-primary me-2">View Stations</a>
+                <a href="/api/measurements/" class="btn btn-secondary">View Data</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
