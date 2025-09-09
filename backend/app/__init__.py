@@ -45,6 +45,36 @@ def create_app(config_class=Config):
     
     # Register blueprints
     register_blueprints(app)
+
+    # Start background catch-up on first request (non-blocking) when available.
+    try:
+        from ingest.catchup import start_background_catchup
+
+        # Register the before_first_request handler only if the attribute exists and is callable.
+        try:
+            bfr = getattr(app, 'before_first_request', None)
+            if callable(bfr):
+                @app.before_first_request
+                def _start_catchup():
+                    # Start in background so startup is not blocked
+                    start_background_catchup(app)
+            else:
+                # Fallback: if the Flask app object doesn't provide the decorator
+                # (some hosting environments may provide a different app proxy),
+                # start catchup immediately in background.
+                import logging
+                logging.getLogger(__name__).info('before_first_request not available; starting catchup immediately')
+                try:
+                    start_background_catchup(app)
+                except Exception as e:
+                    logging.getLogger(__name__).warning(f'Failed to start background catchup immediately: {e}')
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f'Failed to register/start catchup handler: {e}')
+    except Exception as e:
+        # Import errors should not prevent the app from starting; log and continue
+        import logging
+        logging.getLogger(__name__).warning(f"Catchup integration not available: {e}")
     
     return app
 
