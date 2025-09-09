@@ -34,6 +34,22 @@ def test_stations_api():
             data = response.get_json()
             print(f"  - Stations in Hanoi: {len(data.get('stations', []))}")
         
+        # Test pagination with limit/offset
+        response = client.get('/api/stations/?limit=5&offset=0', follow_redirects=True)
+        print(f"GET /api/stations/?limit=5&offset=0 - Status: {response.status_code}")
+        if response.status_code == 200:
+            data = response.get_json()
+            pagination = data.get('pagination', {})
+            print(f"  - Limit: {pagination.get('limit')}, Offset: {pagination.get('offset')}")
+            print(f"  - Total: {pagination.get('total')}, Pages: {pagination.get('pages')}")
+        
+        # Test invalid pagination parameters
+        response = client.get('/api/stations/?limit=0', follow_redirects=True)
+        print(f"GET /api/stations/?limit=0 - Status: {response.status_code}")
+        if response.status_code == 400:
+            error = response.get_json()
+            print(f"  - Expected error: {error.get('error')}")
+        
         # Test GET specific station
         response = client.get('/api/stations/station_001', follow_redirects=True)
         print(f"GET /api/stations/station_001 - Status: {response.status_code}")

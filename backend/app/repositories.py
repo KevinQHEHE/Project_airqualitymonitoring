@@ -177,6 +177,35 @@ class StationsRepository(BaseRepository):
             List of active stations
         """
         return self.find_many({'status': 'active'})
+    
+    def find_with_pagination(self, filter_dict: Optional[Dict[str, Any]] = None,
+                           limit: int = 20, offset: int = 0) -> tuple[List[Dict[str, Any]], int]:
+        """Find stations with pagination support.
+        
+        Args:
+            filter_dict: MongoDB filter criteria (default: all stations)
+            limit: Maximum number of stations to return
+            offset: Number of stations to skip
+            
+        Returns:
+            Tuple of (stations_list, total_count)
+        """
+        if filter_dict is None:
+            filter_dict = {}
+            
+        try:
+            # Get total count for pagination metadata
+            total_count = self.collection.count_documents(filter_dict)
+            
+            # Get paginated results
+            cursor = self.collection.find(filter_dict)
+            cursor = cursor.skip(offset).limit(limit)
+            stations = list(cursor)
+            
+            return stations, total_count
+        except PyMongoError as e:
+            logger.error(f"Error finding stations with pagination: {e}")
+            raise
 
 
 class ReadingsRepository(BaseRepository):
