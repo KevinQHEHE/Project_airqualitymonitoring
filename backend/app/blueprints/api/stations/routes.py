@@ -10,11 +10,11 @@ stations_bp = Blueprint('stations', __name__)
 
 @stations_bp.route('/', methods=['GET'])
 def get_stations():
-    """Get list of air quality monitoring stations.
+    """Get list of air quality monitoring stations with pagination.
     
     Query parameters:
-    - page: Page number (default: 1)
-    - page_size: Number of items per page (default: 20)
+    - limit: Number of items per page (default: 20, max: 100)
+    - offset: Number of items to skip (default: 0)
     - city: Filter by city name
     - country: Filter by country code
     
@@ -22,52 +22,60 @@ def get_stations():
         JSON: List of stations with pagination info
     """
     try:
-        page = int(request.args.get('page', 1))
-        page_size = int(request.args.get('page_size', 20))
+        # Parse and validate pagination parameters
+        limit = int(request.args.get('limit', 20))
+        offset = int(request.args.get('offset', 0))
+        
+        # Validate limit bounds
+        if limit <= 0:
+            return jsonify({"error": "limit must be greater than 0"}), 400
+        if limit > 100:
+            return jsonify({"error": "limit cannot exceed 100"}), 400
+        if offset < 0:
+            return jsonify({"error": "offset must be non-negative"}), 400
+            
+        # Parse filter parameters
         city = request.args.get('city')
         country = request.args.get('country')
         
         # Build filter criteria
         filter_criteria = {}
         if city:
-            filter_criteria['city'] = city
+            filter_criteria['city.name'] = {"$regex": city, "$options": "i"}
         if country:
-            filter_criteria['country'] = country
+            filter_criteria['country'] = country.upper()
             
-        # Get stations using repository
-        if city:
-            stations = stations_repo.find_by_city(city)
-        elif filter_criteria:
-            stations = stations_repo.find_many(filter_criteria)
-        else:
-            stations = stations_repo.find_active_stations()
+        # Get stations with pagination from repository
+        stations, total_count = stations_repo.find_with_pagination(
+            filter_dict=filter_criteria,
+            limit=limit,
+            offset=offset
+        )
         
         # Convert ObjectId to string for JSON serialization
         for station in stations:
             if '_id' in station:
                 station['_id'] = str(station['_id'])
         
-        # Simple pagination (for demo - in production, use MongoDB skip/limit)
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-        
-        # Simple pagination (for demo - in production, use MongoDB skip/limit)
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-        paginated_stations = stations[start_idx:end_idx]
+        # Calculate pagination metadata
+        total_pages = (total_count + limit - 1) // limit
+        current_page = (offset // limit) + 1
         
         return jsonify({
-            "stations": paginated_stations,
+            "stations": stations,
             "pagination": {
-                "page": page,
-                "page_size": page_size,
-                "total": len(stations),
-                "pages": (len(stations) + page_size - 1) // page_size
+                "limit": limit,
+                "offset": offset,
+                "total": total_count,
+                "pages": total_pages,
+                "current_page": current_page,
+                "has_next": offset + limit < total_count,
+                "has_prev": offset > 0
             }
         }), 200
-    
-    except ValueError:
-        return jsonify({"error": "Invalid page or page_size parameter"}), 400
+        
+    except ValueError as e:
+        return jsonify({"error": f"Invalid parameter: {str(e)}"}), 400
     except Exception as e:
         logger.error(f"Get stations error: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
