@@ -15,11 +15,11 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional, Union
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pymongo import MongoClient, UpdateOne
 from pymongo.collection import Collection
-from pymongo.errors import BulkWriteError, PyMongoError
+from pymongo.errors import BulkWriteError, PyMongoError, DuplicateKeyError
 
 logger = logging.getLogger(__name__)
 
@@ -131,12 +131,12 @@ def upsert_readings(
     
     try:
         result = collection.bulk_write(operations, ordered=False)
-        
+
         logger.info(
             f"Bulk upserted {len(readings)} readings for station {station_idx}: "
             f"{result.upserted_count} inserted, {result.modified_count} updated"
         )
-        
+
         return {
             'station_idx': station_idx,
             'processed_count': len(readings),
@@ -145,13 +145,166 @@ def upsert_readings(
             'upserted_count': result.upserted_count,
             'acknowledged': result.acknowledged
         }
-        
+
     except BulkWriteError as e:
-        logger.error(f"Bulk write error for station {station_idx} readings: {e.details}")
+        # Time-series collections do not support update/upsert operations.
+        # Detect that case and fall back to an insert-only approach that
+        # inserts only timestamps that do not already exist for the station.
+        details = getattr(e, 'details', {}) or {}
+        msg = str(e)
+        logger.error(f"Bulk write error for station {station_idx} readings: {details}")
+
+        # Heuristic: the server error message for this case contains
+        # 'Cannot perform a non-multi update on a time-series collection'
+        if 'Cannot perform a non-multi update on a time-series collection' in msg or \
+           any(w.get('code') == 72 for w in details.get('writeErrors', [])):
+            logger.info(
+                "Detected time-series collection; switching to insert-only path for readings"
+            )
+            try:
+                return _insert_missing_readings(collection, station_idx, readings)
+            except MongoUpsertError:
+                # Re-raise original bulk error context for visibility
+                raise
+        # Otherwise surface the original error
         raise MongoUpsertError(f"Readings bulk upsert failed: {e}")
     except PyMongoError as e:
         logger.error(f"Failed to upsert readings for station {station_idx}: {e}")
         raise MongoUpsertError(f"Readings upsert failed: {e}")
+
+
+def _insert_missing_readings(
+    collection: Collection,
+    station_idx: int,
+    readings: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """Insert-only fallback for time-series collections.
+
+    This function queries existing timestamps for the station and inserts
+    only the missing readings. The operation is idempotent and avoids
+    update/upsert operations which time-series collections prohibit.
+    """
+    # Helper: coerce various ts representations into datetime (UTC)
+    def _coerce_ts_to_datetime(ts_val) -> Optional[datetime]:
+        if ts_val is None:
+            return None
+        if isinstance(ts_val, datetime):
+            return ts_val.astimezone(timezone.utc)
+        if isinstance(ts_val, (int, float)):
+            # treat as POSIX timestamp (seconds)
+            try:
+                return datetime.fromtimestamp(float(ts_val), tz=timezone.utc)
+            except Exception:
+                return None
+        if isinstance(ts_val, str):
+            s = ts_val.strip()
+            # ISO-like with Z
+            try:
+                if s.endswith('Z'):
+                    return datetime.fromisoformat(s.replace('Z', '+00:00')).astimezone(timezone.utc)
+                # Try full datetime with space
+                try:
+                    return datetime.strptime(s, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+                except Exception:
+                    pass
+                # Try date-only
+                try:
+                    return datetime.strptime(s, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+                except Exception:
+                    pass
+                # Fallback to fromisoformat
+                return datetime.fromisoformat(s).astimezone(timezone.utc)
+            except Exception:
+                return None
+        return None
+
+    # Gather candidate timestamps and coerce them
+    coerced_map = {}
+    for r in readings:
+        ts_val = r.get('ts')
+        dt = _coerce_ts_to_datetime(ts_val)
+        if dt is None:
+            logger.warning(f"Skipping reading with unparseable ts for station {station_idx}: {ts_val}")
+            continue
+        coerced_map.setdefault(dt, []).append(r)
+
+    if not coerced_map:
+        logger.info(f"No valid readings to insert for station {station_idx}")
+        return {'station_idx': station_idx, 'processed_count': 0, 'inserted_count': 0}
+
+    ts_list = list(coerced_map.keys())
+
+    try:
+        existing_cursor = collection.find(
+            {'meta.station_idx': station_idx, 'ts': {'$in': ts_list}},
+            {'ts': 1}
+        )
+    except PyMongoError as e:
+        logger.error(f"Failed to query existing readings for station {station_idx}: {e}")
+        raise MongoUpsertError(f"Failed to query existing readings: {e}")
+
+    existing_ts = {doc.get('ts').astimezone(timezone.utc) for doc in existing_cursor if isinstance(doc.get('ts'), datetime)}
+
+    to_insert = []
+    for dt, rows in coerced_map.items():
+        if dt in existing_ts:
+            continue
+        for r in rows:
+            # Clone and set normalized ts and meta
+            new_doc = dict(r)
+            new_doc['ts'] = dt
+            if 'meta' not in new_doc:
+                new_doc['meta'] = {}
+            new_doc['meta']['station_idx'] = station_idx
+            to_insert.append(new_doc)
+
+    if not to_insert:
+        logger.info(f"No new readings to insert for station {station_idx}")
+        return {'station_idx': station_idx, 'processed_count': 0, 'inserted_count': 0}
+
+    try:
+        result = collection.insert_many(to_insert, ordered=False)
+        inserted = len(result.inserted_ids)
+        logger.info(f"Inserted {inserted} new readings for station {station_idx}")
+        return {
+            'station_idx': station_idx,
+            'processed_count': len(readings),
+            'inserted_count': inserted,
+            'acknowledged': True
+        }
+    except BulkWriteError as e:
+        details = getattr(e, 'details', {}) or {}
+        inserted = details.get('nInserted', 0)
+        logger.error(
+            f"Bulk insert partially failed for station {station_idx}: {details} (inserted={inserted})"
+        )
+        # Treat partial insert as error for now
+        raise MongoUpsertError(f"Readings bulk insert failed: {e}")
+    except DuplicateKeyError as e:
+        # Concurrent insert may have created some documents; re-query to compute
+        logger.warning(f"Duplicate key during insert for station {station_idx}: {e}")
+        try:
+            post_cursor = collection.find(
+                {'meta.station_idx': station_idx, 'ts': {'$in': ts_list}},
+                {'ts': 1}
+            )
+            post_ts = set()
+            for d in post_cursor:
+                t = d.get('ts')
+                if isinstance(t, datetime):
+                    post_ts.add(t.astimezone(timezone.utc))
+            inserted_count = len(post_ts - existing_ts)
+        except PyMongoError:
+            inserted_count = 0
+        return {
+            'station_idx': station_idx,
+            'processed_count': len(readings),
+            'inserted_count': inserted_count,
+            'acknowledged': False
+        }
+    except PyMongoError as e:
+        logger.error(f"Failed to insert readings for station {station_idx}: {e}")
+        raise MongoUpsertError(f"Readings insert failed: {e}")
 
 
 def upsert_forecasts(
