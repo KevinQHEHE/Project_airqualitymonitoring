@@ -75,6 +75,18 @@
             },
             "additionalProperties": false
           }
+        },
+        "latest_update_time": {
+          "bsonType": "object",
+          "properties": {
+            "s": {
+              "bsonType": "string"
+            },
+            "tz": {
+              "bsonType": "string"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

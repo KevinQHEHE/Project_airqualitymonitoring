@@ -201,28 +201,24 @@ def upsert_vietnam_stations(json_file_path: str, db_name: str = None) -> Dict[st
 
 def main():
     """Main function to run the upsert operation."""
-    # Default file path (latest generated file)
-    default_file = "ingest/data_results/vietnam_stations_20250909_234601.json"
+    # Look for the most recent vietnam_stations_*.json file
+    data_dir = Path("ingest/data_results")
     
-    # Check if file exists
-    if not Path(default_file).exists():
-        # Look for any vietnam_stations_*.json file
-        data_dir = Path("ingest/data_results")
-        if data_dir.exists():
-            json_files = list(data_dir.glob("vietnam_stations_*.json"))
-            if json_files:
-                # Use the most recent file
-                default_file = str(max(json_files, key=lambda p: p.stat().st_mtime))
-                logger.info(f"Using most recent file: {default_file}")
-            else:
-                logger.error("No vietnam_stations_*.json files found in data_results")
-                sys.exit(1)
-        else:
-            logger.error(f"Data directory not found: {data_dir}")
-            sys.exit(1)
+    if not data_dir.exists():
+        logger.error(f"Data directory not found: {data_dir}")
+        sys.exit(1)
+    
+    json_files = list(data_dir.glob("vietnam_stations_*.json"))
+    if not json_files:
+        logger.error("No vietnam_stations_*.json files found in data_results")
+        sys.exit(1)
+    
+    # Use the most recent file
+    latest_file = str(max(json_files, key=lambda p: p.stat().st_mtime))
+    logger.info(f"Using most recent file: {latest_file}")
     
     # Run upsert
-    result = upsert_vietnam_stations(default_file)
+    result = upsert_vietnam_stations(latest_file)
     
     if result['success']:
         logger.info("Vietnam stations successfully upserted to MongoDB!")
