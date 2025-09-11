@@ -1,529 +1,400 @@
 """
-Vietnam Air Quality Stations Fetcher.
-Retrieves all active air quality monitoring stations in Vietnam from AQICN API
-and exports them in MongoDB collection format with deduplication and validation.
+Vietnam Air Quality Stations Data Fetcher
+
+This module fetches station metadata from WAQI API using station URLs
+and exports the data in MongoDB-compatible format.
 """
 
+import csv
 import json
 import logging
 import os
+import re
 import sys
-from datetime import datetime
-from typing import Dict, List, Set, Tuple, Optional, Any
-from pathlib import Path
-import requests
 import time
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional
+from urllib.parse import urlparse, unquote
 
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+try:
+    import requests
+except ImportError:
+    print("requests library not found. Install with: pip install requests")
+    exit(1)
 
-from aqicn_client import AqicnClient, AqicnClientError
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    print("python-dotenv library not found. Install with: pip install python-dotenv")
+    exit(1)
+
+# Load environment variables
+load_dotenv()
+
+# Configure logging with proper Unicode handling
+
+# Create console handler with UTF-8 encoding
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.INFO)
+
+# Create file handler with UTF-8 encoding
+file_handler = logging.FileHandler('station_fetch.log', encoding='utf-8')
+file_handler.setLevel(logging.INFO)
+
+# Create formatter
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
+file_handler.setFormatter(formatter)
+
+# Configure root logger
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logger.addHandler(console_handler)
+logger.addHandler(file_handler)
+
+# Set console encoding to handle Vietnamese characters
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8')
+logger = logging.getLogger(__name__)
 
 
-class VietnamStationsFetcher:
-    """
-    Fetches and processes all active air quality monitoring stations in Vietnam.
-    Handles deduplication, validation, and export to JSON format.
-    """
+class WAQIStationFetcher:
+    """Fetches station data from WAQI API and formats for MongoDB storage."""
     
-    def __init__(self, api_key: str, output_dir: str = "data_results"):
-        """
-        Initialize the Vietnam stations fetcher.
+    def __init__(self):
+        self.api_key = os.getenv('AQICN_API_KEY')
+        self.api_url = os.getenv('AQICN_API_URL', 'https://api.waqi.info/')
+        self.timeout = int(os.getenv('AQICN_TIMEOUT', '30'))
+        self.rate_limit = int(os.getenv('AQICN_RATE_LIMIT', '1000'))
         
-        Args:
-            api_key: AQICN API key
-            output_dir: Directory to save output files
-        """
-        self.api_key = api_key
-        # Use absolute path relative to the script location
-        script_dir = Path(__file__).parent
-        self.output_dir = script_dir / output_dir
+        if not self.api_key:
+            raise ValueError("AQICN_API_KEY not found in environment variables")
+        
+        self.session = requests.Session()
+        self.session.headers.update({
+            'User-Agent': 'AirQualityMonitoring/1.0'
+        })
+        
+        # Ensure data_results directory exists
+        self.output_dir = Path(__file__).parent / 'data_results'
         self.output_dir.mkdir(exist_ok=True)
         
-        # Initialize client
-        self.client = AqicnClient(
-            api_key=api_key,
-            rate_limit=1000,
-            timeout=30,
-            max_retries=3
-        )
-        
-        # Setup logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        self.logger = logging.getLogger(__name__)
-        
-        # Vietnam provinces and cities for comprehensive search
-        self.vietnam_search_terms = [
-            'vietnam', 'viet nam', 'hanoi', 'ho chi minh', 'saigon',
-            'da nang', 'hai phong', 'can tho', 'bien hoa', 'hue',
-            'nha trang', 'buon ma thuot', 'quy nhon', 'vung tau',
-            'thai nguyen', 'phan thiet', 'thai binh', 'ha long',
-            'nam dinh', 'cam ranh', 'vinh', 'my tho', 'rach gia',
-            'long xuyen', 'ha tinh', 'dong hoi', 'pleiku', 'dong ha',
-            'tam ky', 'tuy hoa', 'bac lieu', 'ca mau', 'chau doc',
-            'ha giang', 'cao bang', 'lang son', 'lao cai', 'dien bien',
-            'son la', 'lai chau', 'yen bai', 'tuyen quang', 'ha giang',
-            'bac kan', 'thai nguyen', 'lang son', 'quang ninh', 'bac giang',
-            'phu tho', 'vinh phuc', 'bac ninh', 'hai duong', 'hung yen',
-            'thai binh', 'ha nam', 'nam dinh', 'ninh binh', 'thanh hoa',
-            'nghe an', 'ha tinh', 'quang binh', 'quang tri', 'thua thien hue',
-            'da nang', 'quang nam', 'quang ngai', 'binh dinh', 'phu yen',
-            'khanh hoa', 'ninh thuan', 'binh thuan', 'kon tum', 'gia lai',
-            'dak lak', 'dak nong', 'lam dong', 'binh phuoc', 'tay ninh',
-            'binh duong', 'dong nai', 'ba ria vung tau', 'ho chi minh',
-            'long an', 'tien giang', 'ben tre', 'tra vinh', 'vinh long',
-            'dong thap', 'an giang', 'kien giang', 'can tho', 'hau giang',
-            'soc trang', 'bac lieu', 'ca mau'
-        ]
-        
-    def fetch_all_vietnam_stations(self) -> List[Dict[str, Any]]:
+        logger.info(f"Initialized WAQI fetcher with API URL: {self.api_url}")
+
+    def extract_station_id_from_url(self, url: str) -> Optional[str]:
         """
-        Fetch all active air quality stations in Vietnam.
-        
-        Returns:
-            List of station dictionaries with comprehensive data
-        """
-        self.logger.info("Starting comprehensive Vietnam stations search")
-        
-        # Use set to track unique stations by ID and coordinates
-        unique_stations: Dict[int, Dict] = {}
-        coordinate_map: Dict[Tuple[float, float], int] = {}
-        
-        # Search using multiple terms
-        for term in self.vietnam_search_terms:
-            try:
-                self.logger.info(f"Searching with term: {term}")
-                
-                # Search for stations
-                search_data = self.client._make_request("search/", {"keyword": term})
-                
-                if 'data' in search_data and search_data['data']:
-                    for station in search_data['data']:
-                        station_id = station.get('uid') or station.get('idx')
-                        if not station_id:
-                            continue
-                            
-                        # Check if this is a Vietnam station
-                        if not self._is_vietnam_station(station):
-                            continue
-                            
-                        # Get detailed station info
-                        try:
-                            detailed_station = self._fetch_station_details(station_id)
-                            if detailed_station and self._is_active_station(detailed_station):
-                                # Check for duplicates by coordinates
-                                coords = self._extract_coordinates(detailed_station)
-                                if coords:
-                                    coord_key = (round(coords[0], 6), round(coords[1], 6))
-                                    
-                                    # Skip if we already have this location
-                                    if coord_key in coordinate_map:
-                                        existing_id = coordinate_map[coord_key]
-                                        self.logger.debug(f"Duplicate location {coord_key}: station {station_id} vs {existing_id}")
-                                        continue
-                                    
-                                    # Store the station
-                                    unique_stations[station_id] = detailed_station
-                                    coordinate_map[coord_key] = station_id
-                                    self.logger.info(f"Added station {station_id}: {detailed_station.get('city', {}).get('name', 'Unknown')}")
-                        
-                        except Exception as e:
-                            self.logger.warning(f"Error fetching details for station {station_id}: {e}")
-                            continue
-                
-                # Small delay between searches
-                time.sleep(0.2)
-                
-            except Exception as e:
-                self.logger.warning(f"Error searching with term '{term}': {e}")
-                continue
-        
-        stations_list = list(unique_stations.values())
-        self.logger.info(f"Found {len(stations_list)} unique active stations in Vietnam")
-        
-        return stations_list
-    
-    def _is_vietnam_station(self, station: Dict) -> bool:
-        """
-        Check if a station is located in Vietnam with strict filtering.
+        Extract station identifier from WAQI URL.
+        Handles both /city/ and /station/ URL patterns.
         
         Args:
-            station: Station data from search results
+            url: WAQI station URL
             
         Returns:
-            True if station is confirmed to be in Vietnam
-        """
-        # Check country field if available
-        country = station.get('country', '').lower()
-        if 'vietnam' in country or 'viet nam' in country:
-            return True
-        
-        # Check station name and URL
-        station_data = station.get('station', {})
-        name = station_data.get('name', '').lower()
-        url = station_data.get('url', '').lower()
-        
-        # Strong exclusion patterns for foreign stations
-        foreign_patterns = [
-            'china', 'chinese', '中国', '省', '市', '县', '区', '厅', '局',
-            'hainan', 'guangxi', 'yunnan', 'thailand', 'laos', 'cambodia',
-            'changjiang', '昌江', '海南', '国土环境', '资源', '循环经济',
-            'guangdong', 'guangzhou', 'shenzhen', 'beijing', 'shanghai',
-            'macau', 'hong kong', 'taiwan', 'singapore', 'malaysia'
-        ]
-        
-        # Check for exclusion patterns
-        for pattern in foreign_patterns:
-            if pattern in name or pattern in url:
-                return False
-        
-        # Vietnam positive indicators (city names and variations)
-        vietnam_indicators = [
-            'vietnam', 'viet-nam', 'hanoi', 'ho-chi-minh', 'saigon', 'da-nang',
-            'hai-phong', 'can-tho', 'bien-hoa', 'vung-tau', 'nha-trang',
-            'hue', 'vinh', 'quy-nhon', 'pleiku', 'buon-ma-thuot', 'my-tho',
-            'long-xuyen', 'rach-gia', 'phan-thiet', 'dong-ha', 'lang-son',
-            'ha-giang', 'cao-bang', 'lao-cai', 'dien-bien', 'son-la',
-            'nam-dinh', 'thai-nguyen', 'tuyen-quang', 'yen-bai', 'ha-nam',
-            'ninh-binh', 'thanh-hoa', 'nghe-an', 'ha-tinh', 'quang-binh',
-            'quang-tri', 'quang-nam', 'quang-ngai', 'binh-dinh', 'phu-yen',
-            'khanh-hoa', 'ninh-thuan', 'binh-thuan', 'kon-tum', 'gia-lai',
-            'dak-lak', 'dak-nong', 'lam-dong', 'binh-phuoc', 'tay-ninh',
-            'binh-duong', 'dong-nai', 'ba-ria', 'long-an', 'tien-giang',
-            'ben-tre', 'tra-vinh', 'vinh-long', 'dong-thap', 'an-giang',
-            'kien-giang', 'bac-lieu', 'ca-mau'
-        ]
-        
-        # Check for Vietnam indicators
-        has_vietnam_indicator = False
-        for indicator in vietnam_indicators:
-            if indicator in name or indicator in url:
-                has_vietnam_indicator = True
-                break
-        
-        # Check coordinates (Vietnam bounds: 8.2°-23.4°N, 102.1°-109.5°E)
-        coords = station_data.get('geo', [])
-        coords_in_vietnam = False
-        
-        if len(coords) >= 2:
-            try:
-                lat, lon = float(coords[0]), float(coords[1])
-                # Stricter Vietnam bounds
-                if 8.2 <= lat <= 23.4 and 102.1 <= lon <= 109.5:
-                    coords_in_vietnam = True
-                    
-                    # Additional check for border areas that might be foreign
-                    # Exclude far northern areas that might be China
-                    if lat > 22.5 and (lon < 103.0 or lon > 108.0):
-                        coords_in_vietnam = False
-                    
-                    # Exclude far western areas that might be Laos
-                    if lon < 103.0 and lat > 20.0:
-                        coords_in_vietnam = False
-                        
-            except (ValueError, TypeError):
-                coords_in_vietnam = False
-        
-        # Only accept if both positive indicators and coordinates match
-        # Or if there's a strong Vietnam indicator
-        if has_vietnam_indicator and coords_in_vietnam:
-            return True
-        elif has_vietnam_indicator and not coords_in_vietnam:
-            # Vietnam indicator but coords don't match - be cautious
-            return False
-        elif coords_in_vietnam and not has_vietnam_indicator:
-            # Coords match but no clear indicator - be cautious for border areas
-            return False
-        
-        return False
-    
-    def _fetch_station_details(self, station_id: int) -> Optional[Dict]:
-        """
-        Fetch detailed information for a specific station.
-        
-        Args:
-            station_id: Station ID
-            
-        Returns:
-            Detailed station data or None if unavailable
+            Station identifier or None if not extractable
         """
         try:
-            data = self.client._make_request(f"feed/@{station_id}/")
+            # Parse URL path and decode URL-encoded characters
+            parsed = urlparse(url)
+            path_parts = [unquote(part) for part in parsed.path.split('/') if part]
             
-            if 'data' not in data:
+            # Handle /city/ URLs
+            if 'city' in path_parts:
+                city_index = path_parts.index('city')
+                location_parts = path_parts[city_index + 1:]
+                station_id = '/'.join(location_parts)
+                return station_id
+            
+            # Handle /station/ URLs  
+            elif 'station' in path_parts:
+                station_index = path_parts.index('station')
+                if station_index + 1 < len(path_parts):
+                    # For station URLs, use the part after 'station'
+                    station_id = path_parts[station_index + 1]
+                    return station_id
+            
+            logger.warning(f"URL pattern not recognized: {url}")
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Failed to extract station ID from URL {url}: {e}")
+            return None
+
+    def fetch_station_data(self, station_id: str) -> Optional[Dict]:
+        """
+        Fetch station data from WAQI API.
+        
+        Args:
+            station_id: Station identifier
+            
+        Returns:
+            Station data or None if fetch failed
+        """
+        try:
+            # Construct API URL for station feed
+            api_url = f"{self.api_url.rstrip('/')}/feed/{station_id}/"
+            params = {'token': self.api_key}
+            
+            logger.debug(f"Fetching data for station: {station_id}")
+            logger.debug(f"API URL: {api_url}")
+            
+            response = self.session.get(
+                api_url,
+                params=params,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            if data.get('status') != 'ok':
+                logger.warning(f"API returned non-ok status for {station_id}: {data.get('status')}")
+                return None
+                
+            return data.get('data')
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request failed for station {station_id}: {e}")
+            return None
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode failed for station {station_id}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error fetching station {station_id}: {e}")
+            return None
+
+    def format_station_data(self, raw_data: Dict, original_url: str) -> Optional[Dict]:
+        """
+        Format raw WAQI data to MongoDB schema format.
+        
+        Args:
+            raw_data: Raw data from WAQI API
+            original_url: Original station URL from CSV
+            
+        Returns:
+            Formatted station document or None if formatting failed
+        """
+        try:
+            # Extract required fields
+            station_idx = raw_data.get('idx')
+            city_data = raw_data.get('city', {})
+            time_data = raw_data.get('time', {})
+            attributions = raw_data.get('attributions', [])
+            
+            if not station_idx or not city_data:
+                logger.warning(f"Missing required fields in station data: {raw_data}")
                 return None
             
-            station_data = data['data']
+            # Extract coordinates
+            geo_data = city_data.get('geo')
+            if not geo_data or len(geo_data) != 2:
+                logger.warning(f"Invalid geo data for station {station_idx}: {geo_data}")
+                return None
+                
+            longitude, latitude = geo_data
             
-            # Transform to MongoDB collection format
-            result = {
-                '_id': station_id,
-                'city': {
-                    'name': station_data.get('city', {}).get('name', ''),
-                    'url': station_data.get('city', {}).get('url', ''),
-                    'geo': {
-                        'type': 'Point',
-                        'coordinates': station_data.get('city', {}).get('geo', [])
+            # Format according to MongoDB schema
+            formatted_data = {
+                "_id": station_idx,
+                "city": {
+                    "name": city_data.get('name', ''),
+                    "url": original_url,  # Use original URL from CSV
+                    "geo": {
+                        "type": "Point",
+                        "coordinates": [float(longitude), float(latitude)]
                     }
                 }
             }
             
             # Add timezone if available
-            if 'time' in station_data and 'tz' in station_data['time']:
-                result['time'] = {
-                    'tz': station_data['time']['tz']
+            if time_data.get('tz'):
+                formatted_data["time"] = {
+                    "tz": time_data['tz']
                 }
             
-            # Add attributions if available
-            if 'attributions' in station_data and station_data['attributions']:
-                result['attributions'] = []
-                for attr in station_data['attributions']:
-                    attribution = {}
-                    if 'name' in attr:
-                        attribution['name'] = attr['name']
-                    if 'url' in attr:
-                        attribution['url'] = attr['url']
-                    if 'logo' in attr:
-                        attribution['logo'] = attr['logo']
-                    if attribution:
-                        result['attributions'].append(attribution)
+            # Format attributions
+            if attributions:
+                formatted_attributions = []
+                for attr in attributions:
+                    formatted_attr = {}
+                    if attr.get('name'):
+                        formatted_attr['name'] = attr['name']
+                    if attr.get('url'):
+                        formatted_attr['url'] = attr['url']
+                    if attr.get('logo'):
+                        formatted_attr['logo'] = attr['logo']
+                    
+                    if formatted_attr:
+                        formatted_attributions.append(formatted_attr)
+                
+                if formatted_attributions:
+                    formatted_data["attributions"] = formatted_attributions
             
-            return result
+            return formatted_data
             
         except Exception as e:
-            self.logger.warning(f"Error fetching station {station_id}: {e}")
+            logger.error(f"Error formatting station data: {e}")
             return None
-    
-    def _is_active_station(self, station: Dict) -> bool:
+
+    def read_station_urls(self, csv_file_path: str) -> List[str]:
         """
-        Check if a station is currently active.
+        Read station URLs from CSV file.
         
         Args:
-            station: Station data
+            csv_file_path: Path to CSV file
             
         Returns:
-            True if station appears to be active
+            List of station URLs
         """
-        # Basic validation
-        if not station or '_id' not in station:
-            return False
+        urls = []
         
-        city = station.get('city', {})
-        if not city.get('name') or not city.get('url'):
-            return False
-        
-        # Check coordinates
-        geo = city.get('geo', {})
-        coords = geo.get('coordinates', [])
-        if not coords or len(coords) < 2:
-            return False
-        
-        # Coordinates should be valid
         try:
-            lat, lon = float(coords[0]), float(coords[1])
-            if not (-90 <= lat <= 90 and -180 <= lon <= 180):
-                return False
-        except (ValueError, TypeError):
-            return False
-        
-        return True
-    
-    def _extract_coordinates(self, station: Dict) -> Optional[Tuple[float, float]]:
+            with open(csv_file_path, 'r', encoding='utf-8') as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    url = row.get('URL', '').strip()
+                    if url and url.startswith('https://aqicn.org/'):
+                        urls.append(url)
+                        
+            logger.info(f"Read {len(urls)} station URLs from {csv_file_path}")
+            return urls
+            
+        except Exception as e:
+            logger.error(f"Error reading CSV file {csv_file_path}: {e}")
+            return []
+
+    def fetch_all_stations(self, csv_file_path: str) -> List[Dict]:
         """
-        Extract coordinates from station data.
+        Fetch all station data from URLs in CSV file.
         
         Args:
-            station: Station data
+            csv_file_path: Path to CSV file with station URLs
             
         Returns:
-            Tuple of (latitude, longitude) or None
+            List of formatted station documents
         """
-        try:
-            coords = station.get('city', {}).get('geo', {}).get('coordinates', [])
-            if len(coords) >= 2:
-                return (float(coords[0]), float(coords[1]))
-        except (ValueError, TypeError):
-            pass
-        return None
-    
-    def validate_stations(self, stations: List[Dict]) -> List[Dict]:
-        """
-        Validate and clean station data.
+        urls = self.read_station_urls(csv_file_path)
+        stations = []
         
-        Args:
-            stations: List of station dictionaries
+        logger.info(f"Starting to fetch data for {len(urls)} stations")
+        
+        for i, url in enumerate(urls, 1):
+            logger.info(f"Processing station {i}/{len(urls)}: {url}")
             
-        Returns:
-            List of validated stations
-        """
-        valid_stations = []
-        
-        for station in stations:
-            if self._validate_station_schema(station):
-                valid_stations.append(station)
+            # Extract station ID
+            station_id = self.extract_station_id_from_url(url)
+            if not station_id:
+                logger.warning(f"Could not extract station ID from URL: {url}")
+                continue
+            
+            # Fetch station data
+            raw_data = self.fetch_station_data(station_id)
+            if not raw_data:
+                logger.warning(f"Failed to fetch data for station: {station_id}")
+                continue
+            
+            # Format station data
+            formatted_data = self.format_station_data(raw_data, url)
+            if formatted_data:
+                stations.append(formatted_data)
+                # Safe logging for Unicode characters
+                try:
+                    station_name = formatted_data['city']['name']
+                    logger.info(f"Successfully processed station {formatted_data['_id']}: {station_name}")
+                except UnicodeEncodeError:
+                    # Fallback for encoding issues
+                    station_name_safe = formatted_data['city']['name'].encode('ascii', errors='replace').decode('ascii')
+                    logger.info(f"Successfully processed station {formatted_data['_id']}: {station_name_safe}")
             else:
-                self.logger.warning(f"Invalid station schema: {station.get('_id', 'unknown')}")
-        
-        return valid_stations
-    
-    def _validate_station_schema(self, station: Dict) -> bool:
-        """
-        Validate station against MongoDB schema.
-        
-        Args:
-            station: Station dictionary
+                logger.warning(f"Failed to format data for station: {station_id}")
             
-        Returns:
-            True if valid
-        """
-        # Check required fields
-        if '_id' not in station or not isinstance(station['_id'], int):
-            return False
+            # Rate limiting - be more conservative
+            if i < len(urls):
+                sleep_time = max(1.0, 60 / self.rate_limit)  # At least 1 second between requests
+                logger.debug(f"Sleeping for {sleep_time:.2f} seconds")
+                time.sleep(sleep_time)
         
-        city = station.get('city', {})
-        if not isinstance(city, dict):
-            return False
-        
-        # Check required city fields
-        if not city.get('name') or not isinstance(city['name'], str):
-            return False
-        
-        if not city.get('url') or not isinstance(city['url'], str):
-            return False
-        
-        # Check geo structure
-        geo = city.get('geo', {})
-        if not isinstance(geo, dict):
-            return False
-        
-        if geo.get('type') != 'Point':
-            return False
-        
-        coords = geo.get('coordinates', [])
-        if not isinstance(coords, list) or len(coords) != 2:
-            return False
-        
-        try:
-            lat, lon = float(coords[0]), float(coords[1])
-            if not (-90 <= lat <= 90 and -180 <= lon <= 180):
-                return False
-        except (ValueError, TypeError):
-            return False
-        
-        return True
-    
+        logger.info(f"Successfully fetched {len(stations)} out of {len(urls)} stations")
+        return stations
+
     def export_to_json(self, stations: List[Dict], filename: str = None) -> str:
         """
-        Export stations to JSON file.
+        Export station data to JSON file.
         
         Args:
-            stations: List of station dictionaries
+            stations: List of station documents
             filename: Output filename (optional)
             
         Returns:
             Path to exported file
         """
-        if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if not filename:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f"vietnam_stations_{timestamp}.json"
         
         output_path = self.output_dir / filename
         
-        # Prepare data for export
-        export_data = {
-            'metadata': {
-                'collection': 'waqi_stations',
-                'fetched_at': datetime.utcnow().isoformat() + 'Z',
-                'total_stations': len(stations),
-                'country': 'Vietnam',
-                'description': 'Active air quality monitoring stations in Vietnam'
-            },
-            'data': stations
-        }
-        
-        # Write to file
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(export_data, f, indent=2, ensure_ascii=False)
-        
-        self.logger.info(f"Exported {len(stations)} stations to {output_path}")
-        self.logger.info(f"File size: {output_path.stat().st_size} bytes")
-        return str(output_path)
-    
-    def run(self) -> str:
-        """
-        Run the complete process to fetch and export Vietnam stations.
-        
-        Returns:
-            Path to exported JSON file
-        """
-        self.logger.info("Starting Vietnam stations collection process")
-        
-        # Fetch all stations
-        stations = self.fetch_all_vietnam_stations()
-        
-        # Validate stations
-        valid_stations = self.validate_stations(stations)
-        
-        if len(valid_stations) != len(stations):
-            self.logger.warning(f"Filtered out {len(stations) - len(valid_stations)} invalid stations")
-        
-        if not valid_stations:
-            raise ValueError("No valid stations found")
-        
-        # Export to JSON
-        output_path = self.export_to_json(valid_stations)
-        
-        self.logger.info(f"Process completed successfully. {len(valid_stations)} stations exported to {output_path}")
-        return output_path
+        try:
+            # Create structured JSON with metadata (compatible with import script)
+            export_data = {
+                "metadata": {
+                    "collection": "waqi_stations",
+                    "source": "WAQI API",
+                    "export_time": datetime.now().isoformat(),
+                    "total_stations": len(stations),
+                    "country": "Vietnam"
+                },
+                "data": stations
+            }
+            
+            with open(output_path, 'w', encoding='utf-8') as file:
+                json.dump(export_data, file, indent=2, ensure_ascii=False)
+            
+            logger.info(f"Exported {len(stations)} stations to {output_path}")
+            return str(output_path)
+            
+        except Exception as e:
+            logger.error(f"Error exporting to JSON: {e}")
+            raise
 
 
 def main():
-    """Main execution function."""
-    # Load API key from environment
-    from dotenv import load_dotenv
-    load_dotenv()
-    
-    api_key = os.getenv('AQICN_API_KEY')
-    if not api_key:
-        raise ValueError("AQICN_API_KEY not found in environment variables")
-    
-    # Create fetcher and run
-    fetcher = VietnamStationsFetcher(api_key)
-    
+    """Main function to fetch and export Vietnam station data."""
     try:
-        output_path = fetcher.run()
-        print(f"Successfully exported Vietnam stations to: {output_path}")
+        fetcher = WAQIStationFetcher()
         
-        # Print summary statistics
-        with open(output_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            
-        stations = data['data']
-        print(f"\nSummary:")
-        print(f"Total stations: {len(stations)}")
+        # Path to CSV file
+        csv_file_path = Path(__file__).parent / 'data_results' / 'stations.csv'
         
-        # Group by provinces/cities
-        cities = {}
-        for station in stations:
-            city_name = station['city']['name']
-            if city_name not in cities:
-                cities[city_name] = 0
-            cities[city_name] += 1
+        if not csv_file_path.exists():
+            logger.error(f"CSV file not found: {csv_file_path}")
+            return
         
-        print(f"Unique cities: {len(cities)}")
-        print("\nTop 10 cities by station count:")
-        for city, count in sorted(cities.items(), key=lambda x: x[1], reverse=True)[:10]:
-            print(f"  {city}: {count} stations")
+        # Fetch all station data
+        stations = fetcher.fetch_all_stations(str(csv_file_path))
+        
+        if not stations:
+            logger.warning("No station data was successfully fetched")
+            return
+        
+        # Export to JSON
+        output_path = fetcher.export_to_json(stations)
+        
+        logger.info(f"Process completed successfully. Output file: {output_path}")
+        logger.info(f"Total stations processed: {len(stations)}")
+        
+        # Print summary
+        print(f"\n=== FETCH SUMMARY ===")
+        print(f"Total stations fetched: {len(stations)}")
+        print(f"Output file: {output_path}")
+        print(f"Log file: station_fetch.log")
         
     except Exception as e:
-        print(f"Error: {e}")
-        return 1
-    
-    return 0
+        logger.error(f"Fatal error in main process: {e}")
+        raise
 
 
 if __name__ == "__main__":
-    exit(main())
+    main()
