@@ -34,6 +34,11 @@ class Config:
     # Cache settings
     CACHE_TYPE = os.environ.get('CACHE_TYPE') or 'simple'
     CACHE_DEFAULT_TIMEOUT = int(os.environ.get('CACHE_DEFAULT_TIMEOUT') or 300)
+    
+    # Station reading scheduler settings
+    STATION_POLLING_INTERVAL_MINUTES = int(os.environ.get('STATION_POLLING_INTERVAL_MINUTES') or 60)
+    STATION_SCRIPT_TIMEOUT_SECONDS = int(os.environ.get('STATION_SCRIPT_TIMEOUT_SECONDS') or 300)
+    ENABLE_STATION_SCHEDULER = os.environ.get('ENABLE_STATION_SCHEDULER', 'true').lower() in ['true', '1', 'on', 'yes']
 
 
 class DevelopmentConfig(Config):

@@ -46,35 +46,26 @@ def create_app(config_class=Config):
     # Register blueprints
     register_blueprints(app)
 
-    # Start background catch-up on first request (non-blocking) when available.
+    # Note: Background catchup disabled in favor of periodic streaming scheduler
+    # The streaming scheduler uses get_station_reading.py for real-time data with deduplication
+    import logging
+    logging.getLogger(__name__).info("Background catchup disabled - using periodic streaming scheduler instead")
+    
+    # Initialize station reading scheduler
     try:
-        from ingest.catchup import start_background_catchup
-
-        # Register the before_first_request handler only if the attribute exists and is callable.
-        try:
-            bfr = getattr(app, 'before_first_request', None)
-            if callable(bfr):
-                @app.before_first_request
-                def _start_catchup():
-                    # Start in background so startup is not blocked
-                    start_background_catchup(app)
-            else:
-                # Fallback: if the Flask app object doesn't provide the decorator
-                # (some hosting environments may provide a different app proxy),
-                # start catchup immediately in background.
-                import logging
-                logging.getLogger(__name__).info('before_first_request not available; starting catchup immediately')
-                try:
-                    start_background_catchup(app)
-                except Exception as e:
-                    logging.getLogger(__name__).warning(f'Failed to start background catchup immediately: {e}')
-        except Exception as e:
+        from ingest.streaming import init_scheduler
+        
+        scheduler = init_scheduler(app)
+        if scheduler:
             import logging
-            logging.getLogger(__name__).warning(f'Failed to register/start catchup handler: {e}')
+            logging.getLogger(__name__).info("Station reading scheduler started successfully")
+        else:
+            import logging
+            logging.getLogger(__name__).warning("Station reading scheduler failed to start")
     except Exception as e:
         # Import errors should not prevent the app from starting; log and continue
         import logging
-        logging.getLogger(__name__).warning(f"Catchup integration not available: {e}")
+        logging.getLogger(__name__).warning(f"Station reading scheduler integration not available: {e}")
     
     return app
 
@@ -94,6 +85,7 @@ def register_blueprints(app):
     from backend.app.blueprints.api.forecasts.routes import forecasts_bp
     from backend.app.blueprints.api.exports.routes import exports_bp
     from backend.app.blueprints.api.realtime.routes import realtime_bp
+    from backend.app.blueprints.api.scheduler.routes import scheduler_bp
     
     # Import Web blueprint
     from backend.app.blueprints.web.routes import web_bp
@@ -107,6 +99,7 @@ def register_blueprints(app):
     app.register_blueprint(forecasts_bp, url_prefix='/api/forecasts')
     app.register_blueprint(exports_bp, url_prefix='/api/exports')
     app.register_blueprint(realtime_bp, url_prefix='/api/realtime')
+    app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
     
     # Register Web blueprint (no prefix for main web routes)
     app.register_blueprint(web_bp)
