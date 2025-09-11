@@ -491,6 +491,73 @@ JSON Schema validators are available in `docs/schema/mongo_validators/` for:
 
 ## 📚 Additional Resources
 
+---
+
+## 🚦 Data Ingestion Workflow (Current Readings)
+
+### Overview
+
+The ingestion pipeline fetches current air quality readings for all stations from the WAQI API and stores them in MongoDB. It is designed for reliability, duplicate prevention, and safe re-ingestion.
+
+### Key Features
+
+- **Checkpoint Mechanism**: Prevents duplicate ingestion by tracking the last processed time.
+- **Station-level Duplicate Prevention**: Each station document (`waqi_stations`) tracks its own `latest_update_time` field. Before inserting a new reading, the system checks this field to avoid duplicate data for the same time period.
+- **Time-Series Storage**: All readings are stored in the `waqi_station_readings` time-series collection, optimized for historical and trend queries.
+- **Reset Option**: The ingestion script supports a `--reset-stations` flag to clear all `latest_update_time` fields, allowing a full reload of current data from scratch (useful for recovery or testing).
+- **Dry-Run Mode**: Use `--dry-run` to simulate ingestion without modifying the database.
+
+### Ingestion Script Usage
+
+```bash
+# Normal ingestion (skips duplicates)
+python ingest/get_station_reading.py --log-level INFO
+
+# Force reload all stations (clear duplicate tracking)
+python ingest/get_station_reading.py --reset-stations --log-level INFO
+
+# Dry-run (no DB changes)
+python ingest/get_station_reading.py --dry-run --log-level DEBUG
+```
+
+### How Duplicate Prevention Works
+
+1. **Checkpoint**: The script saves a checkpoint after each successful run, recording the last processed time.
+2. **Per-Station Check**: Before inserting a reading, the script compares the incoming reading's time with the station's `latest_update_time`.
+   - If the times match, the reading is skipped (duplicate).
+   - If the time is new, the reading is inserted and `latest_update_time` is updated.
+3. **Reset**: Using `--reset-stations` removes all `latest_update_time` fields, so all stations are eligible for re-ingestion.
+
+### Example Document (waqi_stations)
+
+```json
+{
+  "_id": 7397,
+  "city": { ... },
+  "latest_update_time": { "s": "2025-09-11 13:00:00", "tz": "+07:00" }
+}
+```
+
+### Example Document (waqi_station_readings)
+
+```json
+{
+  "ts": "2025-09-11T06:00:00.000Z",
+  "meta": { "station_idx": 7397 },
+  "aqi": 71,
+  "time": { "s": "2025-09-11 13:00:00", "tz": "+07:00" },
+  "iaqi": { "pm25": { "v": 71 } }
+}
+```
+
+### Operational Notes
+
+- The ingestion script is idempotent: running it multiple times for the same time window will not create duplicates.
+- Use the reset feature with caution; it is intended for full reloads or recovery scenarios.
+- All timestamps are handled in UTC internally; local time and timezone are stored for reference.
+
+---
+
 - [MongoDB Time Series Collections](https://docs.mongodb.com/manual/core/timeseries-collections/)
 - [GeoJSON Specification](https://geojson.org/)
 - [WAQI API Documentation](https://aqicn.org/json-api/doc/)
