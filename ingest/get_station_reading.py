@@ -277,6 +277,72 @@ class CurrentReadingManager:
             self.logger.error(f"Failed to save checkpoint: {e}")
             return False
     
+    def should_insert_reading(self, station_idx: int, time_iso: str) -> bool:
+        """
+        Check if reading should be inserted based on latest_reading_at comparison.
+        
+        Args:
+            station_idx: Station index
+            time_iso: ISO timestamp from reading (e.g., "2025-09-11T18:00:00+07:00")
+            
+        Returns:
+            True if reading should be inserted, False if duplicate
+        """
+        try:
+            # Get station's latest_reading_at
+            station = self.stations_collection.find_one(
+                {'_id': station_idx},
+                {'latest_reading_at': 1}
+            )
+            
+            if not station:
+                self.logger.warning(f"Station {station_idx} not found in database")
+                return False
+            
+            latest_reading_at = station.get('latest_reading_at')
+            
+            # First time ingesting data for this station
+            if latest_reading_at is None:
+                self.logger.debug(f"Station {station_idx} has no latest_reading_at, allowing insert")
+                return True
+            
+            # Compare time.iso with latest_reading_at
+            if time_iso == latest_reading_at:
+                self.logger.debug(f"Station {station_idx} already has reading for {time_iso}, skipping")
+                return False
+            else:
+                self.logger.debug(f"Station {station_idx} has new reading: {time_iso} vs {latest_reading_at}")
+                return True
+                
+        except Exception as e:
+            self.logger.error(f"Error checking if should insert reading for station {station_idx}: {e}")
+            return False
+
+    def update_station_latest_reading_at(self, station_idx: int, time_iso: str) -> None:
+        """
+        Update latest_reading_at field in waqi_stations collection.
+        
+        Args:
+            station_idx: Station ID
+            time_iso: ISO timestamp from reading (e.g., "2025-09-11T18:00:00+07:00")
+        """
+        try:
+            if not self.dry_run:
+                result = self.stations_collection.update_one(
+                    {'_id': station_idx},
+                    {'$set': {'latest_reading_at': time_iso}},
+                    upsert=False
+                )
+                if result.modified_count > 0:
+                    self.logger.debug(f"Updated latest_reading_at for station {station_idx}: {time_iso}")
+                else:
+                    self.logger.warning(f"Failed to update latest_reading_at for station {station_idx}")
+            else:
+                self.logger.debug(f"(dry-run) Would update latest_reading_at for station {station_idx}: {time_iso}")
+                
+        except Exception as e:
+            self.logger.warning(f"Failed to update latest_reading_at for station {station_idx}: {e}")
+
     def should_skip_ingestion(self, current_time: datetime) -> bool:
         """
         Check if ingestion should be skipped based on last checkpoint.
@@ -337,22 +403,19 @@ class CurrentReadingManager:
             Station data from API or None if failed
         """
         try:
-            # Use the AQICN client to get current station info
-            station_info = self.aqicn_client.get_station_info(station_idx)
+            # Get current station data (real-time data, not forecast)
+            current_data = self.aqicn_client.get_current_data(station_idx)
             
-            # Transform to the format expected by fetch_hourly
-            if station_info:
-                # Get the full station data using fetch_hourly which includes current reading
-                full_data = self.aqicn_client.fetch_hourly(station_idx)
-                if full_data and 'current_aqi' in full_data:
-                    return {
-                        'aqi': full_data['current_aqi'],
-                        'time': {
-                            's': full_data.get('current_time', ''),
-                            'tz': full_data.get('timezone', '')
-                        },
-                        'iaqi': full_data.get('current_iaqi', {})
-                    }
+            if current_data and current_data.get('aqi') is not None:
+                # Return current real-time data in the expected format
+                return {
+                    'aqi': current_data['aqi'],
+                    'time': current_data.get('time', {}),
+                    'iaqi': current_data.get('iaqi', {}),
+                    'dominentpol': current_data.get('dominentpol', ''),
+                    'city': current_data.get('city', {}),
+                    'attributions': current_data.get('attributions', [])
+                }
             
             return None
             
@@ -488,16 +551,23 @@ class CurrentReadingManager:
 
     def safe_insert_reading(self, station_idx: int, reading: Dict[str, Any]) -> bool:
         """
-        Safely insert a reading with station-level time duplicate prevention.
+        Safely insert a reading with time.iso duplicate prevention.
         
         Returns:
             True if successfully inserted, False if duplicate or failed
         """
         try:
-            # Check if station already has this time data
+            # Get time.iso from reading for duplicate checking
             time_data = reading.get('time', {})
-            if self.check_station_time_duplicate(station_idx, time_data):
-                self.logger.debug(f"Station {station_idx} time duplicate detected, skipping insert")
+            time_iso = time_data.get('iso')
+            
+            if not time_iso:
+                self.logger.warning(f"Station {station_idx} reading missing time.iso, skipping")
+                return False
+            
+            # Check if station already has this time.iso
+            if not self.should_insert_reading(station_idx, time_iso):
+                self.logger.debug(f"Station {station_idx} already has reading for {time_iso}, skipping")
                 return False
             
             if not self.dry_run:
@@ -505,8 +575,8 @@ class CurrentReadingManager:
                 try:
                     result = self.readings_collection.insert_one(reading)
                     if result.inserted_id:
-                        # Update station's latest_update_time after successful insert
-                        self.update_station_latest_time(station_idx, time_data)
+                        # Update station's latest_reading_at after successful insert
+                        self.update_station_latest_reading_at(station_idx, time_iso)
                         self.logger.debug(f"Successfully inserted reading for station {station_idx}")
                         return True
                     else:
@@ -520,8 +590,8 @@ class CurrentReadingManager:
                     self.logger.error(f"Insert error for station {station_idx}: {e}")
                     return False
             else:
-                # For dry-run, also update the latest time to simulate real behavior
-                self.update_station_latest_time(station_idx, time_data)
+                # For dry-run, also update the latest_reading_at to simulate real behavior
+                self.update_station_latest_reading_at(station_idx, time_iso)
                 self.logger.info(f"(dry-run) Would insert reading for station {station_idx}")
                 return True
                 
@@ -531,7 +601,7 @@ class CurrentReadingManager:
 
     def reset_all_stations_update_time(self) -> bool:
         """
-        Reset latest_update_time field for all stations to allow full data reload.
+        Reset latest_update_time and latest_reading_at fields for all stations to allow full data reload.
         
         Returns:
             True if reset was successful
@@ -540,13 +610,16 @@ class CurrentReadingManager:
             if not self.dry_run:
                 result = self.stations_collection.update_many(
                     {},  # Update all stations
-                    {'$unset': {'latest_update_time': ''}}  # Remove the field
+                    {'$unset': {
+                        'latest_update_time': '',    # Remove old field
+                        'latest_reading_at': ''      # Remove new field
+                    }}
                 )
-                self.logger.info(f"Reset latest_update_time for {result.modified_count} stations")
+                self.logger.info(f"Reset latest_update_time and latest_reading_at for {result.modified_count} stations")
                 return True
             else:
                 count = self.stations_collection.count_documents({})
-                self.logger.info(f"(dry-run) Would reset latest_update_time for {count} stations")
+                self.logger.info(f"(dry-run) Would reset latest_update_time and latest_reading_at for {count} stations")
                 return True
                 
         except Exception as e:

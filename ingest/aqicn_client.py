@@ -445,6 +445,39 @@ class AqicnClient:
             'last_update': station_data.get('time', {}).get('s', '')
         }
 
+    def get_current_data(self, station_idx: Union[int, str]) -> Dict[str, Any]:
+        """
+        Get current real-time air quality data for a specific station.
+        
+        Args:
+            station_idx: Station ID or index
+            
+        Returns:
+            Dictionary containing current air quality data (not forecast)
+            
+        Raises:
+            AqicnClientError: On API or client errors
+        """
+        self.logger.info(f"Fetching current data for station {station_idx}")
+        
+        data = self._make_request(f"feed/@{station_idx}/")
+        
+        if 'data' not in data:
+            raise AqicnApiError(f"No data found for station {station_idx}")
+        
+        station_data = data['data']
+        
+        # Extract current real-time data only (not forecast)
+        return {
+            'aqi': station_data.get('aqi', None),
+            'idx': station_data.get('idx'),
+            'time': station_data.get('time', {}),
+            'iaqi': station_data.get('iaqi', {}),
+            'dominentpol': station_data.get('dominentpol', ''),
+            'city': station_data.get('city', {}),
+            'attributions': station_data.get('attributions', [])
+        }
+
 
 def create_client_from_env() -> AqicnClient:
     """
