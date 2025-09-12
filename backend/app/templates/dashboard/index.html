@@ -167,9 +167,15 @@
         <div class="air-quality-result" id="airQualityResult" style="background: linear-gradient(180deg, #ffffff 0%, #fbfbff 100%); border-radius: 14px; padding: 1.25rem; box-shadow: 0 8px 28px rgba(22,24,33,0.08); margin-bottom: 1.75rem; display: none; border: 1px solid rgba(102,126,234,0.06);">
           <div class="row align-items-center">
             <div class="col-lg-7">
-              <div class="location-info" style="display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #666;">
-                <i class="tim-icons icon-pin" style="margin-right: 0.5rem; color: #667eea;"></i>
-                <span id="locationName">Air Quality in Selected City</span>
+              <div class="location-info" style="display: flex; align-items: center; justify-content: center; margin-bottom: 0.25rem; color: #666; gap:8px; flex-wrap:wrap;">
+                <span style="display:flex; align-items:center; gap:6px;">
+                  <i class="tim-icons icon-pin" style="color: #667eea;"></i>
+                  <span id="locationName">Air Quality in Selected City</span>
+                </span>
+                <span style="display:flex; align-items:center; gap:6px; color:#94a3b8; font-size:0.85rem;">
+                  <i class="tim-icons icon-time-alarm" style="color:#94a3b8;"></i>
+                  <span id="timestampValue">Updated: —</span>
+                </span>
               </div>
 
               <div class="aqi-panel" style="display: flex; gap: 1rem; align-items: center;">
@@ -502,159 +508,18 @@
   </style>
 
   <script>
-    let aqiChart;
-
-    // AQI stations data with real structure (station_idx, city.name, geo.coordinates)
-    const citiesWithStations = {
-        'lang son': [
-            { 
-                station_idx: 13668, 
-                city: { name: 'Lạng Sơn/phường Chi Lăng - TP Lạng Sơn' }, 
-                geo: { coordinates: [106.7506, 21.843325] },
-                aqi: 45, pm25: 18.2, pm10: 25.8, o3: 55.1, no2: 12.4, temp: 24, condition: 'Clear'
-            },
-            { 
-                station_idx: 13669, 
-                city: { name: 'Lạng Sơn/Trung tâm thành phố' }, 
-                geo: { coordinates: [106.7481, 21.8471] },
-                aqi: 52, pm25: 21.7, pm10: 28.3, o3: 48.9, no2: 15.1, temp: 25, condition: 'Good'
-            }
-        ],
-        'hanoi': [
-            { 
-                station_idx: 5814, 
-                city: { name: 'Hanoi/US Embassy - Ngọc Khánh, Ba Đình' }, 
-                geo: { coordinates: [105.8019, 21.0227] },
-                aqi: 85, pm25: 35.2, pm10: 45.8, o3: 22.1, no2: 18.5, temp: 28, condition: 'Moderate'
-            },
-            { 
-                station_idx: 9291, 
-                city: { name: 'Hanoi/Hoàn Kiếm - Trung tâm' }, 
-                geo: { coordinates: [105.8520, 21.0285] },
-                aqi: 92, pm25: 38.7, pm10: 52.3, o3: 19.8, no2: 21.2, temp: 29, condition: 'Moderate'
-            },
-            { 
-                station_idx: 10347, 
-                city: { name: 'Hanoi/Long Biên - Gia Lâm' }, 
-                geo: { coordinates: [105.8867, 21.0414] },
-                aqi: 78, pm25: 32.1, pm10: 41.2, o3: 25.4, no2: 16.8, temp: 27, condition: 'Moderate'
-            },
-            { 
-                station_idx: 12489, 
-                city: { name: 'Hanoi/Cầu Giấy - Dịch Vọng' }, 
-                geo: { coordinates: [105.7938, 21.0314] },
-                aqi: 96, pm25: 41.3, pm10: 58.7, o3: 18.2, no2: 23.9, temp: 30, condition: 'Moderate'
-            }
-        ],
-        'ho chi minh city': [
-            { 
-                station_idx: 5415, 
-                city: { name: 'Ho Chi Minh City/US Consulate - Quận 1' }, 
-                geo: { coordinates: [106.7000, 10.7769] },
-                aqi: 105, pm25: 45.6, pm10: 68.2, o3: 32.7, no2: 28.4, temp: 32, condition: 'Unhealthy (S)'
-            },
-            { 
-                station_idx: 8916, 
-                city: { name: 'Ho Chi Minh City/Trung tâm - Quận 1' }, 
-                geo: { coordinates: [106.6980, 10.7758] },
-                aqi: 118, pm25: 52.8, pm10: 74.5, o3: 29.1, no2: 31.7, temp: 33, condition: 'Unhealthy (S)'
-            },
-            { 
-                station_idx: 9834, 
-                city: { name: 'Ho Chi Minh City/Tân Bình - Sân bay TSN' }, 
-                geo: { coordinates: [106.6590, 10.8181] },
-                aqi: 98, pm25: 42.3, pm10: 61.9, o3: 35.8, no2: 25.6, temp: 31, condition: 'Moderate'
-            },
-            { 
-                station_idx: 11247, 
-                city: { name: 'Ho Chi Minh City/Thủ Đức - KCX Tân Thuận' }, 
-                geo: { coordinates: [106.7311, 10.7625] },
-                aqi: 87, pm25: 37.9, pm10: 55.1, o3: 28.4, no2: 22.3, temp: 30, condition: 'Moderate'
-            }
-        ],
-        'da nang': [
-            { 
-                station_idx: 6821, 
-                city: { name: 'Đà Nẵng/Hải Châu - Trung tâm thành phố' }, 
-                geo: { coordinates: [108.2208, 16.0544] },
-                aqi: 65, pm25: 25.4, pm10: 35.7, o3: 42.1, no2: 15.8, temp: 26, condition: 'Moderate'
-            },
-            { 
-                station_idx: 7459, 
-                city: { name: 'Đà Nẵng/Sơn Trà - Khu vực bãi biển' }, 
-                geo: { coordinates: [108.2430, 16.0755] },
-                aqi: 58, pm25: 22.1, pm10: 31.2, o3: 38.5, no2: 12.4, temp: 25, condition: 'Moderate'
-            },
-            { 
-                station_idx: 8165, 
-                city: { name: 'Đà Nẵng/Liên Chiểu - Sân bay quốc tế' }, 
-                geo: { coordinates: [108.1986, 16.0439] },
-                aqi: 72, pm25: 28.7, pm10: 39.8, o3: 35.2, no2: 18.1, temp: 27, condition: 'Moderate'
-            }
-        ],
-        'bangkok': [
-            { 
-                station_idx: 1532, 
-                city: { name: 'Bangkok/US Embassy - Wireless/Ploenchit Rd' }, 
-                geo: { coordinates: [100.5418, 13.7563] },
-                aqi: 125, pm25: 58.3, pm10: 82.1, o3: 45.7, no2: 35.2, temp: 34, condition: 'Unhealthy (S)'
-            },
-            { 
-                station_idx: 2847, 
-                city: { name: 'Bangkok/Chatuchak - จตุจักร' }, 
-                geo: { coordinates: [100.5692, 13.7998] },
-                aqi: 132, pm25: 62.9, pm10: 87.4, o3: 41.8, no2: 38.6, temp: 35, condition: 'Unhealthy (S)'
-            },
-            { 
-                station_idx: 3912, 
-                city: { name: 'Bangkok/Sukhumvit - สุขุมวิท' }, 
-                geo: { coordinates: [100.5648, 13.7307] },
-                aqi: 119, pm25: 55.7, pm10: 78.3, o3: 48.2, no2: 32.9, temp: 33, condition: 'Unhealthy (S)'
-            }
-        ],
-        'jakarta': [
-            { 
-                station_idx: 4192, 
-                city: { name: 'Jakarta/Central - Jakarta Pusat' }, 
-                geo: { coordinates: [106.8456, -6.1805] },
-                aqi: 145, pm25: 68.4, pm10: 95.7, o3: 38.9, no2: 42.1, temp: 31, condition: 'Unhealthy (S)'
-            },
-            { 
-                station_idx: 4856, 
-                city: { name: 'Jakarta/South - Jakarta Selatan' }, 
-                geo: { coordinates: [106.8294, -6.2382] },
-                aqi: 138, pm25: 64.2, pm10: 89.3, o3: 41.7, no2: 39.8, temp: 30, condition: 'Unhealthy (S)'
-            }
-        ],
-        'singapore': [
-            { 
-                station_idx: 3847, 
-                city: { name: 'Singapore/Central - Marina Bay' }, 
-                geo: { coordinates: [103.8518, 1.2966] },
-                aqi: 62, pm25: 24.8, pm10: 33.2, o3: 48.5, no2: 19.7, temp: 30, condition: 'Moderate'
-            },
-            { 
-                station_idx: 4521, 
-                city: { name: 'Singapore/North - Woodlands' }, 
-                geo: { coordinates: [103.7890, 1.4382] },
-                aqi: 58, pm25: 22.3, pm10: 29.8, o3: 52.1, no2: 17.4, temp: 29, condition: 'Moderate'
-            }
-        ]
-    };
-
-    const quickSearchCities = [
-        { name: 'Lạng Sơn', key: 'lang son' },
-        { name: 'Hanoi', key: 'hanoi' },
-        { name: 'Ho Chi Minh City', key: 'ho chi minh city' },
-        { name: 'Da Nang', key: 'da nang' },
-        { name: 'Bangkok', key: 'bangkok' }
-    ];
+  let aqiChart;
+  // Simple client-side caches to reduce API calls during a session
+  const cityStationsCache = new Map(); // key: city (lowercase) -> stations array
+  const latestCache = new Map(); // key: station_id -> latest measurement
+  // Debounce timer for suggestions
+  let suggestTimer = null;
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
         const searchInput = document.getElementById('citySearch');
         if (searchInput) {
-            searchInput.addEventListener('input', handleSearchInput);
+      searchInput.addEventListener('input', handleSearchInput);
             searchInput.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
                     handleCitySearch();
@@ -710,294 +575,238 @@
         }
     });
 
-    function handleSearchInput() {
-        const cs = document.getElementById('citySearch');
-        const query = cs ? cs.value.toLowerCase() : '';
-        const suggestions = document.getElementById('searchSuggestions');
-        
-        if (query.length < 2) {
-            if (suggestions) suggestions.style.display = 'none';
-            return;
-        }
-        
-        let suggestionItems = [];
-        
-        // Check if query is a station ID (numeric)
+  function handleSearchInput() {
+    const cs = document.getElementById('citySearch');
+    const queryRaw = cs ? cs.value : '';
+    const query = queryRaw.trim();
+    const suggestions = document.getElementById('searchSuggestions');
+    if (suggestions) suggestions.style.display = 'none';
+    if (suggestTimer) clearTimeout(suggestTimer);
+    if (query.length < 2) return;
+    suggestTimer = setTimeout(async () => {
+      try {
+        const items = [];
+        // Numeric -> offer direct station ID search
         if (/^\d+$/.test(query)) {
-            // Search for stations by station_idx
-            Object.keys(citiesWithStations).forEach(cityKey => {
-                citiesWithStations[cityKey].forEach(station => {
-                    if (station.station_idx.toString().includes(query)) {
-                        suggestionItems.push({
-                            type: 'station',
-                            station: station,
-                            cityKey: cityKey,
-                            html: `
-                                <div class="suggestion-item" onclick="selectStationDirectly('${cityKey}', ${citiesWithStations[cityKey].indexOf(station)})">
-                                    <strong>Station #${station.station_idx}</strong>
-                                    <small class="text-muted d-block">${station.city.name}</small>
-                                    <small class="text-success">AQI: ${station.aqi} - ${getAQIStatus(station.aqi).status}</small>
-                                </div>
-                            `
-                        });
-                    }
-                });
-            });
-        } else {
-            // Search for stations by name
-            Object.keys(citiesWithStations).forEach(cityKey => {
-                citiesWithStations[cityKey].forEach(station => {
-                    if (station.city.name.toLowerCase().includes(query)) {
-                        suggestionItems.push({
-                            type: 'station',
-                            station: station,
-                            cityKey: cityKey,
-                            html: `
-                                <div class="suggestion-item" onclick="selectStationDirectly('${cityKey}', ${citiesWithStations[cityKey].indexOf(station)})">
-                                    <strong>${station.city.name}</strong>
-                                    <small class="text-muted d-block">Station #${station.station_idx}</small>
-                                    <small class="text-success">AQI: ${station.aqi} - ${getAQIStatus(station.aqi).status}</small>
-                                </div>
-                            `
-                        });
-                    }
-                });
-            });
-            
-            // Also search for cities that match the query
-            const matchedCities = Object.keys(citiesWithStations).filter(cityKey => 
-                cityKey.includes(query)
-            );
-            
-            matchedCities.forEach(cityKey => {
-                const cityName = cityKey.charAt(0).toUpperCase() + cityKey.slice(1).replace(/\b\w/g, l => l.toUpperCase());
-                const stationCount = citiesWithStations[cityKey].length;
-                suggestionItems.push({
-                    type: 'city',
-                    html: `
-                        <div class="suggestion-item" onclick="selectCityForStations('${cityKey}', '${cityName}')">
-                            <strong>📍 ${cityName}</strong>
-                            <small class="text-muted d-block">${stationCount} monitoring stations available</small>
-                        </div>
-                    `
-                });
-            });
+          items.push({
+            type: 'action',
+            html: `
+              <div class="suggestion-item" onclick="searchByStationId('${query}')">
+              <strong>Search Station ID ${query}</strong>
+              <small class="text-muted d-block">Show latest measurement if available</small>
+              </div>`
+          });
         }
-        
-        if (suggestionItems.length > 0) {
-            if (suggestions) {
-                // Sort: stations first, then cities
-                suggestionItems.sort((a, b) => {
-                    if (a.type === 'station' && b.type === 'city') return -1;
-                    if (a.type === 'city' && b.type === 'station') return 1;
-                    return 0;
-                });
-                
-                suggestions.innerHTML = suggestionItems.map(item => item.html).join('');
-                suggestions.style.display = 'block';
-            }
-        } else {
-            if (suggestions) suggestions.style.display = 'none';
+        // City suggestions using stations API
+        const cityParam = encodeURIComponent(query);
+        const data = await fetchJSON(`/api/stations?city=${cityParam}&limit=10&offset=0`);
+        if (data && Array.isArray(data.stations)) {
+          // Derive unique city names from results
+          const citySet = new Set();
+          data.stations.forEach(st => {
+            const c = typeof st.city === 'string' ? st.city : (st.city && st.city.name) || null;
+            if (c) citySet.add(c);
+          });
+          citySet.forEach(cityName => {
+            items.push({
+              type: 'city',
+              html: `
+                <div class="suggestion-item" onclick="selectCity('${cityName.replace(/'/g, "\'")}')">
+                <strong>📍 ${cityName}</strong>
+                <small class="text-muted d-block">View stations in city</small>
+                </div>`
+            });
+          });
+          // Also suggest station names that include the query
+          const qLower = query.toLowerCase();
+          const stationMatches = data.stations.filter(st => {
+            const nm = (st.name || (st.city && st.city.name) || '').toString().toLowerCase();
+            return nm.includes(qLower);
+          }).slice(0, 5);
+          stationMatches.forEach(st => {
+            const stationId = st.station_id || (st._id || '').toString();
+            const name = st.name || (st.city && st.city.name) || `Station ${stationId}`;
+            items.unshift({
+              type: 'station',
+              html: `
+                <div class="suggestion-item" onclick="selectStationFromList('${escapeAttr(String(stationId))}', '${escapeAttr(String(name))}')">
+                <strong>${name}</strong>
+                <small class="text-muted d-block">Station ID: ${stationId}</small>
+                </div>`
+            });
+          });
         }
-    }
+        if (items.length && suggestions) {
+          suggestions.innerHTML = items.map(i => i.html).join('');
+          suggestions.style.display = 'block';
+        }
+      } catch (e) {
+        // Silently ignore suggestions errors
+      }
+    }, 250);
+  }
 
-    function selectStationDirectly(cityKey, stationIndex) {
-        const cs = document.getElementById('citySearch');
-        const station = citiesWithStations[cityKey][stationIndex];
-        if (cs) cs.value = `Station #${station.station_idx} - ${station.city.name}`;
-        
-        const sug = document.getElementById('searchSuggestions');
-        if (sug) sug.style.display = 'none';
-        
-        // Hide default content and stations list
-        const defEl = document.getElementById('defaultContent');
-        if (defEl) defEl.style.display = 'none';
-        const stationsListEl = document.getElementById('stationsList');
-        if (stationsListEl) stationsListEl.style.display = 'none';
-        
-        // Show and populate air quality result directly
-        const resEl = document.getElementById('airQualityResult');
-        if (resEl) resEl.style.display = 'block';
-        
-        // Update location name
-        const locEl = document.getElementById('locationName');
-        if (locEl) locEl.textContent = station.city.name;
-        
-        // Update data with station info
-        updateAirQualityDataFromStation(station);
-    }
+  async function searchByStationId(stationId) {
+    const cs = document.getElementById('citySearch');
+    if (cs) cs.value = stationId;
+    const suggestions = document.getElementById('searchSuggestions');
+    if (suggestions) suggestions.style.display = 'none';
+    await showLatestForStation(stationId);
+  }
 
-    function selectCityForStations(cityKey, cityName) {
-        const cs = document.getElementById('citySearch');
-        if (cs) cs.value = cityName;
-        const sug = document.getElementById('searchSuggestions');
-        if (sug) sug.style.display = 'none';
-        showCityStations(cityKey, cityName);
-    }
+  function selectCity(cityName) {
+    const cs = document.getElementById('citySearch');
+    if (cs) cs.value = cityName;
+    const suggestions = document.getElementById('searchSuggestions');
+    if (suggestions) suggestions.style.display = 'none';
+    showCityStationsFromApi(cityName);
+  }
 
-    function quickSearch(cityName) {
-        const cs = document.getElementById('citySearch');
-        if (cs) cs.value = cityName;
-        const cityKey = cityName.toLowerCase();
-        showCityStations(cityKey, cityName);
-    }
+  function quickSearch(cityName) {
+    const cs = document.getElementById('citySearch');
+    if (cs) cs.value = cityName;
+    showCityStationsFromApi(cityName);
+  }
 
-    function handleCitySearch() {
-        const csEl = document.getElementById('citySearch');
-        const searchValue = csEl ? csEl.value.trim() : '';
-        
-        if (!searchValue) {
+  async function handleCitySearch() {
+    const csEl = document.getElementById('citySearch');
+    const searchValue = csEl ? csEl.value.trim() : '';
+
+    if (!searchValue) {
             alert('Please enter a city name, station name, or station ID');
             return;
         }
-        
-        // Check if it's a station ID (numeric)
-        if (/^\d+$/.test(searchValue)) {
-            const stationId = parseInt(searchValue);
-            let foundStation = null;
-            let foundCityKey = null;
-            let foundIndex = -1;
-            
-            // Search for station by ID
-            Object.keys(citiesWithStations).forEach(cityKey => {
-                citiesWithStations[cityKey].forEach((station, index) => {
-                    if (station.station_idx === stationId) {
-                        foundStation = station;
-                        foundCityKey = cityKey;
-                        foundIndex = index;
-                    }
-                });
-            });
-            
-            if (foundStation) {
-                selectStationDirectly(foundCityKey, foundIndex);
-                return;
-            }
-        }
-        
-        // Check if it's a station name
-        let foundByName = null;
-        Object.keys(citiesWithStations).forEach(cityKey => {
-            citiesWithStations[cityKey].forEach((station, index) => {
-                if (station.city.name.toLowerCase().includes(searchValue.toLowerCase()) && !foundByName) {
-                    foundByName = { cityKey, index };
-                }
-            });
-        });
-        
-        if (foundByName) {
-            selectStationDirectly(foundByName.cityKey, foundByName.index);
-            return;
-        }
-        
-        // Otherwise, treat as city search
-        const cityKey = searchValue.toLowerCase();
-        if (citiesWithStations[cityKey]) {
-            showCityStations(cityKey, searchValue);
-        } else {
-            alert('Không tìm thấy thành phố, trạm quan trắc hoặc Station ID này.\n\nThử:\n• Thành phố: Lạng Sơn, Hanoi, Ho Chi Minh City\n• Station ID: 13668, 5814, 9291\n• Tên trạm: US Embassy, Chi Lăng, Hoàn Kiếm');
-        }
-        
-        // Close suggestions
-        const closeSug = document.getElementById('searchSuggestions');
-        if (closeSug) closeSug.style.display = 'none';
+    // If numeric, try direct station lookup via API
+    if (/^\d+$/.test(searchValue)) {
+      await showLatestForStation(searchValue);
+      return;
+    }
+    // Otherwise treat as a city name (API supports filtering by city only)
+    await showCityStationsFromApi(searchValue);
+    const closeSug = document.getElementById('searchSuggestions');
+    if (closeSug) closeSug.style.display = 'none';
+    }
+  async function showCityStationsFromApi(cityName) {
+    // Hide default content and AQ section
+    const defEl = document.getElementById('defaultContent');
+    if (defEl) defEl.style.display = 'none';
+    const resEl = document.getElementById('airQualityResult');
+    if (resEl) resEl.style.display = 'none';
+
+    // Ensure stations list container exists
+    let stationsListEl = document.getElementById('stationsList');
+    if (!stationsListEl) {
+      stationsListEl = document.createElement('div');
+      stationsListEl.id = 'stationsList';
+      stationsListEl.className = 'stations-list';
+      stationsListEl.style.cssText = 'background: white; border-radius: 14px; padding: 1.5rem; box-shadow: 0 8px 28px rgba(22,24,33,0.08); margin-bottom: 1.75rem;';
+      const searchHeader = document.querySelector('.search-header');
+      if (searchHeader && searchHeader.nextSibling) {
+        searchHeader.parentNode.insertBefore(stationsListEl, searchHeader.nextSibling);
+      }
     }
 
-    function showCityStations(cityKey, cityName) {
-        // Hide default content
-        const defEl = document.getElementById('defaultContent');
-        if (defEl) defEl.style.display = 'none';
-        
-        // Hide air quality result
-        const resEl = document.getElementById('airQualityResult');
-        if (resEl) resEl.style.display = 'none';
-        
-        // Show stations list
-        let stationsListEl = document.getElementById('stationsList');
-        if (!stationsListEl) {
-            // Create stations list element
-            stationsListEl = document.createElement('div');
-            stationsListEl.id = 'stationsList';
-            stationsListEl.className = 'stations-list';
-            stationsListEl.style.cssText = 'background: white; border-radius: 14px; padding: 1.5rem; box-shadow: 0 8px 28px rgba(22,24,33,0.08); margin-bottom: 1.75rem;';
-            
-            // Insert after search header
-            const searchHeader = document.querySelector('.search-header');
-            if (searchHeader && searchHeader.nextSibling) {
-                searchHeader.parentNode.insertBefore(stationsListEl, searchHeader.nextSibling);
-            }
-        }
-        
-        const stations = citiesWithStations[cityKey];
-        stationsListEl.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <div>
-                    <h4 class="mb-1">Monitoring Stations in ${cityName}</h4>
-                    <p class="text-muted mb-0">Select a station to view detailed air quality data</p>
-                </div>
-                <button class="btn btn-outline-secondary btn-sm" onclick="goBackToSearch()">
-                    <i class="tim-icons icon-minimal-left"></i> Back to Search
-                </button>
-            </div>
-            <div class="row">
-                ${stations.map((station, index) => `
-                    <div class="col-md-6 col-lg-4 mb-3">
-                        <div class="station-card" onclick="selectStation('${cityKey}', ${index})" style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.3s ease; background: #f8f9ff;">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h6 class="mb-1" style="color: #1e293b; font-size: 0.9rem;">${station.city.name}</h6>
-                                <div class="aqi-badge ${getAQIStatus(station.aqi).class}" style="padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">
-                                    ${station.aqi}
-                                </div>
-                            </div>
-                            <div class="station-preview">
-                                <div class="row text-center mb-2">
-                                    <div class="col-6">
-                                        <div class="small text-muted">Station ID</div>
-                                        <div class="font-weight-bold text-primary">#${station.station_idx}</div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="small text-muted">Status</div>
-                                        <div class="small ${getAQIStatus(station.aqi).class}">${getAQIStatus(station.aqi).status}</div>
-                                    </div>
-                                </div>
-                                <div class="row text-center">
-                                    <div class="col-6">
-                                        <div class="small text-muted">PM2.5</div>
-                                        <div class="font-weight-bold">${station.pm25} μg/m³</div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="small text-muted">Coordinates</div>
-                                        <div class="small text-muted">${station.geo.coordinates[1].toFixed(3)}, ${station.geo.coordinates[0].toFixed(3)}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-        
-        stationsListEl.style.display = 'block';
+    stationsListEl.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h4 class="mb-1">Monitoring Stations in ${escapeHtml(cityName)}</h4>
+        <p class="text-muted mb-0">Select a station to view detailed air quality data</p>
+      </div>
+      <button class="btn btn-outline-secondary btn-sm" onclick="goBackToSearch()">
+        <i class="tim-icons icon-minimal-left"></i> Back to Search
+      </button>
+    </div>
+    <div class="row" id="stationsGrid"><div class="col-12 text-center py-3">Loading stations…</div></div>`;
+
+    const cityKey = cityName.toLowerCase();
+    let stations = cityStationsCache.get(cityKey);
+    if (!stations) {
+      try {
+        const data = await fetchJSON(`/api/stations?city=${encodeURIComponent(cityName)}&limit=50&offset=0`);
+        stations = (data && data.stations) || [];
+        cityStationsCache.set(cityKey, stations);
+      } catch (e) {
+        document.getElementById('stationsGrid').innerHTML = `<div class="col-12 text-danger">Failed to load stations</div>`;
+        return;
+      }
     }
 
-    function selectStation(cityKey, stationIndex) {
-        const station = citiesWithStations[cityKey][stationIndex];
-        
-        // Hide stations list
-        const stationsListEl = document.getElementById('stationsList');
-        if (stationsListEl) stationsListEl.style.display = 'none';
-        
-        // Show and populate air quality result
-        const resEl = document.getElementById('airQualityResult');
-        if (resEl) resEl.style.display = 'block';
-        
-        // Update location name
-        const locEl = document.getElementById('locationName');
-        if (locEl) locEl.textContent = station.city.name;
-        
-        // Update data with station info
-        updateAirQualityDataFromStation(station);
+    if (!stations.length) {
+      document.getElementById('stationsGrid').innerHTML = `<div class="col-12 text-muted">No stations found for this city.</div>`;
+      stationsListEl.style.display = 'block';
+      return;
     }
+
+    // Render basic cards first
+    const cards = stations.map((st, idx) => {
+      const stationId = st.station_id || (st._id || '').toString();
+      const name = st.name || (st.city && st.city.name) || 'Station';
+      const coords = st.location ? `${Number(st.location.latitude || 0).toFixed(3)}, ${Number(st.location.longitude || 0).toFixed(3)}` : '—';
+      return `
+        <div class="col-md-6 col-lg-4 mb-3">
+          <div class="station-card" data-station-id="${escapeHtml(String(stationId))}" onclick="selectStationFromList('${escapeAttr(String(stationId))}', '${escapeAttr(name)}')" style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.3s ease; background: #f8f9ff;">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <h6 class="mb-1" style="color: #1e293b; font-size: 0.9rem;">${escapeHtml(name)}</h6>
+            <div class="aqi-badge" id="badge-${idx}" style="padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; background:#e2e8f0; color:#334155;">—</div>
+          </div>
+          <div class="station-preview">
+            <div class="row text-center mb-2">
+            <div class="col-6">
+              <div class="small text-muted">Station ID</div>
+              <div class="font-weight-bold text-primary">${escapeHtml(String(stationId))}</div>
+            </div>
+            <div class="col-6">
+              <div class="small text-muted">Status</div>
+              <div class="small" id="status-${idx}">—</div>
+            </div>
+            </div>
+            <div class="row text-center">
+            <div class="col-6">
+              <div class="small text-muted">PM2.5</div>
+              <div class="font-weight-bold" id="pm25-${idx}">—</div>
+            </div>
+            <div class="col-6">
+              <div class="small text-muted">Coordinates</div>
+              <div class="small text-muted">${coords}</div>
+            </div>
+            </div>
+          </div>
+          </div>
+        </div>`;
+    }).join('');
+    document.getElementById('stationsGrid').innerHTML = cards;
+    stationsListEl.style.display = 'block';
+
+    // Enrich with latest AQI per station (one-by-one; small N)
+    stations.forEach(async (st, idx) => {
+      const stationId = st.station_id || (st._id || '').toString();
+      try {
+        const latest = await getLatestForStation(stationId);
+        if (!latest) return;
+        const aqi = latest.aqi ?? '—';
+        const pm25 = latest.pm25 ?? '—';
+        const statusObj = typeof aqi === 'number' ? getAQIStatus(aqi) : null;
+        const badge = document.getElementById(`badge-${idx}`);
+        const statusEl = document.getElementById(`status-${idx}`);
+        const pmEl = document.getElementById(`pm25-${idx}`);
+        if (badge && statusObj) {
+          badge.className = `aqi-badge ${statusObj.class}`;
+          badge.textContent = aqi;
+        }
+        if (statusEl && statusObj) statusEl.textContent = statusObj.status;
+        if (pmEl) pmEl.textContent = pm25 !== '—' ? `${pm25} μg/m³` : '—';
+      } catch (e) {
+        // ignore per-card errors
+      }
+    });
+  }
+
+  async function selectStationFromList(stationId, stationName) {
+    // Hide stations list
+    const stationsListEl = document.getElementById('stationsList');
+    if (stationsListEl) stationsListEl.style.display = 'none';
+    // Show result
+    await showLatestForStation(stationId, stationName);
+  }
 
     function goBackToSearch() {
         // Hide stations list
@@ -1017,44 +826,118 @@
         if (cs) cs.value = '';
     }
 
-    function updateAirQualityDataFromStation(station) {
-        // Update AQI display with real station data
-        const elAqiValue = document.getElementById('aqiValue');
-        const elPm25 = document.getElementById('pm25Value');
-        const elPm10 = document.getElementById('pm10Value');
-        const elO3 = document.getElementById('o3Value');
-        const elNo2 = document.getElementById('no2Value');
-        const elAqiStatus = document.getElementById('aqiStatus');
-        const elAqiDesc = document.getElementById('aqiDescription');
+  async function showLatestForStation(stationId, fallbackName) {
+    try {
+      const latest = await getLatestForStation(stationId);
+      if (!latest) {
+        alert('Không tìm thấy dữ liệu cho Station ID này.');
+        return;
+      }
+      // Hide default and stations list
+      const defEl = document.getElementById('defaultContent');
+      if (defEl) defEl.style.display = 'none';
+      const stationsListEl = document.getElementById('stationsList');
+      if (stationsListEl) stationsListEl.style.display = 'none';
+      // Show result panel
+      const resEl = document.getElementById('airQualityResult');
+      if (resEl) resEl.style.display = 'block';
 
-        if (elAqiValue) elAqiValue.textContent = station.aqi;
-        if (elPm25) elPm25.textContent = station.pm25;
-        if (elPm10) elPm10.textContent = station.pm10;
-        if (elO3) elO3.textContent = station.o3;
-        if (elNo2) elNo2.textContent = station.no2;
+      // Location/station name
+      const locEl = document.getElementById('locationName');
+      const displayName = latest.station_name || fallbackName || `Station ${latest.station_id}`;
+      if (locEl) locEl.textContent = displayName;
 
-        // Update AQI status and color
-        const aqiStatusObj = getAQIStatus(station.aqi);
-        if (elAqiStatus) elAqiStatus.textContent = aqiStatusObj.status;
-        if (elAqiDesc) elAqiDesc.textContent = aqiStatusObj.description;
+      // Map fields
+            const aqi = latest.aqi ?? 0;
+      const pm25 = latest.pm25 ?? '—';
+      const pm10 = latest.pm10 ?? '—';
+      const o3 = latest.o3 ?? '—';
+      const no2 = latest.no2 ?? '—';
+            const ts = latest.timestamp || null;
 
-        // Update colors
-        if (elAqiValue) elAqiValue.className = `aqi-value ${aqiStatusObj.class}`;
-        if (elAqiStatus) elAqiStatus.className = `aqi-status ${aqiStatusObj.class}`;
-        
-        // Update weather data with station info
-        const elTemp = document.getElementById('temperature');
-        const elCond = document.getElementById('weatherCondition');
+      const elAqiValue = document.getElementById('aqiValue');
+      const elPm25 = document.getElementById('pm25Value');
+      const elPm10 = document.getElementById('pm10Value');
+      const elO3 = document.getElementById('o3Value');
+      const elNo2 = document.getElementById('no2Value');
+      const elAqiStatus = document.getElementById('aqiStatus');
+      const elAqiDesc = document.getElementById('aqiDescription');
 
-        if (elTemp) elTemp.textContent = `${station.temp}°C`;
-        if (elCond) elCond.textContent = station.condition;
+      if (elAqiValue) elAqiValue.textContent = aqi;
+      if (elPm25) elPm25.textContent = pm25;
+      if (elPm10) elPm10.textContent = pm10;
+      if (elO3) elO3.textContent = o3;
+      if (elNo2) elNo2.textContent = no2;
 
-        // Update trend chart with realistic data based on current AQI
-        const trendCanvas = document.getElementById('aqiSearchTrendChart');
-        if (trendCanvas && window.Chart) {
-            updateSearchTrendChart(station.aqi);
-        }
+      const aqiStatusObj = getAQIStatus(Number(aqi));
+      if (elAqiStatus) elAqiStatus.textContent = aqiStatusObj.status;
+      if (elAqiDesc) elAqiDesc.textContent = aqiStatusObj.description;
+      if (elAqiValue) elAqiValue.className = `aqi-value ${aqiStatusObj.class}`;
+      if (elAqiStatus) elAqiStatus.className = `aqi-status ${aqiStatusObj.class}`;
+
+            // Timestamp display
+            const tsEl = document.getElementById('timestampValue');
+            if (tsEl) {
+              tsEl.textContent = ts ? `Updated: ${formatTimestamp(ts)}` : 'Updated: —';
+            }
+
+      // Weather placeholders (no weather API wired)
+      const elTemp = document.getElementById('temperature');
+      const elCond = document.getElementById('weatherCondition');
+      if (elTemp) elTemp.textContent = `--`;
+      if (elCond) elCond.textContent = 'N/A';
+
+      // Update trend chart based on current AQI
+      const trendCanvas = document.getElementById('aqiSearchTrendChart');
+      if (trendCanvas && window.Chart) updateSearchTrendChart(Number(aqi));
+    } catch (e) {
+      alert('Có lỗi khi tải dữ liệu trạm.');
     }
+  }
+
+  async function getLatestForStation(stationId) {
+    if (latestCache.has(stationId)) return latestCache.get(stationId);
+    const data = await fetchJSON(`/api/air-quality/latest?station_id=${encodeURIComponent(stationId)}&limit=1`);
+    const latest = data && Array.isArray(data.measurements) && data.measurements.length ? data.measurements[0] : null;
+    if (latest) latestCache.set(stationId, latest);
+    return latest;
+  }
+
+  async function fetchJSON(url) {
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  // Small helpers to safely inject text
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+  function escapeAttr(str) {
+    return escapeHtml(str).replace(/"/g, '&quot;');
+  }
+  function formatTimestamp(ts) {
+    try {
+      // Accepts ISO strings or epoch millis
+      const d = typeof ts === 'number' ? new Date(ts) : new Date(ts);
+      if (isNaN(d.getTime())) return String(ts);
+      // Format as local time: YYYY-MM-DD HH:mm
+      const pad = (n) => n.toString().padStart(2, '0');
+      const yyyy = d.getFullYear();
+      const mm = pad(d.getMonth() + 1);
+      const dd = pad(d.getDate());
+      const hh = pad(d.getHours());
+      const mi = pad(d.getMinutes());
+      return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+    } catch (_) {
+      return String(ts);
+    }
+  }
 
     function getAQIStatus(aqi) {
         if (aqi <= 50) {
