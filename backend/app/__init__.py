@@ -79,6 +79,7 @@ def register_blueprints(app):
     # Import API blueprints here to avoid circular imports
     # from backend.app.blueprints.api.auth.routes import auth_bp
     from backend.app.blueprints.api.stations.routes import stations_bp
+    from backend.app.blueprints.api.air_quality.routes import air_quality_bp
     # from backend.app.blueprints.api.measurements.routes import measurements_bp
     # from backend.app.blueprints.api.aggregates.routes import aggregates_bp
     # from backend.app.blueprints.api.alerts.routes import alerts_bp
@@ -93,6 +94,19 @@ def register_blueprints(app):
     # Register API blueprints with URL prefixes
     # app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(stations_bp, url_prefix='/api/stations')
+    # Register blueprint with underscore variant
+    app.register_blueprint(air_quality_bp, url_prefix='/api/air_quality')
+    # Provide a hyphenated alias for a small set of routes (avoid registering blueprint twice)
+    try:
+        # Import view function and create a lightweight alias route to avoid blueprint name collision
+        from backend.app.blueprints.api.air_quality.routes import get_latest_measurements
+
+        # Add URL rule for hyphen variant to point to the same view function
+        app.add_url_rule('/api/air-quality/latest', endpoint='air_quality_latest_hyphen', view_func=get_latest_measurements, methods=['GET'])
+    except Exception:
+        # If import fails, do not prevent app startup; hyphen alias is optional
+        import logging
+        logging.getLogger(__name__).debug('Could not add hyphen alias for air_quality routes')
     # app.register_blueprint(measurements_bp, url_prefix='/api/measurements')
     # app.register_blueprint(aggregates_bp, url_prefix='/api/aggregates')
     # app.register_blueprint(alerts_bp, url_prefix='/api/alerts')
