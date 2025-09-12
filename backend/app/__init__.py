@@ -20,7 +20,7 @@ def create_app(config_class=Config):
     # Initialize Flask extensions
     init_extensions(app)
     
-    # Register health check endpoint
+    # Register health check endpoint 
     @app.route('/api/health')
     def health_check():
         """Health check endpoint with database connectivity."""
