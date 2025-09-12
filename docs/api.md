@@ -16,6 +16,7 @@
 - `GET /api/measurements` - Query air quality measurements
 - `POST /api/measurements/import` - Import CSV data
 - `GET /api/measurements/latest` - Get latest readings
+ - `GET /api/air-quality/latest` - Get latest measurement per station (this new endpoint)
 
 ## Aggregates & Analytics
 - `GET /api/aggregates/daily` - Daily averages
@@ -68,41 +69,27 @@ Response shape (example):
 
 JSON Schema for response: `backend/app/schemas/schemas_jsonschema/stations_list.response.json`
 
-Curl examples:
-
-Get first 10 stations:
-```
-curl -s "http://localhost:5000/api/stations?limit=10&offset=0" | jq
-```
-
-Filter by city:
-```
-curl -s "http://localhost:5000/api/stations?city=Hanoi" | jq
-```
-
 Postman collection: `docs/postman/get-stations.postman_collection.json` (set `{{base_url}}` environment variable)
 
-PowerShell (Windows) examples
+Browser (Chrome) examples — canonical quick-checks
 
-PowerShell's `Invoke-RestMethod`/`Invoke-WebRequest` are preferred on Windows. Note the trailing slash to avoid a redirect from the server (the blueprint route uses `/`):
+Open the URL directly in the browser address bar to view JSON — no extra JavaScript or tools required. Modern browsers (Chrome, Firefox) format JSON responses automatically for easy reading.
 
-Pretty-print JSON with `Invoke-RestMethod`:
-```powershell
-Invoke-RestMethod -Uri "http://localhost:5000/api/stations/?limit=10&offset=0" |
-	ConvertTo-Json -Depth 10
-```
+Stations endpoints (browse these in the address bar):
 
-Alternatively (parse and reformat):
-```powershell
-(Invoke-WebRequest -UseBasicParsing -Uri "http://localhost:5000/api/stations/?limit=10&offset=0").Content |
-	ConvertFrom-Json |
-	ConvertTo-Json -Depth 10
-```
+`http://localhost:5000/api/stations?limit=10&offset=0`
 
-If you have Python available in the venv, you can pipe to Python's json.tool:
-```powershell
-curl "http://localhost:5000/api/stations/?limit=10&offset=0" | python -m json.tool
-```
+`http://localhost:5000/api/stations?city=Hanoi`
+
+Air-quality endpoints (browse these in the address bar):
+
+`http://localhost:5000/api/air-quality/latest`
+
+`http://localhost:5000/api/air-quality/latest?station_id=13668&limit=1`
+
+If the browser does not pretty-print JSON, use the browser's "View Source" or a JSON formatter extension. Replace `localhost:5000` with your server host/port if different (for example `http://localhost:5001`).
+
+Note: the application also registers an underscore-style route (`/api/air_quality/latest`) for backward compatibility, but examples here use the hyphenated path.
 
 Acceptance mapping:
 - GET `/api/stations` returns JSON list and pagination (AC: pass)
