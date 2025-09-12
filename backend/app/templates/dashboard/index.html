@@ -1,38 +1,1179 @@
-{% extends "layout.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+  {# Nếu có img thì tạo thư mục img trong js/assets/img/ và copy ảnh vào, còn không thì xóa 2 dòng dưới #}
+  {# <link rel="apple-touch-icon" sizes="76x76" href="{{ url_for('static', filename='js/assets/img/apple-icon.png') }}" /> #}
+  {# <link rel="icon" type="image/png" href="{{ url_for('static', filename='js/assets/img/favicon.png') }}" /> #}
+  <title>Black Dashboard – Static UI</title>
 
-{% block title %}Dashboard - Air Quality Monitoring{% endblock %}
-
-{% block content %}
-<div class="row">
-    <div class="col-12">
-        <h1 class="mb-4">Air Quality Dashboard</h1>
-        <p>Welcome to the Air Quality Monitoring System</p>
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title">System Status</h5>
-            </div>
-            <div class="card-body">
-                <p class="text-success">System Online</p>
-                <p>API Endpoints: Working</p>
-                <p>Database: Connected</p>
-            </div>
+  <!-- Fonts and icons -->
+  <link href="https://fonts.googleapis.com/css?family=Poppins:200,300,400,600,700,800" rel="stylesheet" />
+  <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet" />
+  <!-- Nucleo Icons -->
+  <link href="{{ url_for('static', filename='js/assets/css/nucleo-icons.css') }}" rel="stylesheet" />
+  <!-- CSS Files -->
+  <link href="{{ url_for('static', filename='js/assets/css/black-dashboard.min.css') }}" rel="stylesheet" />
+  <link href="{{ url_for('static', filename='js/assets/css/theme-switcher.css') }}" rel="stylesheet" />
+  <!-- Demo CSS removed for clean structure -->
+  <style>
+    /* Minor overrides for static preview */
+    body { overflow-x: hidden; }
+    .nav .active > a { color: #fff; }
+  </style>
+</head>
+<body class="">
+  <div class="wrapper">
+    <!-- Sidebar -->
+    <div class="sidebar" data-color="blue">
+      <div class="sidebar-wrapper">
+        <div class="logo">
+          <a href="#" class="simple-text logo-mini">AQ</a>
+          <a href="#" class="simple-text logo-normal">Air Quality Monitor</a>
         </div>
+        <ul class="nav">
+          <li class="active">
+            <a href="index.html">
+              <i class="tim-icons icon-chart-pie-36"></i>
+              <p>Dashboard</p>
+            </a>
+          </li>
+          <li>
+            <a href="#">
+              <i class="tim-icons icon-cloud-upload-94"></i>
+              <p>Air Quality</p>
+            </a>
+          </li>
+          <li>
+            <a href="#">
+              <i class="tim-icons icon-chart-bar-32"></i>
+              <p>Prediction</p>
+            </a>
+          </li>
+          <li>
+            <a href="#">
+              <i class="tim-icons icon-button-power"></i>
+              <p>Logout</p>
+            </a>
+          </li>
+        </ul>
+      </div>
     </div>
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title">Quick Actions</h5>
+
+    <!-- Main panel -->
+    <div class="main-panel">
+      <!-- Navbar -->
+      <nav class="navbar navbar-expand-lg navbar-absolute navbar-transparent">
+        <div class="container-fluid">
+          <div class="navbar-wrapper">
+            <div class="navbar-toggle d-inline">
+              <button type="button" class="navbar-toggler">
+                <span class="navbar-toggler-bar bar1"></span>
+                <span class="navbar-toggler-bar bar2"></span>
+                <span class="navbar-toggler-bar bar3"></span>
+              </button>
             </div>
-            <div class="card-body">
-                <a href="/api/stations/" class="btn btn-primary me-2">View Stations</a>
-                <a href="/api/measurements/" class="btn btn-secondary">View Data</a>
-            </div>
+            <a class="navbar-brand" href="#">Dashboard</a>
+          </div>
+          <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navigation" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+          </button>
+          <div class="collapse navbar-collapse" id="navigation">
+            <ul class="navbar-nav ml-auto">
+              <li class="input-group d-flex align-items-center mb-0">
+                <label class="switch theme-switch">
+                  <input type="checkbox" class="bsc" checked>
+                  <span class="slider"></span>
+                </label>
+              </li>
+              <li class="search-bar input-group">
+                <button class="btn btn-link" id="search-button" data-toggle="modal" data-target="#searchModal">
+                  <i class="tim-icons icon-zoom-split"></i>
+                  <span class="d-lg-none d-md-block">Search</span>
+                </button>
+              </li>
+              <li class="dropdown nav-item">
+                <a href="#" class="dropdown-toggle nav-link" data-toggle="dropdown">
+                  <div class="notification d-none d-lg-block d-xl-block"></div>
+                  <i class="tim-icons icon-sound-wave"></i>
+                  <p class="d-lg-none">Notifications</p>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-right dropdown-navbar">
+                  <li class="nav-link"><a href="#" class="nav-item dropdown-item">Demo notification</a></li>
+                  <li class="nav-link"><a href="#" class="nav-item dropdown-item">Another one</a></li>
+                </ul>
+              </li>
+              <li class="dropdown nav-item">
+                <a href="#" class="dropdown-toggle nav-link" data-toggle="dropdown">
+                  <div class="photo">
+                    <img src="assets/img/anime3.png" alt="Profile Photo">
+                  </div>
+                  <b class="caret d-none d-lg-block d-xl-block"></b>
+                  <p class="d-lg-none">Log out</p>
+                </a>
+                <ul class="dropdown-menu dropdown-navbar">
+                  <li class="nav-link"><a href="#" class="nav-item dropdown-item">Profile</a></li>
+                  <li class="dropdown-divider"></li>
+                  <li class="nav-link"><a href="#" class="nav-item dropdown-item">Logout</a></li>
+                </ul>
+              </li>
+              <li class="separator d-lg-none"></li>
+            </ul>
+          </div>
         </div>
+      </nav>
+
+      <!-- Content (Air Quality Search & Dashboard) -->
+      <div class="content">
+        <!-- Search Header -->
+        <div class="search-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 2rem 0; margin-bottom: 2rem; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
+          <div class="container">
+            <div class="text-center mb-4">
+              <h1 style="color: white; margin-bottom: 0.5rem;">Air Quality Monitor</h1>
+              <p style="color: rgba(255,255,255,0.8); margin: 0;">Check air quality in your city</p>
+            </div>
+            
+            <div class="search-container" style="max-width: 600px; margin: 0 auto;">
+              <div class="search-input-group" style="position: relative; margin-bottom: 1rem;">
+                <input type="text" class="search-input" id="citySearch" 
+                       placeholder="Enter city, station name, or station ID (e.g., Hanoi, Chi Lăng, 13668)..." 
+                       autocomplete="off"
+                       style="width: 100%; padding: 15px 50px 15px 20px; border: none; border-radius: 50px; font-size: 16px; background: rgba(255,255,255,0.9); box-shadow: 0 5px 15px rgba(0,0,0,0.1); transition: all 0.3s ease;">
+                <button class="search-btn" onclick="handleCitySearch()"
+                        style="position: absolute; right: 5px; top: 50%; transform: translateY(-50%); background: #667eea; border: none; width: 40px; height: 40px; border-radius: 50%; color: white; cursor: pointer; transition: all 0.3s ease;">
+                  <i class="tim-icons icon-zoom-split"></i>
+                </button>
+                
+                <div class="search-suggestions" id="searchSuggestions" style="background: white; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); margin-top: 10px; max-height: 200px; overflow-y: auto; display: none;">
+                  <!-- Suggestions will be populated here -->
+                </div>
+              </div>
+              
+              <div class="quick-search" style="display: flex; justify-content: center; gap: 1rem; margin-top: 1rem;">
+                <button class="quick-search-btn" onclick="quickSearch('Lạng Sơn')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem;">🏔️ Lạng Sơn</button>
+                <button class="quick-search-btn" onclick="quickSearch('Hanoi')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem;">🏙️ Hanoi</button>
+                <button class="quick-search-btn" onclick="quickSearch('Ho Chi Minh City')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem;">🌆 HCMC</button>
+                <button class="quick-search-btn" onclick="quickSearch('Da Nang')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem;">🏖️ Da Nang</button>
+                <button class="quick-search-btn" onclick="quickSearch('Bangkok')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem;">🌴 Bangkok</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Air Quality Result -->
+        <div class="air-quality-result" id="airQualityResult" style="background: linear-gradient(180deg, #ffffff 0%, #fbfbff 100%); border-radius: 14px; padding: 1.25rem; box-shadow: 0 8px 28px rgba(22,24,33,0.08); margin-bottom: 1.75rem; display: none; border: 1px solid rgba(102,126,234,0.06);">
+          <div class="row align-items-center">
+            <div class="col-lg-7">
+              <div class="location-info" style="display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #666;">
+                <i class="tim-icons icon-pin" style="margin-right: 0.5rem; color: #667eea;"></i>
+                <span id="locationName">Air Quality in Selected City</span>
+              </div>
+
+              <div class="aqi-panel" style="display: flex; gap: 1rem; align-items: center;">
+                <div class="aqi-circle" style="width: 150px; height: 150px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-direction: column; background: linear-gradient(180deg, rgba(102,126,234,0.06), rgba(102,126,234,0.02)); box-shadow: inset 0 -6px 12px rgba(102,126,234,0.03); border: 6px solid rgba(0,0,0,0.03);">
+                  <div class="aqi-value aqi-good" id="aqiValue" style="font-size: 2.4rem; font-weight: 800; line-height: 1;">42</div>
+                  <div class="aqi-status aqi-good" id="aqiStatus" style="font-size: 0.9rem; font-weight: 700; text-transform: uppercase; margin-top: 6px;">Good</div>
+                </div>
+
+                <div style="flex:1;">
+                  <div class="aqi-description" id="aqiDescription" style="color: #666; font-size: 0.95rem; margin-top: 0.25rem;">
+                    Air quality is considered satisfactory, and air pollution poses little or no risk.
+                  </div>
+
+                  <div class="pollution-details" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 2rem;">
+                    <div class="pollution-item" style="text-align: center; padding: 1rem; background: #f8f9ff; border-radius: 10px; border: 2px solid transparent; transition: all 0.3s ease;">
+                      <div class="pollution-value" id="pm25Value" style="font-size: 1.8rem; font-weight: bold; color: #333;">12.5</div>
+                      <div class="pollution-label" style="font-size: 0.9rem; color: #666; margin-top: 0.5rem;">PM2.5</div>
+                    </div>
+                    <div class="pollution-item" style="text-align: center; padding: 1rem; background: #f8f9ff; border-radius: 10px; border: 2px solid transparent; transition: all 0.3s ease;">
+                      <div class="pollution-value" id="pm10Value" style="font-size: 1.8rem; font-weight: bold; color: #333;">28.2</div>
+                      <div class="pollution-label" style="font-size: 0.9rem; color: #666; margin-top: 0.5rem;">PM10</div>
+                    </div>
+                    <div class="pollution-item" style="text-align: center; padding: 1rem; background: #f8f9ff; border-radius: 10px; border: 2px solid transparent; transition: all 0.3s ease;">
+                      <div class="pollution-value" id="o3Value" style="font-size: 1.8rem; font-weight: bold; color: #333;">15.8</div>
+                      <div class="pollution-label" style="font-size: 0.9rem; color: #666; margin-top: 0.5rem;">O₃</div>
+                    </div>
+                    <div class="pollution-item" style="text-align: center; padding: 1rem; background: #f8f9ff; border-radius: 10px; border: 2px solid transparent; transition: all 0.3s ease;">
+                      <div class="pollution-value" id="no2Value" style="font-size: 1.8rem; font-weight: bold; color: #333;">8.4</div>
+                      <div class="pollution-label" style="font-size: 0.9rem; color: #666; margin-top: 0.5rem;">NO₂</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-lg-5">
+              <div class="card border-0 shadow-sm">
+                <div class="card-body p-3">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0"><i class="tim-icons icon-chart-pie-36"></i> 24-Hour Trend</h6>
+                    <small class="text-muted">Last 12 hours</small>
+                  </div>
+                  <div class="chart-area" style="height:160px;">
+                    <div id="aqiTrendSummary" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                      <div style="font-weight:700;color:#b58d00;">&nbsp;</div>
+                      <div style="font-size:0.9rem;color:#666;">Hourly</div>
+                    </div>
+                    <canvas id="aqiSearchTrendChart"></canvas>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card border-0 shadow-sm mt-3">
+                <div class="card-body p-3 d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="small text-muted">Temperature</div>
+                    <div class="h5 mb-0" id="temperature">22°C</div>
+                  </div>
+                  <div class="text-end">
+                    <div class="small text-muted">Condition</div>
+                    <div id="weatherCondition">Partly Cloudy</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Default Content (shown when no search performed) -->
+        <div class="default-content" id="defaultContent" style="text-align: center; color: #666; padding: 3rem 0;">
+          <i class="tim-icons icon-world" style="font-size: 4rem; color: #ddd; margin-bottom: 1rem;"></i>
+          <h3>Welcome to Air Quality Monitor</h3>
+          <p>Search for a city or ZIP code above to view real-time air quality data</p>
+        </div>
+
+        <div class="container-fluid">
+          <div class="row">
+            <div class="col-md-12">
+              <div class="card ">
+                <div class="card-header ">
+                  <h4 class="card-title">Dashboard Overview</h4>
+                  <p class="category">Air Quality monitoring dashboard with real-time data.</p>
+                </div>
+                <div class="card-body ">
+                  <div class="row">
+                    <div class="col-lg-3 col-md-6">
+                      <div class="card card-stats">
+                        <div class="card-body ">
+                          <div class="row">
+                            <div class="col-5 col-md-4">
+                              <div class="icon-big text-center icon-warning">
+                                <i class="tim-icons icon-chart-bar-32 text-warning"></i>
+                              </div>
+                            </div>
+                            <div class="col-7 col-md-8">
+                              <div class="numbers">
+                                <p class="card-category">AQI</p>
+                                <p class="card-title">45<span class="text-success"> Good</span></p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="card-footer ">
+                          <hr />
+                          <div class="stats">
+                            <i class="tim-icons icon-refresh-01"></i> Updated now
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                      <div class="card card-stats">
+                        <div class="card-body ">
+                          <div class="row">
+                            <div class="col-5 col-md-4">
+                              <div class="icon-big text-center icon-primary">
+                                <i class="tim-icons icon-sound-wave text-primary"></i>
+                              </div>
+                            </div>
+                            <div class="col-7 col-md-8">
+                              <div class="numbers">
+                                <p class="card-category">PM2.5</p>
+                                <p class="card-title">12.5 μg/m³</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="card-footer ">
+                          <hr />
+                          <div class="stats">
+                            <i class="tim-icons icon-single-02"></i> Sample metric
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                      <div class="card card-stats">
+                        <div class="card-body ">
+                          <div class="row">
+                            <div class="col-5 col-md-4">
+                              <div class="icon-big text-center icon-success">
+                                <i class="tim-icons icon-sun-fog-29 text-success"></i>
+                              </div>
+                            </div>
+                            <div class="col-7 col-md-8">
+                              <div class="numbers">
+                                <p class="card-category">PM10</p>
+                                <p class="card-title">28.2 μg/m³</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="card-footer ">
+                          <hr />
+                          <div class="stats">
+                            <i class="tim-icons icon-alert-circle-exc"></i> Sample metric
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                      <div class="card card-stats">
+                        <div class="card-body ">
+                          <div class="row">
+                            <div class="col-5 col-md-4">
+                              <div class="icon-big text-center icon-danger">
+                                <i class="tim-icons icon-bulb-63 text-danger"></i>
+                              </div>
+                            </div>
+                            <div class="col-7 col-md-8">
+                              <div class="numbers">
+                                <p class="card-category">O₃</p>
+                                <p class="card-title">15.8 ppb</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="card-footer ">
+                          <hr />
+                          <div class="stats">
+                            <i class="tim-icons icon-time-alarm"></i> Sample metric
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="col-md-8">
+                      <div class="card ">
+                        <div class="card-header ">
+                          <h5 class="title d-inline">AQI Trend (Demo)</h5>
+                        </div>
+                        <div class="card-body ">
+                          <canvas id="aqiTrendChart" height="150"></canvas>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-4">
+                      <div class="card ">
+                        <div class="card-header ">
+                          <h5 class="title d-inline">Pollutant Breakdown</h5>
+                        </div>
+                        <div class="card-body ">
+                          <canvas id="pollutantChart" height="150"></canvas>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <footer class="footer">
+        <div class="container-fluid">
+          <ul class="nav">
+            <li class="nav-item">
+              <a href="https://appseed.us" class="nav-link" target="_blank">AppSeed</a>
+            </li>
+          </ul>
+          <div class="copyright">
+            &copy; <script>document.write(new Date().getFullYear())</script>
+            <a href="https://www.creative-tim.com" target="_blank">Creative Tim</a>
+          </div>
+        </div>
+      </footer>
     </div>
-</div>
+  </div>
+
+  <!-- Fixed plugin (theme switch) -->
+  <div class="fixed-plugin">
+    <div class="dropdown show-dropdown open">
+      <a href="#" data-toggle="dropdown">
+        <i class="fa fa-cog fa-2x"> </i>
+      </a>
+      <ul class="dropdown-menu">
+        <li class="header-title"> Sidebar Background</li>
+        <li class="adjustments-line">
+          <a href="javascript:void(0)" class="switch-trigger background-color">
+            <div class="badge-colors text-center">
+              <span class="badge filter badge-primary active" data-color="primary"></span>
+              <span class="badge filter badge-info" data-color="blue"></span>
+              <span class="badge filter badge-success" data-color="green"></span>
+              <span class="badge filter badge-warning" data-color="orange"></span>
+              <span class="badge filter badge-danger" data-color="red"></span>
+            </div>
+            <div class="clearfix"></div>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/assets/js/core/jquery.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/core/popper.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/core/bootstrap.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/plugins/perfect-scrollbar.jquery.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/plugins/chartjs.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/plugins/bootstrap-notify.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/black-dashboard.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/themeSettings.js') }}"></script>
 {% endblock %}
+
+  <!-- AQI Color Classes -->
+  <style>
+    .aqi-good { color: #00e676; }
+    .aqi-moderate { color: #ffeb3b; }
+    .aqi-unhealthy-sensitive { color: #ff9800; }
+    .aqi-unhealthy { color: #f44336; }
+    .aqi-very-unhealthy { color: #9c27b0; }
+    .aqi-hazardous { color: #8d6e63; }
+    
+    .search-input:focus {
+      outline: none;
+      background: white;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+      transform: translateY(-2px);
+    }
+    
+    .search-btn:hover {
+      background: #5a67d8;
+      transform: translateY(-50%) scale(1.1);
+    }
+    
+    .suggestion-item {
+      padding: 12px 20px;
+      cursor: pointer;
+      border-bottom: 1px solid #f0f0f0;
+      transition: background 0.2s ease;
+    }
+    
+    .suggestion-item:hover {
+      background: #f8f9ff;
+    }
+    
+    .suggestion-item:last-child {
+      border-bottom: none;
+    }
+    
+    .station-card:hover {
+      border-color: #4facfe !important;
+      background: #f0f8ff !important;
+      box-shadow: 0 4px 15px rgba(79, 172, 254, 0.1);
+      transform: translateY(-2px);
+    }
+    .stations-list .aqi-badge {
+      color: white !important;
+      font-weight: 700;
+    }
+    .stations-list .aqi-good { background: #00e676; }
+    .stations-list .aqi-moderate { background: #ffd54f; color: #333 !important; }
+    .stations-list .aqi-unhealthy-sensitive { background: #ff9800; }
+    .stations-list .aqi-unhealthy { background: #f44336; }
+    .stations-list .aqi-very-unhealthy { background: #9c27b0; }
+    .stations-list .aqi-hazardous { background: #8d6e63; }
+    
+    .pollution-item:hover {
+      border-color: #667eea;
+      transform: translateY(-3px);
+    }
+    
+    .quick-search-btn:hover {
+      background: rgba(255,255,255,0.3);
+      transform: translateY(-2px);
+    }
+  </style>
+
+  <script>
+    let aqiChart;
+
+    // AQI stations data with real structure (station_idx, city.name, geo.coordinates)
+    const citiesWithStations = {
+        'lang son': [
+            { 
+                station_idx: 13668, 
+                city: { name: 'Lạng Sơn/phường Chi Lăng - TP Lạng Sơn' }, 
+                geo: { coordinates: [106.7506, 21.843325] },
+                aqi: 45, pm25: 18.2, pm10: 25.8, o3: 55.1, no2: 12.4, temp: 24, condition: 'Clear'
+            },
+            { 
+                station_idx: 13669, 
+                city: { name: 'Lạng Sơn/Trung tâm thành phố' }, 
+                geo: { coordinates: [106.7481, 21.8471] },
+                aqi: 52, pm25: 21.7, pm10: 28.3, o3: 48.9, no2: 15.1, temp: 25, condition: 'Good'
+            }
+        ],
+        'hanoi': [
+            { 
+                station_idx: 5814, 
+                city: { name: 'Hanoi/US Embassy - Ngọc Khánh, Ba Đình' }, 
+                geo: { coordinates: [105.8019, 21.0227] },
+                aqi: 85, pm25: 35.2, pm10: 45.8, o3: 22.1, no2: 18.5, temp: 28, condition: 'Moderate'
+            },
+            { 
+                station_idx: 9291, 
+                city: { name: 'Hanoi/Hoàn Kiếm - Trung tâm' }, 
+                geo: { coordinates: [105.8520, 21.0285] },
+                aqi: 92, pm25: 38.7, pm10: 52.3, o3: 19.8, no2: 21.2, temp: 29, condition: 'Moderate'
+            },
+            { 
+                station_idx: 10347, 
+                city: { name: 'Hanoi/Long Biên - Gia Lâm' }, 
+                geo: { coordinates: [105.8867, 21.0414] },
+                aqi: 78, pm25: 32.1, pm10: 41.2, o3: 25.4, no2: 16.8, temp: 27, condition: 'Moderate'
+            },
+            { 
+                station_idx: 12489, 
+                city: { name: 'Hanoi/Cầu Giấy - Dịch Vọng' }, 
+                geo: { coordinates: [105.7938, 21.0314] },
+                aqi: 96, pm25: 41.3, pm10: 58.7, o3: 18.2, no2: 23.9, temp: 30, condition: 'Moderate'
+            }
+        ],
+        'ho chi minh city': [
+            { 
+                station_idx: 5415, 
+                city: { name: 'Ho Chi Minh City/US Consulate - Quận 1' }, 
+                geo: { coordinates: [106.7000, 10.7769] },
+                aqi: 105, pm25: 45.6, pm10: 68.2, o3: 32.7, no2: 28.4, temp: 32, condition: 'Unhealthy (S)'
+            },
+            { 
+                station_idx: 8916, 
+                city: { name: 'Ho Chi Minh City/Trung tâm - Quận 1' }, 
+                geo: { coordinates: [106.6980, 10.7758] },
+                aqi: 118, pm25: 52.8, pm10: 74.5, o3: 29.1, no2: 31.7, temp: 33, condition: 'Unhealthy (S)'
+            },
+            { 
+                station_idx: 9834, 
+                city: { name: 'Ho Chi Minh City/Tân Bình - Sân bay TSN' }, 
+                geo: { coordinates: [106.6590, 10.8181] },
+                aqi: 98, pm25: 42.3, pm10: 61.9, o3: 35.8, no2: 25.6, temp: 31, condition: 'Moderate'
+            },
+            { 
+                station_idx: 11247, 
+                city: { name: 'Ho Chi Minh City/Thủ Đức - KCX Tân Thuận' }, 
+                geo: { coordinates: [106.7311, 10.7625] },
+                aqi: 87, pm25: 37.9, pm10: 55.1, o3: 28.4, no2: 22.3, temp: 30, condition: 'Moderate'
+            }
+        ],
+        'da nang': [
+            { 
+                station_idx: 6821, 
+                city: { name: 'Đà Nẵng/Hải Châu - Trung tâm thành phố' }, 
+                geo: { coordinates: [108.2208, 16.0544] },
+                aqi: 65, pm25: 25.4, pm10: 35.7, o3: 42.1, no2: 15.8, temp: 26, condition: 'Moderate'
+            },
+            { 
+                station_idx: 7459, 
+                city: { name: 'Đà Nẵng/Sơn Trà - Khu vực bãi biển' }, 
+                geo: { coordinates: [108.2430, 16.0755] },
+                aqi: 58, pm25: 22.1, pm10: 31.2, o3: 38.5, no2: 12.4, temp: 25, condition: 'Moderate'
+            },
+            { 
+                station_idx: 8165, 
+                city: { name: 'Đà Nẵng/Liên Chiểu - Sân bay quốc tế' }, 
+                geo: { coordinates: [108.1986, 16.0439] },
+                aqi: 72, pm25: 28.7, pm10: 39.8, o3: 35.2, no2: 18.1, temp: 27, condition: 'Moderate'
+            }
+        ],
+        'bangkok': [
+            { 
+                station_idx: 1532, 
+                city: { name: 'Bangkok/US Embassy - Wireless/Ploenchit Rd' }, 
+                geo: { coordinates: [100.5418, 13.7563] },
+                aqi: 125, pm25: 58.3, pm10: 82.1, o3: 45.7, no2: 35.2, temp: 34, condition: 'Unhealthy (S)'
+            },
+            { 
+                station_idx: 2847, 
+                city: { name: 'Bangkok/Chatuchak - จตุจักร' }, 
+                geo: { coordinates: [100.5692, 13.7998] },
+                aqi: 132, pm25: 62.9, pm10: 87.4, o3: 41.8, no2: 38.6, temp: 35, condition: 'Unhealthy (S)'
+            },
+            { 
+                station_idx: 3912, 
+                city: { name: 'Bangkok/Sukhumvit - สุขุมวิท' }, 
+                geo: { coordinates: [100.5648, 13.7307] },
+                aqi: 119, pm25: 55.7, pm10: 78.3, o3: 48.2, no2: 32.9, temp: 33, condition: 'Unhealthy (S)'
+            }
+        ],
+        'jakarta': [
+            { 
+                station_idx: 4192, 
+                city: { name: 'Jakarta/Central - Jakarta Pusat' }, 
+                geo: { coordinates: [106.8456, -6.1805] },
+                aqi: 145, pm25: 68.4, pm10: 95.7, o3: 38.9, no2: 42.1, temp: 31, condition: 'Unhealthy (S)'
+            },
+            { 
+                station_idx: 4856, 
+                city: { name: 'Jakarta/South - Jakarta Selatan' }, 
+                geo: { coordinates: [106.8294, -6.2382] },
+                aqi: 138, pm25: 64.2, pm10: 89.3, o3: 41.7, no2: 39.8, temp: 30, condition: 'Unhealthy (S)'
+            }
+        ],
+        'singapore': [
+            { 
+                station_idx: 3847, 
+                city: { name: 'Singapore/Central - Marina Bay' }, 
+                geo: { coordinates: [103.8518, 1.2966] },
+                aqi: 62, pm25: 24.8, pm10: 33.2, o3: 48.5, no2: 19.7, temp: 30, condition: 'Moderate'
+            },
+            { 
+                station_idx: 4521, 
+                city: { name: 'Singapore/North - Woodlands' }, 
+                geo: { coordinates: [103.7890, 1.4382] },
+                aqi: 58, pm25: 22.3, pm10: 29.8, o3: 52.1, no2: 17.4, temp: 29, condition: 'Moderate'
+            }
+        ]
+    };
+
+    const quickSearchCities = [
+        { name: 'Lạng Sơn', key: 'lang son' },
+        { name: 'Hanoi', key: 'hanoi' },
+        { name: 'Ho Chi Minh City', key: 'ho chi minh city' },
+        { name: 'Da Nang', key: 'da nang' },
+        { name: 'Bangkok', key: 'bangkok' }
+    ];
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('citySearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', handleSearchInput);
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    handleCitySearch();
+                }
+            });
+        }
+
+        // Close suggestions when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.search-input-group')) {
+                const suggestionsEl = document.getElementById('searchSuggestions');
+                if (suggestionsEl) suggestionsEl.style.display = 'none';
+            }
+        });
+
+        // Initialize dashboard charts
+        if (window.Chart) {
+            const ctx = document.getElementById('aqiTrendChart');
+            if (ctx) {
+                new Chart(ctx.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: Array.from({ length: 12 }, (_, i) => `${i+1}:00`),
+                        datasets: [{
+                            label: 'AQI',
+                            data: [42, 38, 45, 52, 48, 41, 39, 44, 50, 55, 49, 43],
+                            borderColor: 'rgb(79, 172, 254)',
+                            backgroundColor: 'rgba(79, 172, 254, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                });
+            }
+
+            const ctx2 = document.getElementById('pollutantChart');
+            if (ctx2) {
+                new Chart(ctx2.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['PM2.5', 'PM10', 'O₃', 'NO₂', 'SO₂', 'CO'],
+                        datasets: [{
+                            data: [30, 25, 20, 15, 6, 4],
+                            backgroundColor: ['#ff6b9d','#4ecdc4','#45b7d1','#96ceb4','#feca57','#ff9ff3'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+                });
+            }
+        }
+    });
+
+    function handleSearchInput() {
+        const cs = document.getElementById('citySearch');
+        const query = cs ? cs.value.toLowerCase() : '';
+        const suggestions = document.getElementById('searchSuggestions');
+        
+        if (query.length < 2) {
+            if (suggestions) suggestions.style.display = 'none';
+            return;
+        }
+        
+        let suggestionItems = [];
+        
+        // Check if query is a station ID (numeric)
+        if (/^\d+$/.test(query)) {
+            // Search for stations by station_idx
+            Object.keys(citiesWithStations).forEach(cityKey => {
+                citiesWithStations[cityKey].forEach(station => {
+                    if (station.station_idx.toString().includes(query)) {
+                        suggestionItems.push({
+                            type: 'station',
+                            station: station,
+                            cityKey: cityKey,
+                            html: `
+                                <div class="suggestion-item" onclick="selectStationDirectly('${cityKey}', ${citiesWithStations[cityKey].indexOf(station)})">
+                                    <strong>Station #${station.station_idx}</strong>
+                                    <small class="text-muted d-block">${station.city.name}</small>
+                                    <small class="text-success">AQI: ${station.aqi} - ${getAQIStatus(station.aqi).status}</small>
+                                </div>
+                            `
+                        });
+                    }
+                });
+            });
+        } else {
+            // Search for stations by name
+            Object.keys(citiesWithStations).forEach(cityKey => {
+                citiesWithStations[cityKey].forEach(station => {
+                    if (station.city.name.toLowerCase().includes(query)) {
+                        suggestionItems.push({
+                            type: 'station',
+                            station: station,
+                            cityKey: cityKey,
+                            html: `
+                                <div class="suggestion-item" onclick="selectStationDirectly('${cityKey}', ${citiesWithStations[cityKey].indexOf(station)})">
+                                    <strong>${station.city.name}</strong>
+                                    <small class="text-muted d-block">Station #${station.station_idx}</small>
+                                    <small class="text-success">AQI: ${station.aqi} - ${getAQIStatus(station.aqi).status}</small>
+                                </div>
+                            `
+                        });
+                    }
+                });
+            });
+            
+            // Also search for cities that match the query
+            const matchedCities = Object.keys(citiesWithStations).filter(cityKey => 
+                cityKey.includes(query)
+            );
+            
+            matchedCities.forEach(cityKey => {
+                const cityName = cityKey.charAt(0).toUpperCase() + cityKey.slice(1).replace(/\b\w/g, l => l.toUpperCase());
+                const stationCount = citiesWithStations[cityKey].length;
+                suggestionItems.push({
+                    type: 'city',
+                    html: `
+                        <div class="suggestion-item" onclick="selectCityForStations('${cityKey}', '${cityName}')">
+                            <strong>📍 ${cityName}</strong>
+                            <small class="text-muted d-block">${stationCount} monitoring stations available</small>
+                        </div>
+                    `
+                });
+            });
+        }
+        
+        if (suggestionItems.length > 0) {
+            if (suggestions) {
+                // Sort: stations first, then cities
+                suggestionItems.sort((a, b) => {
+                    if (a.type === 'station' && b.type === 'city') return -1;
+                    if (a.type === 'city' && b.type === 'station') return 1;
+                    return 0;
+                });
+                
+                suggestions.innerHTML = suggestionItems.map(item => item.html).join('');
+                suggestions.style.display = 'block';
+            }
+        } else {
+            if (suggestions) suggestions.style.display = 'none';
+        }
+    }
+
+    function selectStationDirectly(cityKey, stationIndex) {
+        const cs = document.getElementById('citySearch');
+        const station = citiesWithStations[cityKey][stationIndex];
+        if (cs) cs.value = `Station #${station.station_idx} - ${station.city.name}`;
+        
+        const sug = document.getElementById('searchSuggestions');
+        if (sug) sug.style.display = 'none';
+        
+        // Hide default content and stations list
+        const defEl = document.getElementById('defaultContent');
+        if (defEl) defEl.style.display = 'none';
+        const stationsListEl = document.getElementById('stationsList');
+        if (stationsListEl) stationsListEl.style.display = 'none';
+        
+        // Show and populate air quality result directly
+        const resEl = document.getElementById('airQualityResult');
+        if (resEl) resEl.style.display = 'block';
+        
+        // Update location name
+        const locEl = document.getElementById('locationName');
+        if (locEl) locEl.textContent = station.city.name;
+        
+        // Update data with station info
+        updateAirQualityDataFromStation(station);
+    }
+
+    function selectCityForStations(cityKey, cityName) {
+        const cs = document.getElementById('citySearch');
+        if (cs) cs.value = cityName;
+        const sug = document.getElementById('searchSuggestions');
+        if (sug) sug.style.display = 'none';
+        showCityStations(cityKey, cityName);
+    }
+
+    function quickSearch(cityName) {
+        const cs = document.getElementById('citySearch');
+        if (cs) cs.value = cityName;
+        const cityKey = cityName.toLowerCase();
+        showCityStations(cityKey, cityName);
+    }
+
+    function handleCitySearch() {
+        const csEl = document.getElementById('citySearch');
+        const searchValue = csEl ? csEl.value.trim() : '';
+        
+        if (!searchValue) {
+            alert('Please enter a city name, station name, or station ID');
+            return;
+        }
+        
+        // Check if it's a station ID (numeric)
+        if (/^\d+$/.test(searchValue)) {
+            const stationId = parseInt(searchValue);
+            let foundStation = null;
+            let foundCityKey = null;
+            let foundIndex = -1;
+            
+            // Search for station by ID
+            Object.keys(citiesWithStations).forEach(cityKey => {
+                citiesWithStations[cityKey].forEach((station, index) => {
+                    if (station.station_idx === stationId) {
+                        foundStation = station;
+                        foundCityKey = cityKey;
+                        foundIndex = index;
+                    }
+                });
+            });
+            
+            if (foundStation) {
+                selectStationDirectly(foundCityKey, foundIndex);
+                return;
+            }
+        }
+        
+        // Check if it's a station name
+        let foundByName = null;
+        Object.keys(citiesWithStations).forEach(cityKey => {
+            citiesWithStations[cityKey].forEach((station, index) => {
+                if (station.city.name.toLowerCase().includes(searchValue.toLowerCase()) && !foundByName) {
+                    foundByName = { cityKey, index };
+                }
+            });
+        });
+        
+        if (foundByName) {
+            selectStationDirectly(foundByName.cityKey, foundByName.index);
+            return;
+        }
+        
+        // Otherwise, treat as city search
+        const cityKey = searchValue.toLowerCase();
+        if (citiesWithStations[cityKey]) {
+            showCityStations(cityKey, searchValue);
+        } else {
+            alert('Không tìm thấy thành phố, trạm quan trắc hoặc Station ID này.\n\nThử:\n• Thành phố: Lạng Sơn, Hanoi, Ho Chi Minh City\n• Station ID: 13668, 5814, 9291\n• Tên trạm: US Embassy, Chi Lăng, Hoàn Kiếm');
+        }
+        
+        // Close suggestions
+        const closeSug = document.getElementById('searchSuggestions');
+        if (closeSug) closeSug.style.display = 'none';
+    }
+
+    function showCityStations(cityKey, cityName) {
+        // Hide default content
+        const defEl = document.getElementById('defaultContent');
+        if (defEl) defEl.style.display = 'none';
+        
+        // Hide air quality result
+        const resEl = document.getElementById('airQualityResult');
+        if (resEl) resEl.style.display = 'none';
+        
+        // Show stations list
+        let stationsListEl = document.getElementById('stationsList');
+        if (!stationsListEl) {
+            // Create stations list element
+            stationsListEl = document.createElement('div');
+            stationsListEl.id = 'stationsList';
+            stationsListEl.className = 'stations-list';
+            stationsListEl.style.cssText = 'background: white; border-radius: 14px; padding: 1.5rem; box-shadow: 0 8px 28px rgba(22,24,33,0.08); margin-bottom: 1.75rem;';
+            
+            // Insert after search header
+            const searchHeader = document.querySelector('.search-header');
+            if (searchHeader && searchHeader.nextSibling) {
+                searchHeader.parentNode.insertBefore(stationsListEl, searchHeader.nextSibling);
+            }
+        }
+        
+        const stations = citiesWithStations[cityKey];
+        stationsListEl.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h4 class="mb-1">Monitoring Stations in ${cityName}</h4>
+                    <p class="text-muted mb-0">Select a station to view detailed air quality data</p>
+                </div>
+                <button class="btn btn-outline-secondary btn-sm" onclick="goBackToSearch()">
+                    <i class="tim-icons icon-minimal-left"></i> Back to Search
+                </button>
+            </div>
+            <div class="row">
+                ${stations.map((station, index) => `
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="station-card" onclick="selectStation('${cityKey}', ${index})" style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.3s ease; background: #f8f9ff;">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="mb-1" style="color: #1e293b; font-size: 0.9rem;">${station.city.name}</h6>
+                                <div class="aqi-badge ${getAQIStatus(station.aqi).class}" style="padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">
+                                    ${station.aqi}
+                                </div>
+                            </div>
+                            <div class="station-preview">
+                                <div class="row text-center mb-2">
+                                    <div class="col-6">
+                                        <div class="small text-muted">Station ID</div>
+                                        <div class="font-weight-bold text-primary">#${station.station_idx}</div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="small text-muted">Status</div>
+                                        <div class="small ${getAQIStatus(station.aqi).class}">${getAQIStatus(station.aqi).status}</div>
+                                    </div>
+                                </div>
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <div class="small text-muted">PM2.5</div>
+                                        <div class="font-weight-bold">${station.pm25} μg/m³</div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="small text-muted">Coordinates</div>
+                                        <div class="small text-muted">${station.geo.coordinates[1].toFixed(3)}, ${station.geo.coordinates[0].toFixed(3)}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        
+        stationsListEl.style.display = 'block';
+    }
+
+    function selectStation(cityKey, stationIndex) {
+        const station = citiesWithStations[cityKey][stationIndex];
+        
+        // Hide stations list
+        const stationsListEl = document.getElementById('stationsList');
+        if (stationsListEl) stationsListEl.style.display = 'none';
+        
+        // Show and populate air quality result
+        const resEl = document.getElementById('airQualityResult');
+        if (resEl) resEl.style.display = 'block';
+        
+        // Update location name
+        const locEl = document.getElementById('locationName');
+        if (locEl) locEl.textContent = station.city.name;
+        
+        // Update data with station info
+        updateAirQualityDataFromStation(station);
+    }
+
+    function goBackToSearch() {
+        // Hide stations list
+        const stationsListEl = document.getElementById('stationsList');
+        if (stationsListEl) stationsListEl.style.display = 'none';
+        
+        // Hide air quality result
+        const resEl = document.getElementById('airQualityResult');
+        if (resEl) resEl.style.display = 'none';
+        
+        // Show default content
+        const defEl = document.getElementById('defaultContent');
+        if (defEl) defEl.style.display = 'block';
+        
+        // Clear search input
+        const cs = document.getElementById('citySearch');
+        if (cs) cs.value = '';
+    }
+
+    function updateAirQualityDataFromStation(station) {
+        // Update AQI display with real station data
+        const elAqiValue = document.getElementById('aqiValue');
+        const elPm25 = document.getElementById('pm25Value');
+        const elPm10 = document.getElementById('pm10Value');
+        const elO3 = document.getElementById('o3Value');
+        const elNo2 = document.getElementById('no2Value');
+        const elAqiStatus = document.getElementById('aqiStatus');
+        const elAqiDesc = document.getElementById('aqiDescription');
+
+        if (elAqiValue) elAqiValue.textContent = station.aqi;
+        if (elPm25) elPm25.textContent = station.pm25;
+        if (elPm10) elPm10.textContent = station.pm10;
+        if (elO3) elO3.textContent = station.o3;
+        if (elNo2) elNo2.textContent = station.no2;
+
+        // Update AQI status and color
+        const aqiStatusObj = getAQIStatus(station.aqi);
+        if (elAqiStatus) elAqiStatus.textContent = aqiStatusObj.status;
+        if (elAqiDesc) elAqiDesc.textContent = aqiStatusObj.description;
+
+        // Update colors
+        if (elAqiValue) elAqiValue.className = `aqi-value ${aqiStatusObj.class}`;
+        if (elAqiStatus) elAqiStatus.className = `aqi-status ${aqiStatusObj.class}`;
+        
+        // Update weather data with station info
+        const elTemp = document.getElementById('temperature');
+        const elCond = document.getElementById('weatherCondition');
+
+        if (elTemp) elTemp.textContent = `${station.temp}°C`;
+        if (elCond) elCond.textContent = station.condition;
+
+        // Update trend chart with realistic data based on current AQI
+        const trendCanvas = document.getElementById('aqiSearchTrendChart');
+        if (trendCanvas && window.Chart) {
+            updateSearchTrendChart(station.aqi);
+        }
+    }
+
+    function getAQIStatus(aqi) {
+        if (aqi <= 50) {
+            return {
+                status: 'Good',
+                class: 'aqi-good',
+                description: 'Air quality is considered satisfactory, and air pollution poses little or no risk.'
+            };
+        } else if (aqi <= 100) {
+            return {
+                status: 'Moderate',
+                class: 'aqi-moderate',
+                description: 'Air quality is acceptable; however, some pollutants may be a concern for sensitive people.'
+            };
+        } else if (aqi <= 150) {
+            return {
+                status: 'Unhealthy (S)',
+                class: 'aqi-unhealthy-sensitive',
+                description: 'Members of sensitive groups may experience health effects.'
+            };
+        } else if (aqi <= 200) {
+            return {
+                status: 'Unhealthy',
+                class: 'aqi-unhealthy',
+                description: 'Everyone may begin to experience health effects.'
+            };
+        } else if (aqi <= 300) {
+            return {
+                status: 'Very Unhealthy',
+                class: 'aqi-very-unhealthy',
+                description: 'Health warnings of emergency conditions.'
+            };
+        } else {
+            return {
+                status: 'Hazardous',
+                class: 'aqi-hazardous',
+                description: 'Health alert: everyone may experience serious health effects.'
+            };
+        }
+    }
+
+    function updateSearchTrendChart(baseAQI) {
+        const canvasEl = document.getElementById('aqiSearchTrendChart');
+        if (!canvasEl) return;
+        const ctx = canvasEl.getContext('2d');
+
+        // Generate realistic hourly data around the base AQI
+        const hours = Array.from({length: 12}, (_, i) => `${i+1}:00`);
+        const aqiData = Array.from({length: 12}, () => {
+            const variation = Math.floor(Math.random() * 30) - 15; // ±15 variation
+            return Math.max(10, baseAQI + variation);
+        });
+
+        // Map AQI to color per thresholds
+        function getBarColor(aqi) {
+            if (aqi <= 50) return '#00e676';      // green
+            if (aqi <= 100) return '#ffd54f';     // yellow
+            if (aqi <= 150) return '#ff9800';     // orange
+            if (aqi <= 200) return '#f44336';     // red
+            if (aqi <= 300) return '#9c27b0';     // purple
+            return '#8d6e63';                     // brown
+        }
+        const barColors = aqiData.map(v => getBarColor(v));
+
+        if (aqiChart) {
+            aqiChart.destroy();
+        }
+
+        // Compute average for summary
+        const avg = Math.round(aqiData.reduce((s,v) => s+v, 0) / aqiData.length);
+        const statusObj = getAQIStatus(avg);
+        const summaryEl = document.getElementById('aqiTrendSummary');
+        if (summaryEl) {
+            summaryEl.innerHTML = `
+                <div style="font-weight:700;color:#b58d00;">${avg} AQI* US <span style="font-weight:600;color:#b58d00">${statusObj.status}</span></div>
+                <div style="font-size:0.9rem;color:#666;">Hourly</div>
+            `;
+        }
+
+        aqiChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: hours,
+                datasets: [{
+                    label: 'AQI',
+                    data: aqiData,
+                    backgroundColor: barColors,
+                    borderRadius: 6,
+                    borderSkipped: false,
+                    maxBarThickness: 14
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `AQI: ${context.parsed.y}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        suggestedMax: Math.max(120, Math.max(...aqiData) + 20),
+                        grid: { display: false }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { maxRotation: 0, minRotation: 0 }
+                    }
+                }
+            }
+        });
+    }
+  </script>
+</body>
+</html>
