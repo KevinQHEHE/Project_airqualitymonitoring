@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "StationsListResponse",
+  "type": "object",
+  "required": ["stations", "pagination"],
+  "properties": {
+    "stations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["station_id", "name", "country"],
+        "properties": {
+          "_id": {"type": "string"},
+          "station_id": {"type": "string"},
+          "name": {"type": "string"},
+          "country": {"type": "string"},
+          "city": {"type": ["string", "object"]},
+          "location": {
+            "type": "object",
+            "properties": {
+              "latitude": {"type": "number"},
+              "longitude": {"type": "number"}
+            }
+          }
+        }
+      }
+    },
+    "pagination": {
+      "type": "object",
+      "required": ["limit", "offset", "total"],
+      "properties": {
+        "limit": {"type": "integer", "minimum": 1},
+        "offset": {"type": "integer", "minimum": 0},
+        "total": {"type": "integer", "minimum": 0},
+        "pages": {"type": "integer", "minimum": 0},
+        "current_page": {"type": "integer", "minimum": 1},
+        "has_next": {"type": "boolean"},
+        "has_prev": {"type": "boolean"}
+      }
+    }
+  }
+}

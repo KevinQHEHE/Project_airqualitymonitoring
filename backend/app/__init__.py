@@ -77,29 +77,29 @@ def register_blueprints(app):
         app: Flask application instance
     """
     # Import API blueprints here to avoid circular imports
-    from backend.app.blueprints.api.auth.routes import auth_bp
+    # from backend.app.blueprints.api.auth.routes import auth_bp
     from backend.app.blueprints.api.stations.routes import stations_bp
-    from backend.app.blueprints.api.measurements.routes import measurements_bp
-    from backend.app.blueprints.api.aggregates.routes import aggregates_bp
-    from backend.app.blueprints.api.alerts.routes import alerts_bp
-    from backend.app.blueprints.api.forecasts.routes import forecasts_bp
-    from backend.app.blueprints.api.exports.routes import exports_bp
-    from backend.app.blueprints.api.realtime.routes import realtime_bp
-    from backend.app.blueprints.api.scheduler.routes import scheduler_bp
+    # from backend.app.blueprints.api.measurements.routes import measurements_bp
+    # from backend.app.blueprints.api.aggregates.routes import aggregates_bp
+    # from backend.app.blueprints.api.alerts.routes import alerts_bp
+    # from backend.app.blueprints.api.forecasts.routes import forecasts_bp
+    # from backend.app.blueprints.api.exports.routes import exports_bp
+    # from backend.app.blueprints.api.realtime.routes import realtime_bp
+    # from backend.app.blueprints.api.scheduler.routes import scheduler_bp
     
     # Import Web blueprint
     from backend.app.blueprints.web.routes import web_bp
     
     # Register API blueprints with URL prefixes
-    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    # app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(stations_bp, url_prefix='/api/stations')
-    app.register_blueprint(measurements_bp, url_prefix='/api/measurements')
-    app.register_blueprint(aggregates_bp, url_prefix='/api/aggregates')
-    app.register_blueprint(alerts_bp, url_prefix='/api/alerts')
-    app.register_blueprint(forecasts_bp, url_prefix='/api/forecasts')
-    app.register_blueprint(exports_bp, url_prefix='/api/exports')
-    app.register_blueprint(realtime_bp, url_prefix='/api/realtime')
-    app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
+    # app.register_blueprint(measurements_bp, url_prefix='/api/measurements')
+    # app.register_blueprint(aggregates_bp, url_prefix='/api/aggregates')
+    # app.register_blueprint(alerts_bp, url_prefix='/api/alerts')
+    # app.register_blueprint(forecasts_bp, url_prefix='/api/forecasts')
+    # app.register_blueprint(exports_bp, url_prefix='/api/exports')
+    # app.register_blueprint(realtime_bp, url_prefix='/api/realtime')
+    # app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
     
     # Register Web blueprint (no prefix for main web routes)
     app.register_blueprint(web_bp)

@@ -1,0 +1,44 @@
+{
+  "info": {
+    "name": "Get Stations - Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "get-stations-collection"
+  },
+  "item": [
+    {
+      "name": "GET /api/stations",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/api/stations?limit=10&offset=0",
+          "host": [
+            "http://localhost:5000"
+          ],
+          "path": [
+            "api",
+            "stations"
+          ],
+          "query": [
+            { "key": "limit", "value": "10" },
+            { "key": "offset", "value": "0" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "GET /api/stations (city filter)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/api/stations?city=Hanoi",
+          "host": ["http://localhost:5000"],
+          "path": ["api","stations"],
+          "query": [ { "key": "city", "value": "Hanoi" } ]
+        }
+      }
+    }
+  ]
+}
