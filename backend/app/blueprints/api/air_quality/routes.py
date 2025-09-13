@@ -14,12 +14,47 @@ from __future__ import annotations
 from flask import Blueprint, request, jsonify
 import logging
 from typing import List, Dict, Any, Optional
+from datetime import datetime, timezone, timedelta
 
 from backend.app.db import get_db
 
 logger = logging.getLogger(__name__)
 
 air_quality_bp = Blueprint('air_quality', __name__)
+
+
+def _timestamp_to_vn_iso(val):
+    """Convert a datetime or ISO string to Vietnam timezone (+07:00) ISO string.
+
+    If val is a datetime, assume UTC when naive. If val is a string and ISO-parsable,
+    parse and convert; otherwise return the original value.
+    """
+    if val is None:
+        return None
+    try:
+        if isinstance(val, datetime):
+            dt = val
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            vn = dt.astimezone(timezone(timedelta(hours=7)))
+            return vn.isoformat()
+
+        if isinstance(val, str):
+            s = val
+            # handle trailing Z
+            if s.endswith('Z'):
+                s = s[:-1] + '+00:00'
+            try:
+                dt = datetime.fromisoformat(s)
+            except Exception:
+                return val
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            vn = dt.astimezone(timezone(timedelta(hours=7)))
+            return vn.isoformat()
+    except Exception:
+        return val
+    return val
 
 
 def build_latest_per_station_pipeline(station_id: Optional[str], limit: int) -> List[Dict[str, Any]]:
@@ -154,14 +189,10 @@ def get_latest_measurements():
         cursor = db.waqi_station_readings.aggregate(pipeline, allowDiskUse=False)
         results = list(cursor)
 
-        # Ensure timestamps and other non-JSON types are serialized
+        # Ensure timestamps are converted to Vietnam local time ISO strings
         for doc in results:
             if 'timestamp' in doc:
-                # If it's a datetime, convert to ISO format
-                try:
-                    doc['timestamp'] = doc['timestamp'].isoformat()
-                except Exception:
-                    pass
+                doc['timestamp'] = _timestamp_to_vn_iso(doc.get('timestamp'))
 
         return jsonify({'measurements': results}), 200
 
@@ -244,15 +275,10 @@ def get_history():
         cursor = db.waqi_station_readings.aggregate(pipeline, allowDiskUse=False)
         results = list(cursor)
 
-        # Normalize timestamps to ISO strings when possible
+        # Convert timestamps to Vietnam local time ISO strings
         for doc in results:
             if 'timestamp' in doc and doc['timestamp'] is not None:
-                try:
-                    # datetime -> isoformat
-                    doc['timestamp'] = doc['timestamp'].isoformat()
-                except Exception:
-                    # If already a string leave as-is
-                    pass
+                doc['timestamp'] = _timestamp_to_vn_iso(doc.get('timestamp'))
 
         return jsonify({'station_id': station_id, 'measurements': results}), 200
 
