@@ -107,6 +107,13 @@ def register_blueprints(app):
         # If import fails, do not prevent app startup; hyphen alias is optional
         import logging
         logging.getLogger(__name__).debug('Could not add hyphen alias for air_quality routes')
+    # Also add a short alias for /api/aq/history per API contract
+    try:
+        from backend.app.blueprints.api.air_quality.routes import get_history
+        app.add_url_rule('/api/aq/history', endpoint='aq_history', view_func=get_history, methods=['GET'])
+    except Exception:
+        import logging
+        logging.getLogger(__name__).debug('Could not add alias /api/aq/history for air quality history route')
     # app.register_blueprint(measurements_bp, url_prefix='/api/measurements')
     # app.register_blueprint(aggregates_bp, url_prefix='/api/aggregates')
     # app.register_blueprint(alerts_bp, url_prefix='/api/alerts')

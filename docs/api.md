@@ -87,6 +87,85 @@ Air-quality endpoints (browse these in the address bar):
 
 `http://localhost:5000/api/air-quality/latest?station_id=13668&limit=1`
 
+History endpoint (new)
+
+`GET /api/aq/history?station_id={station_id}&hours={hours}`
+
+Query parameters:
+- `station_id` (string|int, required) - station identifier
+- `hours` (integer, optional) - lookback window in hours (default 12, max 72)
+
+Response shape:
+```
+{
+	"station_id": "13668",
+	"measurements": [
+		{"timestamp": "2025-09-13T10:00:00Z", "aqi": 42, "pm25": 12.3, "pm10": 20.1, "o3": 0.01, "no2": 0.002, "so2": 0.0, "co": 0.1, "pb": null},
+		...
+	]
+}
+```
+
+Example cURL:
+
+```
+curl "http://localhost:5000/api/aq/history?station_id=13668&hours=12"
+```
+
+Example response:
+
+```
+{
+	"measurements": [
+		{
+			"aqi": 25,
+			"co": 1,
+			"no2": 4,
+			"o3": 1,
+			"pm10": 25,
+			"pm25": 18,
+			"so2": 16,
+			"station_id": 13668,
+			"timestamp": "2025-09-13T02:00:00"
+		},
+		{
+			"aqi": 52,
+			"co": 1,
+			"no2": 4,
+			"o3": 16,
+			"pm10": 47,
+			"pm25": 52,
+			"so2": 16,
+			"station_id": 13668,
+			"timestamp": "2025-09-13T12:00:00"
+		},
+		{
+			"aqi": 52,
+			"co": 1,
+			"no2": 4,
+			"o3": 11,
+			"pm10": 44,
+			"pm25": 52,
+			"so2": 16,
+			"station_id": 13668,
+			"timestamp": "2025-09-13T13:00:00"
+		},
+		{
+			"aqi": 48,
+			"co": 1,
+			"no2": 4,
+			"o3": 9,
+			"pm10": 39,
+			"pm25": 48,
+			"so2": 16,
+			"station_id": 13668,
+			"timestamp": "2025-09-13T14:00:00"
+		}
+	],
+	"station_id": "13668"
+}
+```
+
 If the browser does not pretty-print JSON, use the browser's "View Source" or a JSON formatter extension. Replace `localhost:5000` with your server host/port if different (for example `http://localhost:5001`).
 
 Note: the application also registers an underscore-style route (`/api/air_quality/latest`) for backward compatibility, but examples here use the hyphenated path.

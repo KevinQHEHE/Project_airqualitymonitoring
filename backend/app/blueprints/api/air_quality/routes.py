@@ -168,3 +168,94 @@ def get_latest_measurements():
     except Exception as e:
         logger.error(f"get_latest_measurements error: {e}")
         return jsonify({'error': 'Internal server error'}), 500
+
+
+@air_quality_bp.route('/history', methods=['GET'])
+def get_history():
+    """Return AQI and pollutant measurements for the last N hours for a station.
+
+    Query params:
+      - station_id: required
+      - hours: optional integer, default 12, max 72
+
+    Returns JSON: { 'station_id': <id>, 'measurements': [ { timestamp, aqi, pm25, pm10, o3, no2, so2, co, pb }, ... ] }
+    """
+    try:
+        station_id = request.args.get('station_id')
+        if not station_id:
+            return jsonify({'error': 'station_id is required'}), 400
+
+        # parse hours
+        try:
+            hours = int(request.args.get('hours', 12))
+        except ValueError:
+            return jsonify({'error': 'hours must be an integer'}), 400
+
+        if hours <= 0:
+            return jsonify({'error': 'hours must be greater than 0'}), 400
+        if hours > 72:
+            return jsonify({'error': 'hours cannot exceed 72'}), 400
+
+        from datetime import datetime, timedelta
+
+        now = datetime.utcnow()
+        start_ts = now - timedelta(hours=hours)
+
+        # Build aggregation pipeline: filter by station and timestamp >= start_ts, project required fields, sort ascending
+        # Support station_id numeric vs string similar to latest pipeline
+        match_stage = None
+        if station_id.isdigit():
+            match_stage = {'$or': [ {'station_id': station_id}, {'meta.station_idx': int(station_id)} ]}
+        else:
+            match_stage = {'station_id': station_id}
+
+        # Timestamp fields in documents may be `ts` (datetime) or `time.iso`/`timestamp` (string). We'll match against `ts` when available.
+        pipeline = [
+            {'$match': match_stage},
+            # Match by time: include docs where ts >= start_ts OR time.iso >= start_iso OR timestamp >= start_iso
+            {'$match': {
+                '$or': [
+                    {'ts': {'$gte': start_ts}},
+                    {'time.iso': {'$gte': start_ts.isoformat()}},
+                    {'timestamp': {'$gte': start_ts.isoformat()}},
+                ]
+            }},
+            # Project only the fields we need
+            {'$project': {
+                '_id': 0,
+                'station_id': {'$ifNull': ['$meta.station_idx', '$station_id']},
+                'timestamp': {'$ifNull': ['$ts', '$time.iso', '$timestamp']},
+                'aqi': {'$ifNull': ['$aqi', None]},
+                'pm25': {'$ifNull': ['$iaqi.pm25.v', '$pm25']},
+                'pm10': {'$ifNull': ['$iaqi.pm10.v', '$pm10']},
+                'o3': {'$ifNull': ['$iaqi.o3.v', '$o3']},
+                'no2': {'$ifNull': ['$iaqi.no2.v', '$no2']},
+                'so2': {'$ifNull': ['$iaqi.so2.v', '$so2']},
+                'co': {'$ifNull': ['$iaqi.co.v', '$co']},
+                'pb': {'$ifNull': ['$iaqi.pb.v', '$pb']},
+            }},
+            # Sort chronologically (oldest first)
+            {'$sort': {'timestamp': 1, 'ts': 1, 'time.iso': 1}},
+        ]
+
+        db = get_db()
+        logger.debug(f"History pipeline: {pipeline}")
+
+        cursor = db.waqi_station_readings.aggregate(pipeline, allowDiskUse=False)
+        results = list(cursor)
+
+        # Normalize timestamps to ISO strings when possible
+        for doc in results:
+            if 'timestamp' in doc and doc['timestamp'] is not None:
+                try:
+                    # datetime -> isoformat
+                    doc['timestamp'] = doc['timestamp'].isoformat()
+                except Exception:
+                    # If already a string leave as-is
+                    pass
+
+        return jsonify({'station_id': station_id, 'measurements': results}), 200
+
+    except Exception as e:
+        logger.error(f"get_history error: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
