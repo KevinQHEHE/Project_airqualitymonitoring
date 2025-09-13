@@ -1,3 +1,52 @@
+/* DARK MODE: stations-list nền tối triệt để (body KHÔNG có .white-content = dark mode) */
+body:not(.white-content) .stations-list,
+body:not(.white-content) #stationsList {
+    background: #23263a !important;
+    color: #f8fafc !important;
+    border-radius: 14px !important;
+    border: 1px solid #35395a !important;
+    box-shadow: 0 8px 28px #23263a33, 0 2px 8px #0003 !important;
+}
+body:not(.white-content) .stations-list .station-card,
+body:not(.white-content) #stationsList .station-card {
+    background: #23263a !important;
+    color: #f8fafc !important;
+    border: 1px solid #35395a !important;
+    box-shadow: 0 2px 8px #23263a33 !important;
+}
+/* DARK MODE text color for heading, label, text (KHÔNG override .aqi-value) */
+body:not(.white-content) #stationsList {
+    color: #f8fafc !important;
+}
+body:not(.white-content) #stationsList h4,
+body:not(.white-content) #stationsList h6 {
+    color: #ffe082 !important;
+}
+body:not(.white-content) #stationsList .font-weight-bold {
+    color: #fff !important;
+}
+body:not(.white-content) #stationsList .text-muted,
+body:not(.white-content) #stationsList .small {
+    color: #7dd3fc !important;
+}
+
+body:not(.white-content) #airQualityResult {
+    color: #f8fafc !important;
+}
+body:not(.white-content) #airQualityResult h4,
+body:not(.white-content) #airQualityResult h6 {
+    color: #ffe082 !important;
+}
+body:not(.white-content) #airQualityResult .font-weight-bold {
+    color: #fff !important;
+}
+body:not(.white-content) #airQualityResult .text-muted,
+body:not(.white-content) #airQualityResult .small {
+    color: #7dd3fc !important;
+}
+body:not(.white-content) #airQualityResult .aqi-description {
+    color: #b0b3c7 !important;
+}
 /* The switch - the box around the slider */
 .switch {
     --width-of-switch: 3.5em;
@@ -55,4 +104,72 @@ input:checked + .slider:before {
     background: #303136;
     /* change the value of second inset in box-shadow to change the angle and direction of the moon  */
     box-shadow: inset -3px -2px 5px -2px #8983f7, inset -10px -4px 0 0 #a3dafb;
+}
+
+/* Forecast section dark mode - CHỈ apply khi ở dark mode */
+body:not(.white-content) #forecast-section {
+    color: #f8fafc !important;
+}
+
+/* DARK MODE ONLY - forecast cards */
+body:not(.white-content) #forecast-section .forecast-zigzag-card {
+    background: linear-gradient(135deg, #23263a 60%, #35395a22 100%) !important;
+    color: #f8fafc !important;
+    border: 1px solid #35395a !important;
+    box-shadow: 0 4px 16px rgba(35, 38, 58, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+body:not(.white-content) #forecast-section .forecast-zigzag-card:hover {
+    box-shadow: 0 8px 32px rgba(35, 38, 58, 0.6), 0 4px 16px rgba(102, 126, 234, 0.2) !important;
+    transform: translateY(-6px) scale(1.05) !important;
+    border-color: #667eea !important;
+}
+
+/* LIGHT MODE - đảm bảo forecast cards giữ màu trắng */
+body.white-content #forecast-section .forecast-zigzag-card {
+    background: linear-gradient(135deg, #fff 60%, var(--aqi-color, #00e676)22 100%) !important;
+    color: #333 !important;
+    border: 1px solid #e0e0e0 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+body.white-content #forecast-section .forecast-zigzag-card:hover {
+    box-shadow: 0 8px 32px #667eea33, 0 2px 8px #0001 !important;
+    transform: translateY(-4px) scale(1.04) !important;
+    border-color: #667eea !important;
+}
+
+/* Temperature ID và weather elements dark mode */
+body:not(.white-content) #temperature {
+    color: #f8fafc !important;
+}
+
+body:not(.white-content) #weatherHumidity {
+    color: #f8fafc !important;
+}
+
+body:not(.white-content) .h5 {
+    color: #f8fafc !important;
+}
+
+body:not(.white-content) .card .small.text-muted {
+    color: #7dd3fc !important;
+}
+
+/* Modal dark mode */
+body:not(.white-content) .modal-content {
+    background-color: #23263a !important;
+    color: #f8fafc !important;
+    border: 1px solid #35395a !important;
+}
+
+body:not(.white-content) .modal-header {
+    background-color: #23263a !important;
+    color: #f8fafc !important;
+    border-bottom: 1px solid #35395a !important;
+}
+
+body:not(.white-content) .modal-body {
+    background-color: #23263a !important;
+    color: #f8fafc !important;
 }

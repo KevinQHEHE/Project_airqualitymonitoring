@@ -81,7 +81,9 @@ def build_latest_per_station_pipeline(station_id: Optional[str], limit: int) -> 
 
     # Pollutant fields we want to include. Keep this list additive.
     pollutant_fields = [
-        'pm25', 'pm10', 'o3', 'no2', 'so2', 'co', 'bc', 'nh3'
+        'pm25', 'pm10', 'o3', 'no2', 'so2', 'co', 'bc', 'nh3',
+        # Include environmental fields for UI (temperature & humidity)
+        't', 'h'
     ]
 
     # Build extraction expressions for pollutants. Many documents store pollutant
@@ -264,6 +266,8 @@ def get_history():
                 'so2': {'$ifNull': ['$iaqi.so2.v', '$so2']},
                 'co': {'$ifNull': ['$iaqi.co.v', '$co']},
                 'pb': {'$ifNull': ['$iaqi.pb.v', '$pb']},
+                't': {'$ifNull': ['$iaqi.t.v', '$t']},
+                'h': {'$ifNull': ['$iaqi.h.v', '$h']},
             }},
             # Sort chronologically (oldest first)
             {'$sort': {'timestamp': 1, 'ts': 1, 'time.iso': 1}},
