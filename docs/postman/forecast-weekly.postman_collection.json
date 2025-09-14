@@ -1,0 +1,50 @@
+{
+  "info": {
+    "name": "AQI API - Weekly Forecast",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Sample request for the weekly aggregated statistics endpoint."
+  },
+  "item": [
+    {
+      "name": "GET /api/forecast/weekly",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/forecast/weekly?station_id={{station_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "forecast",
+            "weekly"
+          ],
+          "query": [
+            {
+              "key": "station_id",
+              "value": "{{station_id}}",
+              "description": "Station identifier (numeric or string)."
+            },
+            {
+              "key": "days",
+              "value": "9",
+              "description": "Number of future days to return (default 9)."
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000"
+    },
+    {
+      "key": "station_id",
+      "value": "13668"
+    }
+  ]
+}

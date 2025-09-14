@@ -67,6 +67,7 @@ def register_blueprints(app):
     # from backend.app.blueprints.api.auth.routes import auth_bp
     from backend.app.blueprints.api.stations.routes import stations_bp
     from backend.app.blueprints.api.air_quality.routes import air_quality_bp
+    from backend.app.blueprints.api.forecasts.routes import forecasts_bp
     # from backend.app.blueprints.api.measurements.routes import measurements_bp
     # from backend.app.blueprints.api.aggregates.routes import aggregates_bp
     # from backend.app.blueprints.api.alerts.routes import alerts_bp
@@ -83,6 +84,8 @@ def register_blueprints(app):
     app.register_blueprint(stations_bp, url_prefix='/api/stations')
     # Register blueprint with underscore variant
     app.register_blueprint(air_quality_bp, url_prefix='/api/air_quality')
+    # Register forecast blueprint
+    app.register_blueprint(forecasts_bp, url_prefix='/api/forecast')
     # Provide a hyphenated alias for a small set of routes (avoid registering blueprint twice)
     try:
         # Import view function and create a lightweight alias route to avoid blueprint name collision

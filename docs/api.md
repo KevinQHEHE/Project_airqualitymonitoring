@@ -34,6 +34,46 @@
 - `GET /api/forecasts/{station_id}` - Get pollution forecasts
 - `POST /api/forecasts/generate` - Generate new forecasts
 
+Weekly statistics endpoint
+- `GET /api/forecast/weekly?station_id={station_id}` - Returns aggregated daily statistics (min, max, avg) for `pm25`, `pm10`, and `uvi` computed from the air-quality readings collection (`waqi_station_readings`).
+
+Notes:
+- The API returns exactly N consecutive calendar days starting today (future window). Days with no data are padded with `null` values for the statistics.
+- When raw readings are missing for a day but a precomputed forecast exists in the `waqi_daily_forecasts` collection, the endpoint will merge forecast values (pm25/pm10/uvi) from that collection as a non-blocking fallback. Readings-derived stats take precedence; merged values help fill gaps.
+
+Query parameters:
+- `station_id` (string|int, required) - station identifier
+- `days` (integer, optional) - number of future days to return (default 9, min 1, max 14)
+
+Response shape (days present in DB):
+```
+{
+	"station_id": "13668",
+	"forecast": [
+		{
+			"date": "2025-09-08",
+			"pm25_min": 5.2,
+			"pm25_max": 23.1,
+			"pm25_avg": 12.34,
+			"pm10_min": 10.0,
+			"pm10_max": 40.2,
+			"pm10_avg": 22.11,
+			"uvi_min": 0,
+			"uvi_max": 6,
+			"uvi_avg": 2.5
+		},
+		... (7 items)
+	],
+	"generated_at": "2025-09-14T12:00:00+00:00"
+}
+```
+
+Example cURL:
+
+```
+curl "http://localhost:5000/api/forecast/weekly?station_id=13668&days=9"
+```
+
 ## Exports
 - `GET /api/exports/csv` - Export data as CSV
 - `GET /api/exports/pdf` - Generate PDF reports
