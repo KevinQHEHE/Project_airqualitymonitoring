@@ -35,14 +35,15 @@
 - `POST /api/forecasts/generate` - Generate new forecasts
 
 Weekly statistics endpoint
-- `GET /api/forecast/weekly?station_id={station_id}` - Returns aggregated daily statistics (min, max, avg) for `pm25`, `pm10`, and `uvi` computed from the `waqi_station_readings` collection.
+- `GET /api/forecast/weekly?station_id={station_id}` - Returns aggregated daily statistics (min, max, avg) for `pm25`, `pm10`, and `uvi` computed from the air-quality readings collection (`waqi_station_readings`).
 
 Notes:
-- The API returns only days that exist in the collection (no empty-day padding). If a station has readings for 1 day only within the 7-day window, the response will contain that single day.
-- When raw readings are missing for a day but a precomputed forecast exists in the `waqi_daily_forecasts` collection, the endpoint will merge forecast values (pm25/pm10/uvi) from that collection as a fallback. Readings-derived stats take precedence; forecast-only days will be included when present.
+- The API returns exactly N consecutive calendar days starting today (future window). Days with no data are padded with `null` values for the statistics.
+- When raw readings are missing for a day but a precomputed forecast exists in the `waqi_daily_forecasts` collection, the endpoint will merge forecast values (pm25/pm10/uvi) from that collection as a non-blocking fallback. Readings-derived stats take precedence; merged values help fill gaps.
 
 Query parameters:
 - `station_id` (string|int, required) - station identifier
+- `days` (integer, optional) - number of future days to return (default 9, min 1, max 14)
 
 Response shape (days present in DB):
 ```
@@ -70,7 +71,7 @@ Response shape (days present in DB):
 Example cURL:
 
 ```
-curl "http://localhost:5000/api/forecast/weekly?station_id=13668"
+curl "http://localhost:5000/api/forecast/weekly?station_id=13668&days=9"
 ```
 
 ## Exports

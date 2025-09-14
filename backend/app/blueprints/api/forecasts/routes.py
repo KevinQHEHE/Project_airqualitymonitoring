@@ -1,6 +1,6 @@
 """Forecasts blueprint for weekly aggregated statistics.
 
-Provides an endpoint to return 7-day statistics (min, max, avg) for
+Provides an endpoint to return N-day statistics (min, max, avg) for
 PM2.5, PM10 and UVI computed directly from the `waqi_station_readings`
 collection using a MongoDB aggregation pipeline.
 
@@ -35,17 +35,18 @@ def _parse_station_match(station_id: Optional[str]) -> Dict[str, Any]:
 
 @forecasts_bp.route('/weekly', methods=['GET'])
 def get_weekly_forecast():
-	"""Return 7-day min/max/avg for pm25, pm10 and uvi for a station.
+	"""Return next-N-day min/max/avg for pm25, pm10 and uvi for a station.
 
 	Query params:
 	  - station_id (required)
+	  - days (optional, int, default 7, min 1, max 14)
 
 	Response:
 	  {
 		"station_id": <id>,
 		"forecast": [
 		  {"date": "YYYY-MM-DD", "pm25_min": x, "pm25_max": x, "pm25_avg": x, ...},
-		  ... (7 items)
+		  ... (N items)
 		],
 		"generated_at": "ISO timestamp UTC"
 	  }
@@ -55,9 +56,20 @@ def get_weekly_forecast():
 		if not station_id:
 			return jsonify({'error': 'station_id is required'}), 400
 
-		# compute 7-day window: from (now - 6 days) 00:00:00 UTC to now
+		# parse days
+		try:
+			days = int(request.args.get('days', 7))
+		except ValueError:
+			return jsonify({'error': 'days must be an integer'}), 400
+		if days < 1:
+			return jsonify({'error': 'days must be >= 1'}), 400
+		if days > 14:
+			return jsonify({'error': 'days cannot exceed 14'}), 400
+
+		# compute future window: from tomorrow 00:00:00 UTC to next N days (future window)
 		now = datetime.utcnow().replace(tzinfo=timezone.utc)
-		start = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+		start = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+		end = start + timedelta(days=days)
 
 		match_expr = _parse_station_match(station_id)
 
@@ -67,9 +79,9 @@ def get_weekly_forecast():
 		pipeline.append({'$match': match_expr})
 		pipeline.append({'$match': {
 			'$or': [
-				{'ts': {'$gte': start}},
-				{'time.iso': {'$gte': start.isoformat()}},
-				{'timestamp': {'$gte': start.isoformat()}},
+				{'ts': {'$gte': start, '$lt': end}},
+				{'time.iso': {'$gte': start.isoformat(), '$lt': end.isoformat()}},
+				{'timestamp': {'$gte': start.isoformat(), '$lt': end.isoformat()}},
 			]
 		}})
 
@@ -101,9 +113,10 @@ def get_weekly_forecast():
 			'pm10_min': {'$min': {'$ifNull': ['$iaqi.pm10.v', '$pm10', None]}},
 			'pm10_max': {'$max': {'$ifNull': ['$iaqi.pm10.v', '$pm10', None]}},
 			'pm10_avg': {'$avg': {'$ifNull': ['$iaqi.pm10.v', '$pm10', None]}},
-			'uvi_min': {'$min': {'$ifNull': ['$uvi', None]}},
-			'uvi_max': {'$max': {'$ifNull': ['$uvi', None]}},
-			'uvi_avg': {'$avg': {'$ifNull': ['$uvi', None]}},
+			# Support UVI stored under either iaqi.uvi.v or top-level uvi
+			'uvi_min': {'$min': {'$ifNull': ['$iaqi.uvi.v', '$uvi', None]}},
+			'uvi_max': {'$max': {'$ifNull': ['$iaqi.uvi.v', '$uvi', None]}},
+			'uvi_avg': {'$avg': {'$ifNull': ['$iaqi.uvi.v', '$uvi', None]}},
 		}})
 
 		# Project and sort ascending by day
@@ -134,8 +147,8 @@ def get_weekly_forecast():
 
 		# --- Merge waqi_daily_forecasts as a fallback/source of truth for forecast-only data ---
 		try:
-			# Build 7-day date strings for window
-			date_strs = [(start + timedelta(days=i)).date().isoformat() for i in range(7)]
+			# Build date strings for future window (today .. today+N-1)
+			date_strs = [(start + timedelta(days=i)).date().isoformat() for i in range(days)]
 
 			db_coll = db.waqi_daily_forecasts
 
@@ -204,8 +217,38 @@ def get_weekly_forecast():
 			# Non-fatal: if forecasts collection missing or query fails, continue with rows
 			logger.debug('waqi_daily_forecasts merge failed or no forecasts available')
 
-		# Sort rows by date ascending
-		rows.sort(key=lambda x: x.get('date'))
+		# Ensure we return exactly N consecutive days in the window
+		# Build a date -> stats map and pad missing days with nulls
+		rows_map = {r.get('date'): r for r in rows if r.get('date')}
+		ordered: List[Dict[str, Any]] = []
+		for i in range(days):
+			day_str = (start + timedelta(days=i)).date().isoformat()
+			if day_str in rows_map:
+				ordered.append(rows_map[day_str])
+			else:
+				ordered.append({
+					'date': day_str,
+					'pm25_min': None, 'pm25_max': None, 'pm25_avg': None,
+					'pm10_min': None, 'pm10_max': None, 'pm10_avg': None,
+					'uvi_min': None, 'uvi_max': None, 'uvi_avg': None,
+				})
+
+		# Sort rows by date ascending (ordered is already in range order)
+		rows = ordered
+
+		# Remove days where all pollutant fields are null (user requested dropping empty days)
+		def _is_all_null(item: Dict[str, Any]) -> bool:
+			keys = [
+				'pm25_min', 'pm25_max', 'pm25_avg',
+				'pm10_min', 'pm10_max', 'pm10_avg',
+				'uvi_min', 'uvi_max', 'uvi_avg'
+			]
+			for k in keys:
+				if item.get(k) is not None:
+					return False
+			return True
+
+		rows = [r for r in rows if not _is_all_null(r)]
 
 		response = {
 			'station_id': station_id,
