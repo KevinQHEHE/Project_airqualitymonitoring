@@ -256,8 +256,8 @@
             <div class="col-12">
               <div class="card shadow-sm border-0 mb-4" id="forecastCard" style="display:none; max-width: 100%;">
                 <div class="card-header bg-gradient-primary text-white d-flex align-items-center justify-content-between" style="border-radius: 0.5rem 0.5rem 0 0; background: linear-gradient(90deg,#667eea 0%,#764ba2 100%);">
-                  <h4 class="mb-0"><i class="tim-icons icon-calendar-60"></i> 7-Day AQI Forecast</h4>
-                  <span class="small">Sample data</span>
+                  <h4 class="mb-0"><i class="tim-icons icon-calendar-60"></i> AQI Forecast</h4>
+                  <span class="small">Up to 6 days</span>
                 </div>
                 <div class="card-body p-4" style="overflow-x:auto; padding-bottom: 1.5rem;">
                   <div id="forecastGrid" style="min-width:900px; width:fit-content; margin:0 auto;">
@@ -295,99 +295,26 @@
   // Current forecast data for theme refresh
   let currentForecastData = null;
 
-  // Sample forecast data (from forecast_sample.json)
-  const forecastSample = [
-    {
-      "station_idx": 13756,
-      "day": "2025-09-11",
-      "pollutants": {
-        "pm10": { "avg": 46, "min": 46, "max": 46 },
-        "pm25": { "avg": 138, "min": 138, "max": 138 }
-      },
-      "uvi": null,
-      "fetched_at": "2025-09-13T13:00:00Z"
-    },
-    {
-      "station_idx": 13756,
-      "day": "2025-09-12",
-      "pollutants": {
-        "pm10": { "avg": 44, "min": 28, "max": 56 },
-        "pm25": { "avg": 131, "min": 89, "max": 156 }
-      },
-      "uvi": null,
-      "fetched_at": "2025-09-13T13:00:00Z"
-    },
-    {
-      "station_idx": 13756,
-      "day": "2025-09-13",
-      "pollutants": {
-        "pm10": { "avg": 47, "min": 27, "max": 69 },
-        "pm25": { "avg": 131, "min": 89, "max": 170 },
-        "uvi": { "avg": 3, "min": 0, "max": 11 }
-      },
-      "fetched_at": "2025-09-13T13:00:00Z"
-    },
-    {
-      "station_idx": 13756,
-      "day": "2025-09-14",
-      "pollutants": {
-        "pm10": { "avg": 36, "min": 19, "max": 46 },
-        "pm25": { "avg": 112, "min": 68, "max": 138 },
-        "uvi": { "avg": 2, "min": 0, "max": 8 }
-      },
-      "fetched_at": "2025-09-13T13:00:00Z"
-    },
-    {
-      "station_idx": 13756,
-      "day": "2025-09-15",
-      "pollutants": {
-        "pm10": { "avg": 39, "min": 19, "max": 46 },
-        "pm25": { "avg": 100, "min": 68, "max": 138 },
-        "uvi": { "avg": 2, "min": 0, "max": 9 }
-      },
-      "fetched_at": "2025-09-13T13:00:00Z"
-    },
-    {
-      "station_idx": 13756,
-      "day": "2025-09-16",
-      "pollutants": {
-        "pm10": { "avg": 47, "min": 28, "max": 58 },
-        "pm25": { "avg": 127, "min": 84, "max": 159 },
-        "uvi": { "avg": 2, "min": 0, "max": 9 }
-      },
-      "fetched_at": "2025-09-13T13:00:00Z"
-    },
-    {
-      "station_idx": 13756,
-      "day": "2025-09-17",
-      "pollutants": {
-        "pm10": { "avg": 46, "min": 41, "max": 46 },
-        "pm25": { "avg": 133, "min": 92, "max": 138 },
-        "uvi": { "avg": 1, "min": 0, "max": 7 }
-      },
-      "fetched_at": "2025-09-13T13:00:00Z"
-    },
-    {
-      "station_idx": 13756,
-      "day": "2025-09-18",
-      "pollutants": {
-        "pm10": { "avg": 46, "min": 46, "max": 46 },
-        "pm25": { "avg": 138, "min": 138, "max": 138 },
-        "uvi": { "avg": 0, "min": 0, "max": 0 }
-      },
-      "fetched_at": "2025-09-13T13:00:00Z"
-    },
-    {
-      "station_idx": 13756,
-      "day": "2025-09-19",
-      "pollutants": {
-        "pm10": { "avg": 34, "min": 19, "max": 46 },
-        "pm25": { "avg": 99, "min": 68, "max": 138 }
-      },
-      "uvi": null,
-      "fetched_at": "2025-09-13T13:00:00Z"
+  // Fetch forecast data from API
+  async function fetchForecastData(stationId, days = 6) {
+    try {
+      const url = `/api/forecast/weekly?station_id=${encodeURIComponent(stationId)}&days=${days}`;
+      const response = await fetch(url, { 
+        headers: { 'Accept': 'application/json' } 
+      });
+      
+      if (!response.ok) {
+        console.error(`Failed to fetch forecast: HTTP ${response.status}`);
+        return null;
+      }
+      
+      const data = await response.json();
+      return data.forecast || [];
+    } catch (error) {
+      console.error('Error fetching forecast data:', error);
+      return null;
     }
-  ];
+  }
 
   function getAQIColor(aqi) {
     if (aqi <= 50) return '#00e676';
@@ -412,74 +339,95 @@
       console.warn('[Forecast] No forecast data to render:', data);
       return;
     }
-    // Debug dữ liệu từng ngày
+    
     console.log('[Forecast] renderForecastGrid data:', data);
-    // Chia 2 hàng: trên 5 card, dưới 4 card, card rộng, gap lớn, avg/min/max dưới từng thông số
+    
+    // Thiết kế bố cục mới cho 6 ngày: 4 trên - 2 dưới (cân đối hơn)
     grid.className = '';
-    const row1 = data.slice(0, 5);
-    const row2 = data.slice(5, 9);
-    function cardHtml(day, idx, color, aqiIcon, uviIcon, pm25, pm10, uvi) {
-      // Improved dark mode detection - check multiple indicators
+    let row1, row2;
+    const totalDays = Math.min(data.length, 6); // Chỉ hiển thị tối đa 6 ngày
+    const workingData = data.slice(0, totalDays);
+    
+    if (totalDays <= 4) {
+      // 4 ngày hoặc ít hơn: hiển thị trên 1 hàng
+      row1 = workingData;
+      row2 = [];
+    } else if (totalDays === 5) {
+      // 5 ngày: 3 trên - 2 dưới
+      row1 = workingData.slice(0, 3);
+      row2 = workingData.slice(3);
+    } else {
+      // 6 ngày: 4 trên - 2 dưới (đẹp và cân đối hơn)
+      row1 = workingData.slice(0, 4);
+      row2 = workingData.slice(4);
+    }
+    
+    function cardHtml(day, idx, color, aqiIcon, uviIcon, pm25Val, pm10Val, uviVal) {
+      // Improved dark mode detection
       const bodyHasWhiteContent = document.body.classList.contains('white-content');
-      const themeToggle = document.querySelector('input[type="checkbox"]');
-      
-      // Dark mode: body KHÔNG có white-content class
       const isDark = !bodyHasWhiteContent;
       
       const bgGradient = isDark 
         ? `linear-gradient(135deg, #23263a 60%, ${color}22 100%)` 
         : `linear-gradient(135deg, #fff 60%, ${color}22 100%)`;
       
-      console.log('[Theme Debug] bodyHasWhiteContent:', bodyHasWhiteContent, 'isDark:', isDark, 'toggle:', themeToggle?.checked);
-      
-      return `<div class="forecast-zigzag-card shadow-sm d-flex flex-column align-items-center justify-content-between p-3" style="border-radius: 1.2rem; background: ${bgGradient} !important; border: none; cursor:pointer; transition:box-shadow .2s,transform .2s; min-width:170px; max-width:200px; min-height:220px; position:relative; margin:0 18px 28px 18px;" onclick="showForecastDetail(${idx})">
+      return `<div class="forecast-zigzag-card shadow-sm d-flex flex-column align-items-center justify-content-between p-3" style="border-radius: 1.2rem; background: ${bgGradient} !important; border: none; cursor:pointer; transition:box-shadow .2s,transform .2s; min-width:170px; max-width:200px; min-height:220px; position:relative; margin:0 15px 25px 15px;" onclick="showForecastDetail(${idx})">
         <div class="d-flex flex-column align-items-center mt-4 mb-2">
           <div style="width: 54px; height: 54px; border-radius: 50%; background: ${color}; display:flex;align-items:center;justify-content:center; color:#fff; box-shadow:0 2px 8px #0001;">${aqiIcon}</div>
-          <div class="fw-bold mt-2" style="font-size: 1.08rem;">${day.day}</div>
+          <div class="fw-bold mt-2" style="font-size: 1.08rem;">${day.date}</div>
         </div>
         <div class="w-100 px-1 pb-2">
           <div class="mb-1">
-            <div class="d-flex align-items-center justify-content-between"><span class="small text-muted">PM2.5</span> <span class="fw-bold">${pm25.avg ?? '--'}</span></div>
-            <div class="text-muted text-end" style="font-size:0.7em;">min: ${pm25.min ?? '--'} | max: ${pm25.max ?? '--'}</div>
+            <div class="d-flex align-items-center justify-content-between"><span class="small text-muted">PM2.5</span> <span class="fw-bold">${pm25Val ?? '--'}</span></div>
+            <div class="text-muted text-end" style="font-size:0.7em;">min: ${day.pm25_min ?? '--'} | max: ${day.pm25_max ?? '--'}</div>
           </div>
           <div class="mb-1">
-            <div class="d-flex align-items-center justify-content-between"><span class="small text-muted">PM10</span> <span class="fw-bold">${pm10.avg ?? '--'}</span></div>
-            <div class="text-muted text-end" style="font-size:0.7em;">min: ${pm10.min ?? '--'} | max: ${pm10.max ?? '--'}</div>
+            <div class="d-flex align-items-center justify-content-between"><span class="small text-muted">PM10</span> <span class="fw-bold">${pm10Val ?? '--'}</span></div>
+            <div class="text-muted text-end" style="font-size:0.7em;">min: ${day.pm10_min ?? '--'} | max: ${day.pm10_max ?? '--'}</div>
           </div>
           <div class="mb-1">
-            <div class="d-flex align-items-center justify-content-between"><span class="small text-muted">UVI</span> <span class="fw-bold">${uviIcon} ${(uvi && uvi.avg !== undefined) ? uvi.avg : (uvi !== null && uvi !== undefined ? uvi : '--')}</span></div>
-            <div class="text-muted text-end" style="font-size:0.7em;">min: ${(uvi && uvi.min !== undefined) ? uvi.min : '--'} | max: ${(uvi && uvi.max !== undefined) ? uvi.max : '--'}</div>
+            <div class="d-flex align-items-center justify-content-between"><span class="small text-muted">UVI</span> <span class="fw-bold">${uviIcon} ${uviVal ?? '--'}</span></div>
+            <div class="text-muted text-end" style="font-size:0.7em;">min: ${day.uvi_min ?? '--'} | max: ${day.uvi_max ?? '--'}</div>
           </div>
         </div>
       </div>`;
     }
-    let html = '<div class="d-flex justify-content-center mb-3" style="gap:32px;">';
-    row1.forEach((day, i) => {
-      const pm25 = day.pollutants?.pm25 || {};
-      const pm10 = day.pollutants?.pm10 || {};
-      let uvi = day.uvi;
-      if (uvi == null && day.pollutants?.uvi) uvi = day.pollutants.uvi;
-      const color = pm25.avg !== undefined ? getAQIColor(Math.round(pm25.avg)) : '#e2e8f0';
-      const aqiIcon = '<i class="fas fa-wind" style="font-size:2.3rem;"></i>';
-      const uviIcon = '<i class="fas fa-sun" style="color:#fbbf24;"></i>';
-      html += cardHtml(day, i, color, aqiIcon, uviIcon, pm25, pm10, uvi);
-    });
-    html += '</div>';
-    // Hàng 2: offset trái 90px để zigzag, gap lớn
-    html += '<div class="d-flex justify-content-center" style="gap:32px; margin-left:90px;">';
-    row2.forEach((day, i) => {
-      const idx = i + 5;
-      const pm25 = day.pollutants?.pm25 || {};
-      const pm10 = day.pollutants?.pm10 || {};
-      let uvi = day.uvi;
-      if (uvi == null && day.pollutants?.uvi) uvi = day.pollutants.uvi;
-      const color = pm25.avg !== undefined ? getAQIColor(Math.round(pm25.avg)) : '#e2e8f0';
-      const aqiIcon = '<i class="fas fa-wind" style="font-size:2.3rem;"></i>';
-      const uviIcon = '<i class="fas fa-sun" style="color:#fbbf24;"></i>';
-      html += cardHtml(day, idx, color, aqiIcon, uviIcon, pm25, pm10, uvi);
-    });
-    html += '</div>';
+    
+    let html = '';
+    
+    // Render hàng đầu
+    if (row1.length > 0) {
+      html += '<div class="d-flex justify-content-center mb-3" style="gap:25px; flex-wrap:wrap;">';
+      row1.forEach((day, i) => {
+        const pm25Val = Math.round(day.pm25_avg) || '--';
+        const pm10Val = Math.round(day.pm10_avg) || '--'; 
+        const uviVal = Math.round(day.uvi_avg) || '--';
+        const color = day.pm25_avg ? getAQIColor(Math.round(day.pm25_avg)) : '#e2e8f0';
+        const aqiIcon = '<i class="fas fa-wind" style="font-size:2.3rem;"></i>';
+        const uviIcon = '<i class="fas fa-sun" style="color:#fbbf24;"></i>';
+        html += cardHtml(day, i, color, aqiIcon, uviIcon, pm25Val, pm10Val, uviVal);
+      });
+      html += '</div>';
+    }
+    
+    // Render hàng thứ hai (nếu có) - canh giữa cho đẹp
+    if (row2.length > 0) {
+      html += '<div class="d-flex justify-content-center" style="gap:25px; flex-wrap:wrap;">';
+      row2.forEach((day, i) => {
+        const idx = row1.length + i;
+        const pm25Val = Math.round(day.pm25_avg) || '--';
+        const pm10Val = Math.round(day.pm10_avg) || '--';
+        const uviVal = Math.round(day.uvi_avg) || '--';
+        const color = day.pm25_avg ? getAQIColor(Math.round(day.pm25_avg)) : '#e2e8f0';
+        const aqiIcon = '<i class="fas fa-wind" style="font-size:2.3rem;"></i>';
+        const uviIcon = '<i class="fas fa-sun" style="color:#fbbf24;"></i>';
+        html += cardHtml(day, idx, color, aqiIcon, uviIcon, pm25Val, pm10Val, uviVal);
+      });
+      html += '</div>';
+    }
+    
     grid.innerHTML = html;
+    
     // Thêm CSS hover đẹp hơn
     const styleId = 'forecast-card-style';
     if (!document.getElementById(styleId)) {
@@ -491,52 +439,53 @@
   }
 
   function showForecastDetail(idx) {
-    const day = forecastSample[idx];
+    const day = currentForecastData[idx];
+    if (!day) {
+      console.error('[Forecast] Invalid forecast day index:', idx);
+      return;
+    }
+    
     let html = `<div class="mb-3 d-flex align-items-center gap-2" style="gap:10px;">
       <i class="fas fa-calendar-day" style="color:#667eea;font-size:1.3rem;"></i>
-      <span style="font-size:1.1rem;font-weight:600;">${day.day}</span>
+      <span style="font-size:1.1rem;font-weight:600;">${day.date}</span>
     </div>`;
+    
     html += `<div class="row text-center mb-2" style="gap:0;">`;
-    if(day.pollutants) {
-      for(const [k, v] of Object.entries(day.pollutants)) {
-        if(typeof v === 'object' && v !== null) {
-          let icon = '';
-          if(k.toLowerCase()==='pm25') icon = '<i class="fas fa-smog" style="color:#4ecdc4;"></i>';
-          else if(k.toLowerCase()==='pm10') icon = '<i class="fas fa-wind" style="color:#45b7d1;"></i>';
-          else if(k.toLowerCase()==='uvi') icon = '<i class="fas fa-sun" style="color:#fbbf24;"></i>';
-          else icon = '<i class="fas fa-circle" style="color:#94a3b8;"></i>';
-          html += `<div class="col-4 mb-3">
-            <div style="font-size:1.2rem;">${icon}</div>
-            <div style="font-weight:600;font-size:1rem;">${k.toUpperCase()}</div>
-            <div style="font-size:1.5rem;font-weight:700;color:#667eea;">${v.avg ?? '--'}</div>
-            <div style="font-size:0.8em;color:#888;">min <span style="font-weight:500;">${v.min ?? '--'}</span> | max <span style="font-weight:500;">${v.max ?? '--'}</span></div>
-          </div>`;
-        } else {
-          html += `<div class="col-4 mb-3">
-            <div style="font-size:1.2rem;"><i class="fas fa-circle" style="color:#94a3b8;"></i></div>
-            <div style="font-weight:600;font-size:1rem;">${k.toUpperCase()}</div>
-            <div style="font-size:1.5rem;font-weight:700;color:#667eea;">${v}</div>
-          </div>`;
-        }
-      }
+    
+    // PM2.5
+    if (day.pm25_avg !== null && day.pm25_avg !== undefined) {
+      html += `<div class="col-4 mb-3">
+        <div style="font-size:1.2rem;"><i class="fas fa-smog" style="color:#4ecdc4;"></i></div>
+        <div style="font-weight:600;font-size:1rem;">PM2.5</div>
+        <div style="font-size:1.5rem;font-weight:700;color:#667eea;">${Math.round(day.pm25_avg)}</div>
+        <div style="font-size:0.8em;color:#888;">min <span style="font-weight:500;">${day.pm25_min ?? '--'}</span> | max <span style="font-weight:500;">${day.pm25_max ?? '--'}</span></div>
+      </div>`;
     }
+    
+    // PM10
+    if (day.pm10_avg !== null && day.pm10_avg !== undefined) {
+      html += `<div class="col-4 mb-3">
+        <div style="font-size:1.2rem;"><i class="fas fa-wind" style="color:#45b7d1;"></i></div>
+        <div style="font-weight:600;font-size:1rem;">PM10</div>
+        <div style="font-size:1.5rem;font-weight:700;color:#667eea;">${Math.round(day.pm10_avg)}</div>
+        <div style="font-size:0.8em;color:#888;">min <span style="font-weight:500;">${day.pm10_min ?? '--'}</span> | max <span style="font-weight:500;">${day.pm10_max ?? '--'}</span></div>
+      </div>`;
+    }
+    
+    // UVI
+    if (day.uvi_avg !== null && day.uvi_avg !== undefined) {
+      html += `<div class="col-4 mb-3">
+        <div style="font-size:1.2rem;"><i class="fas fa-sun" style="color:#fbbf24;"></i></div>
+        <div style="font-weight:600;font-size:1rem;">UVI</div>
+        <div style="font-size:1.5rem;font-weight:700;color:#fbbf24;">${Math.round(day.uvi_avg)}</div>
+        <div style="font-size:0.8em;color:#888;">min <span style="font-weight:500;">${day.uvi_min ?? '--'}</span> | max <span style="font-weight:500;">${day.uvi_max ?? '--'}</span></div>
+      </div>`;
+    }
+    
     html += `</div>`;
-    // UVI nếu là object riêng
-    if(day.uvi && typeof day.uvi==='object') {
-      html += `<div class="row text-center mb-2"><div class="col-12">
-        <div style="font-size:1.2rem;"><i class="fas fa-sun" style="color:#fbbf24;"></i> <span style="font-weight:600;">UVI</span></div>
-        <div style="font-size:1.5rem;font-weight:700;color:#fbbf24;">${day.uvi.avg ?? '--'}</div>
-        <div style="font-size:0.8em;color:#888;">min <span style="font-weight:500;">${day.uvi.min ?? '--'}</span> | max <span style="font-weight:500;">${day.uvi.max ?? '--'}</span></div>
-      </div></div>`;
-    }
-    // Extra fields
-    let extra = '';
-    for(const [k,v] of Object.entries(day)) {
-      if(['pollutants','day','station_idx','uvi','fetched_at'].includes(k)) continue;
-      extra += `<div class='mb-1'><strong>${k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}:</strong> ${v}</div>`;
-    }
-    if(extra) html += `<div class='mt-2'>${extra}</div>`;
+    
     document.getElementById('forecastDetailBody').innerHTML = html;
+    
     // Show modal (Bootstrap 4/5 compatible)
     if (window.$ && $.fn.modal) {
       $('#forecastDetailModal').modal('show');
@@ -546,7 +495,7 @@
   }
 
   // Show forecast after search result
-  function showForecastSection() {
+  async function showForecastSection(stationId = null) {
     const card = document.getElementById('forecastCard');
     if (!card) {
       console.error('[Forecast] forecastCard not found in DOM');
@@ -558,8 +507,28 @@
     } else {
       console.log('[Forecast] forecastCard already visible');
     }
-  console.log('[Forecast] forecastSample data:', forecastSample);
-  renderForecastGrid(forecastSample);
+
+    // Lấy dữ liệu forecast từ API thực tế
+    if (stationId) {
+      console.log('[Forecast] Fetching forecast for station:', stationId);
+      const forecastData = await fetchForecastData(stationId, 6);
+      if (forecastData && forecastData.length > 0) {
+        console.log('[Forecast] API forecast data:', forecastData);
+        renderForecastGrid(forecastData);
+      } else {
+        console.warn('[Forecast] No forecast data available from API');
+        const grid = document.getElementById('forecastGrid');
+        if (grid) {
+          grid.innerHTML = '<div class="col-12 text-center text-muted py-4">No forecast data available for this station.</div>';
+        }
+      }
+    } else {
+      console.warn('[Forecast] No station ID provided for forecast');
+      const grid = document.getElementById('forecastGrid');
+      if (grid) {
+        grid.innerHTML = '<div class="col-12 text-center text-muted py-4">Select a station to view forecast data.</div>';
+      }
+    }
   }
 
   // Patch showLatestForStation and showCityStationsFromApi to show forecast after search
@@ -573,7 +542,12 @@
       window[fnName] = async function(...args) {
         const result = await orig.apply(this, args);
         try {
-          showForecastSection();
+          // Lấy station ID từ arguments
+          let stationId = null;
+          if (fnName === 'showLatestForStation' && args.length > 0) {
+            stationId = args[0]; // Argument đầu tiên là stationId
+          }
+          await showForecastSection(stationId);
         } catch (e) {
           console.error('[Forecast] showForecastSection error:', e);
         }
@@ -1113,8 +1087,16 @@
       const forecastCard = document.getElementById('forecastCard');
       if (forecastCard) {
         forecastCard.style.display = 'block';
-        // Nếu muốn truyền dữ liệu dự đoán theo trạm, thay forecastSample bằng dữ liệu phù hợp
-        renderForecastGrid(forecastSample);
+        // Lấy dữ liệu forecast từ API cho trạm này
+        const forecastData = await fetchForecastData(latest.station_id, 6);
+        if (forecastData && forecastData.length > 0) {
+          renderForecastGrid(forecastData);
+        } else {
+          const grid = document.getElementById('forecastGrid');
+          if (grid) {
+            grid.innerHTML = '<div class="col-12 text-center text-muted py-4">No forecast data available for this station.</div>';
+          }
+        }
       } else {
         console.warn('[Forecast] forecastCard not found in DOM from showLatestForStation');
       }
@@ -1282,7 +1264,12 @@
       const mi = String(d.getMinutes()).padStart(2, '0');
       return `${hh}:${mi}`;
     });
-    const aqiData = measurements.map(m => Number(m.aqi ?? 0));
+    const aqiData = measurements.map(m => {
+      const aqi = m.aqi ?? 0;
+      return (aqi === null || aqi === undefined || isNaN(aqi)) ? 0 : Number(aqi);
+    });
+
+    console.log('DEBUG: aqiData =', aqiData); // Debug log
 
     // Color per bar
     const barColors = aqiData.map(v => {
@@ -1308,14 +1295,35 @@
 
     // Detect dark mode: body KHÔNG có class 'white-content' = dark mode
     const isDark = !document.body.classList.contains('white-content');
+    
+    // Force chart max để tránh auto-scale
+    const validValues = aqiData.filter(v => v > 0);
+    const maxValue = validValues.length ? Math.max(...validValues) : 50;
+    const chartMax = Math.max(100, Math.ceil(maxValue / 25) * 25); // Round to nearest 25
+    
+    // FORCE thêm điểm dữ liệu ẩn tại 0 để đảm bảo trục y bắt đầu từ 0 (append to end)
+    const forceLabels = [...labels];
+    const forceAqiData = [...aqiData];
+    const forceColors = [...barColors];
+    
+    // Chỉ thêm điểm ẩn nếu không có giá trị 0 trong data
+    if (forceAqiData.length === 0 || Math.min(...forceAqiData) > 0) {
+      forceLabels.push(''); // Empty label ở cuối
+      forceAqiData.push(0);
+      forceColors.push('rgba(0,0,0,0)'); // Transparent
+    }
+    
+    console.log('DEBUG: chartMax =', chartMax); // Debug log
+    console.log('DEBUG: forceAqiData =', forceAqiData); // Debug log
+    
     aqiChart = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: labels,
+        labels: forceLabels,
         datasets: [{
           label: 'AQI',
-          data: aqiData,
-          backgroundColor: barColors,
+          data: forceAqiData,
+          backgroundColor: forceColors,
           borderRadius: 6,
           borderSkipped: false,
           maxBarThickness: 14
@@ -1324,6 +1332,14 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        layout: {
+          padding: {
+            left: 5,
+            right: 5,
+            top: 5,
+            bottom: 5
+          }
+        },
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -1340,13 +1356,28 @@
         scales: {
           y: {
             beginAtZero: true,
-            suggestedMax: Math.max(120, aqiData.length ? Math.max(...aqiData) + 20 : 120),
+            min: 0,
+            max: chartMax,
             grid: { display: false },
-            ticks: { color: isDark ? '#fff' : '#222', font: { weight: 'bold' } }
+            ticks: {
+              color: isDark ? '#fff' : '#222',
+              font: { weight: 'bold' },
+              stepSize: 25,
+              callback: function(value) { 
+                return value;
+              }
+            }
           },
           x: {
             grid: { display: false },
-            ticks: { maxRotation: 0, minRotation: 0, color: isDark ? '#fff' : '#222', font: { weight: 'bold' } }
+            ticks: { 
+              maxRotation: 0, 
+              minRotation: 0, 
+              color: isDark ? '#fff' : '#222', 
+              font: { weight: 'bold' },
+              autoSkip: true,
+              maxTicksLimit: 12
+            }
           }
         }
       }
