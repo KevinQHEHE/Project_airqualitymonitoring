@@ -95,3 +95,54 @@ def trigger_station_reading():
             'status': 'error',
             'message': f'Failed to trigger station reading: {str(e)}'
         }), 500
+
+
+@scheduler_bp.route('/trigger/forecast', methods=['POST'])
+@limiter.limit("3 per minute")
+def trigger_forecast_ingestion():
+    """
+    Manually trigger a forecast ingestion job.
+    
+    Note: This is intended for admin use and testing.
+    In production, consider adding authentication.
+    
+    Returns:
+        JSON response indicating trigger status
+    """
+    try:
+        from ingest.streaming import get_scheduler
+        
+        scheduler = get_scheduler()
+        if not scheduler:
+            return jsonify({
+                'status': 'error',
+                'message': 'Scheduler not initialized'
+            }), 503
+        
+        if not scheduler.is_running:
+            return jsonify({
+                'status': 'error',
+                'message': 'Scheduler is not running'
+            }), 503
+        
+        # Add immediate forecast job
+        from datetime import datetime, timezone
+        scheduler.scheduler.add_job(
+            func=scheduler._run_forecast_ingestion_script,
+            trigger='date',
+            run_date=datetime.now(timezone.utc),
+            id=f'manual_forecast_trigger_{datetime.now().timestamp()}',
+            name='Manual Forecast Ingestion Trigger',
+            replace_existing=False
+        )
+        
+        return jsonify({
+            'status': 'ok',
+            'message': 'Forecast ingestion job triggered successfully'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to trigger forecast ingestion: {str(e)}'
+        }), 500

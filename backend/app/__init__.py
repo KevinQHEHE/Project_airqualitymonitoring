@@ -48,24 +48,11 @@ def create_app(config_class=Config):
 
     # Note: Background catchup disabled in favor of periodic streaming scheduler
     # The streaming scheduler uses get_station_reading.py for real-time data with deduplication
+    # and get_forecast_data.py for daily forecast ingestion
     import logging
-    logging.getLogger(__name__).info("Background catchup disabled - using periodic streaming scheduler instead")
+    logging.getLogger(__name__).info("Background catchup disabled - using periodic streaming and forecast schedulers instead")
     
-    # Initialize station reading scheduler
-    try:
-        from ingest.streaming import init_scheduler
-        
-        scheduler = init_scheduler(app)
-        if scheduler:
-            import logging
-            logging.getLogger(__name__).info("Station reading scheduler started successfully")
-        else:
-            import logging
-            logging.getLogger(__name__).warning("Station reading scheduler failed to start")
-    except Exception as e:
-        # Import errors should not prevent the app from starting; log and continue
-        import logging
-        logging.getLogger(__name__).warning(f"Station reading scheduler integration not available: {e}")
+    # Data ingestion scheduler is initialized in extensions.py to avoid duplicate initialization
     
     return app
 

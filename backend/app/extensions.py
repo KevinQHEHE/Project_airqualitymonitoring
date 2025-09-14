@@ -40,3 +40,19 @@ def init_extensions(app):
     
     # Initialize MongoDB connection using db module
     db.init_app(app)
+    
+    # Initialize and start the data ingestion scheduler
+    try:
+        print("=== FLASK: Initializing data ingestion scheduler ===")
+        from ingest.streaming import DataIngestionScheduler
+        scheduler = DataIngestionScheduler(app)
+        success = scheduler.start()
+        if success:
+            print("=== FLASK: Data ingestion scheduler started successfully ===")
+            app.logger.info("Data ingestion scheduler started successfully")
+        else:
+            print("=== FLASK: Failed to start data ingestion scheduler ===")
+            app.logger.error("Failed to start data ingestion scheduler")
+    except Exception as e:
+        print(f"=== FLASK: Error initializing data ingestion scheduler: {e} ===")
+        app.logger.error(f"Error initializing data ingestion scheduler: {e}")

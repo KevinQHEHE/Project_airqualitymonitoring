@@ -24,7 +24,7 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -62,12 +62,9 @@ class DataIngestionScheduler:
         self.enable_station_scheduler = os.environ.get('ENABLE_STATION_SCHEDULER', 'true').lower() in ['true', '1', 'on', 'yes']
         
         # Forecast ingestion configuration
-        forecast_env_value = os.environ.get('STATION_FORECAST_INTERVAL_MINUTES', '1440')
-        print(f"=== DEBUG: STATION_FORECAST_INTERVAL_MINUTES environment value = '{forecast_env_value}' ===")
-        self.forecast_polling_interval_minutes = int(forecast_env_value)  # Default 24 hours
+        self.forecast_polling_interval_minutes = int(os.environ.get('STATION_FORECAST_INTERVAL_MINUTES', '1440'))  # Default 24 hours
         self.forecast_script_timeout_seconds = int(os.environ.get('FORECAST_SCRIPT_TIMEOUT_SECONDS', '600'))
         self.enable_forecast_scheduler = os.environ.get('ENABLE_FORECAST_SCHEDULER', 'true').lower() in ['true', '1', 'on', 'yes']
-        print(f"=== DEBUG: Forecast scheduler will run every {self.forecast_polling_interval_minutes} minutes ===")
         
         # Script paths
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -132,15 +129,12 @@ class DataIngestionScheduler:
             return
         
         try:
-            print("=== STATION READING JOB STARTING ===")
             start_time = datetime.now(timezone.utc)
             logger.info(f"Starting station reading ingestion at {start_time}")
             
             # Prepare command
             python_executable = sys.executable
             cmd = [python_executable, self.station_script_path, '--log-level', 'INFO']
-            
-            print(f"=== STATION: Executing command: {' '.join(cmd)} ===")
             
             # Execute script with timeout
             process = subprocess.Popen(
@@ -159,32 +153,23 @@ class DataIngestionScheduler:
                 duration = (end_time - start_time).total_seconds()
                 
                 if return_code == 0:
-                    print(f"=== STATION: Completed successfully in {duration:.1f}s ===")
                     logger.info(f"Station reading script completed successfully in {duration:.1f}s")
-                    # Print stdout to main terminal to show station logs
                     if stdout.strip():
-                        print(f"--- STATION READING OUTPUT ---")
-                        print(stdout.strip())
-                        print(f"--- END STATION OUTPUT ---")
+                        logger.debug(f"Script stdout: {stdout.strip()}")
                 else:
-                    print(f"=== STATION: Failed with code {return_code} after {duration:.1f}s ===")
                     logger.error(f"Station reading script failed with code {return_code} after {duration:.1f}s")
                     if stderr.strip():
-                        print(f"--- STATION ERROR OUTPUT ---")
-                        print(f"STDERR: {stderr.strip()}")
-                        if stdout.strip():
-                            print(f"STDOUT: {stdout.strip()}")
-                        print(f"--- END STATION ERROR ---")
+                        logger.error(f"Script stderr: {stderr.strip()}")
+                    if stdout.strip():
+                        logger.error(f"Script stdout: {stdout.strip()}")
                         
             except subprocess.TimeoutExpired:
-                print(f"=== STATION: Timed out after {self.station_script_timeout_seconds}s ===")
                 logger.error(f"Station reading script timed out after {self.station_script_timeout_seconds}s")
                 process.kill()
                 process.communicate()  # Clean up
                 raise
                 
         except Exception as e:
-            print(f"=== STATION: ERROR: {e} ===")
             logger.error(f"Error executing station reading script: {e}")
             raise
     
@@ -199,15 +184,12 @@ class DataIngestionScheduler:
             return
         
         try:
-            print("=== FORECAST INGESTION JOB STARTING ===")
             start_time = datetime.now(timezone.utc)
             logger.info(f"Starting forecast data ingestion at {start_time}")
             
             # Prepare command
             python_executable = sys.executable
             cmd = [python_executable, self.forecast_script_path, '--log-level', 'INFO']
-            
-            print(f"=== FORECAST: Executing command: {' '.join(cmd)} ===")
             
             # Execute script with timeout
             process = subprocess.Popen(
@@ -226,41 +208,75 @@ class DataIngestionScheduler:
                 duration = (end_time - start_time).total_seconds()
                 
                 if return_code == 0:
-                    print(f"=== FORECAST: Completed successfully in {duration:.1f}s ===")
                     logger.info(f"Forecast ingestion script completed successfully in {duration:.1f}s")
-                    # Display forecast logs (they go to stderr, not stdout)
-                    if stderr.strip():
-                        print(f"--- FORECAST INGESTION OUTPUT ---")
-                        print(stderr.strip())
-                        print(f"--- END FORECAST OUTPUT ---")
-                    elif stdout.strip():
-                        print(f"--- FORECAST INGESTION OUTPUT ---")
-                        print(stdout.strip())
-                        print(f"--- END FORECAST OUTPUT ---")
-                    else:
-                        print("=== FORECAST: No output to display ===")
+                    if stdout.strip():
+                        logger.debug(f"Script stdout: {stdout.strip()}")
                 else:
-                    print(f"=== FORECAST: Failed with code {return_code} after {duration:.1f}s ===")
                     logger.error(f"Forecast ingestion script failed with code {return_code} after {duration:.1f}s")
                     if stderr.strip():
-                        print(f"--- FORECAST ERROR OUTPUT ---")
-                        print(f"STDERR: {stderr.strip()}")
-                        if stdout.strip():
-                            print(f"STDOUT: {stdout.strip()}")
-                        print(f"--- END FORECAST ERROR ---")
+                        logger.error(f"Script stderr: {stderr.strip()}")
+                    if stdout.strip():
+                        logger.error(f"Script stdout: {stdout.strip()}")
                         
             except subprocess.TimeoutExpired:
-                print(f"=== FORECAST: Timed out after {self.forecast_script_timeout_seconds}s ===")
                 logger.error(f"Forecast ingestion script timed out after {self.forecast_script_timeout_seconds}s")
                 process.kill()
                 process.communicate()  # Clean up
                 raise
                 
         except Exception as e:
-            print(f"=== FORECAST: ERROR: {e} ===")
             logger.error(f"Error executing forecast ingestion script: {e}")
             raise
-
+        """
+        if self._shutdown_event.is_set():
+            logger.info("Shutdown event set, skipping station reading job")
+            return
+        
+        try:
+            start_time = datetime.now(timezone.utc)
+            logger.info(f"Starting station reading ingestion at {start_time}")
+            
+            # Prepare command
+            python_executable = sys.executable
+            cmd = [python_executable, self.script_path, '--log-level', 'INFO']
+            
+            # Execute script with timeout
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                cwd=os.path.dirname(self.script_path) if self.script_path else os.getcwd()
+            )
+            
+            try:
+                stdout, stderr = process.communicate(timeout=self.script_timeout_seconds)
+                return_code = process.returncode
+                
+                end_time = datetime.now(timezone.utc)
+                duration = (end_time - start_time).total_seconds()
+                
+                if return_code == 0:
+                    logger.info(f"Station reading script completed successfully in {duration:.1f}s")
+                    if stdout.strip():
+                        logger.debug(f"Script stdout: {stdout.strip()}")
+                else:
+                    logger.error(f"Station reading script failed with code {return_code} after {duration:.1f}s")
+                    if stderr.strip():
+                        logger.error(f"Script stderr: {stderr.strip()}")
+                    if stdout.strip():
+                        logger.error(f"Script stdout: {stdout.strip()}")
+                        
+            except subprocess.TimeoutExpired:
+                logger.error(f"Station reading script timed out after {self.script_timeout_seconds}s")
+                process.kill()
+                process.communicate()  # Clean up
+                raise
+                
+        except Exception as e:
+            logger.error(f"Error executing station reading script: {e}")
+            raise
+    
     def start(self):
         """
         Start the background scheduler for both station readings and forecasts.
@@ -298,7 +314,7 @@ class DataIngestionScheduler:
             # Add job listener for logging
             self.scheduler.add_listener(self._job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
             
-            # Add station reading job if enabled (recurring every hour)
+            # Add station reading job if enabled
             if self.enable_station_scheduler:
                 self.scheduler.add_job(
                     func=self._run_station_reading_script,
@@ -309,7 +325,7 @@ class DataIngestionScheduler:
                 )
                 logger.info(f"Station reading job scheduled with {self.station_polling_interval_minutes}-minute interval")
             
-            # Add forecast ingestion job if enabled (recurring every 6 hours)
+            # Add forecast ingestion job if enabled
             if self.enable_forecast_scheduler:
                 self.scheduler.add_job(
                     func=self._run_forecast_ingestion_script,
@@ -320,31 +336,34 @@ class DataIngestionScheduler:
                 )
                 logger.info(f"Forecast ingestion job scheduled with {self.forecast_polling_interval_minutes}-minute interval")
             
-            # Start scheduler FIRST
+            # Start scheduler
             self.scheduler.start()
             self.is_running = True
+            
             logger.info("Data ingestion scheduler started successfully")
             
-            # IMMEDIATELY run initial jobs to show logs on startup - NO DELAYS
-            print("=== SCHEDULER STARTUP: Running initial jobs immediately ===")
-            
+            # Run initial jobs after a short delay to allow app startup to complete
             if self.enable_station_scheduler:
-                print("=== Running initial STATION READING job ===")
-                # Run station reading immediately in background thread to avoid blocking
-                import threading
-                station_thread = threading.Thread(target=self._run_station_reading_script, name="InitialStationReading")
-                station_thread.daemon = True
-                station_thread.start()
+                self.scheduler.add_job(
+                    func=self._run_station_reading_script,
+                    trigger='date',
+                    run_date=datetime.now(timezone.utc).replace(second=0, microsecond=0),
+                    id='initial_station_reading_job',
+                    name='Initial Station Reading',
+                    replace_existing=True
+                )
             
             if self.enable_forecast_scheduler:
-                print("=== Running initial FORECAST INGESTION job ===")
-                # Run forecast immediately in background thread to avoid blocking  
-                import threading
-                forecast_thread = threading.Thread(target=self._run_forecast_ingestion_script, name="InitialForecastIngestion")
-                forecast_thread.daemon = True
-                forecast_thread.start()
+                # Stagger forecast job by 30 seconds to avoid overlap
+                self.scheduler.add_job(
+                    func=self._run_forecast_ingestion_script,
+                    trigger='date',
+                    run_date=datetime.now(timezone.utc).replace(second=30, microsecond=0),
+                    id='initial_forecast_ingestion_job',
+                    name='Initial Forecast Ingestion',
+                    replace_existing=True
+                )
             
-            print("=== SCHEDULER STARTUP: Both initial jobs started ===")
             return True
             
         except Exception as e:
@@ -442,14 +461,14 @@ def init_scheduler(app):
         success = _scheduler_instance.start()
         
         if success:
-            # Register proper shutdown for app exit only
-            import atexit
-            def shutdown_on_exit():
-                if _scheduler_instance and _scheduler_instance.is_running:
-                    logger.info("Shutting down data ingestion scheduler on app exit")
+            # Register shutdown handler
+            @app.teardown_appcontext
+            def shutdown_scheduler(exception):
+                if _scheduler_instance:
                     _scheduler_instance.stop(wait=False)
             
-            atexit.register(shutdown_on_exit)
+            # Also register with atexit for non-Flask shutdowns
+            atexit.register(lambda: _scheduler_instance.stop(wait=False) if _scheduler_instance else None)
             
             logger.info("Data ingestion scheduler integrated with Flask app")
         else:
