@@ -188,6 +188,17 @@ def ensure_indexes() -> bool:
         users_collection = db.users
         users_collection.create_index([('email', 1)], unique=True)
         users_collection.create_index([('username', 1)], unique=True)
+
+        # Password reset tokens indexes (TTL on expiresAt)
+        resets_collection = db.password_resets
+        # Token hash lookup
+        resets_collection.create_index([('tokenHash', 1)])
+        # TTL index: documents expire at expiresAt
+        try:
+            resets_collection.create_index('expiresAt', expireAfterSeconds=0)
+        except Exception:
+            # If TTL index options conflict, ignore silently to avoid startup failure
+            pass
         
         logger.info("Database indexes created/verified successfully")
         return True

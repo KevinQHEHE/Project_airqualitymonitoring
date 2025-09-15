@@ -14,6 +14,11 @@ from flask_jwt_extended import (
 
 from backend.app.repositories import users_repo
 from backend.app import db as db_module
+from backend.app.blueprints.reset_password import (
+    create_password_reset_request,
+    send_password_reset_email,
+    reset_password_with_token,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -206,6 +211,78 @@ def login():
 
     except Exception as e:
         logger.error(f"Login error: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@auth_bp.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    """Initiate password reset by sending a reset token via email.
+
+    Always returns 200 to avoid user enumeration.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        email = (data.get('email') or '').strip()
+        if not email:
+            # maintain consistent timing while still returning 200
+            return jsonify({"message": "If an account exists for that email, a reset link has been sent."}), 200
+        if not _validate_email(email):
+            return jsonify({"message": "If an account exists for that email, a reset link has been sent."}), 200
+
+        created, token = create_password_reset_request(email, token_ttl_minutes=15)
+
+        # Compose a friendly reset link if we know a base URL
+        try:
+            base_url = request.host_url.rstrip('/')
+            reset_page = f"{base_url}/reset-password"  # hypothetical frontend route
+        except Exception:
+            reset_page = None
+
+        if created and token:
+            send_password_reset_email(email, token=token, reset_link=reset_page)
+
+        # Always respond with success message
+        return jsonify({"message": "If an account exists for that email, a reset link has been sent."}), 200
+    except Exception as e:
+        logger.error(f"Forgot password error: {e}")
+        # Still avoid leaking info
+        return jsonify({"message": "If an account exists for that email, a reset link has been sent."}), 200
+
+
+@auth_bp.route('/reset-password', methods=['POST'])
+def reset_password():
+    """Validate reset token and update password (hash stored)."""
+    try:
+        data = request.get_json(silent=True) or {}
+        token = (data.get('token') or '').strip()
+        new_password = data.get('new_password') or ''
+
+        if not token or not new_password:
+            return jsonify({"error": "token and new_password are required"}), 400
+
+        ok, violations = _validate_password(new_password)
+        if not ok:
+            return jsonify({
+                "error": "weak_password",
+                "message": "Password does not meet complexity requirements",
+                "requirements": [
+                    "at least 8 characters",
+                    "at least one uppercase letter",
+                    "at least one lowercase letter",
+                    "at least one number",
+                    "at least one special character"
+                ],
+                "violations": violations
+            }), 400
+
+        pw_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        success = reset_password_with_token(token, pw_hash)
+        if not success:
+            return jsonify({"error": "invalid_or_expired_token"}), 400
+
+        return jsonify({"message": "Password has been reset successfully"}), 200
+    except Exception as e:
+        logger.error(f"Reset password error: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 

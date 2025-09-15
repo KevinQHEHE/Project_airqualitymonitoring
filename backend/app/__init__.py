@@ -22,7 +22,9 @@ def create_app(config_class=Config):
     
     # Ensure required database indexes (including unique email/username)
     try:
-        db.ensure_indexes()
+        # Ensure indexes requires app context for current_app access
+        with app.app_context():
+            db.ensure_indexes()
     except Exception:
         import logging
         logging.getLogger(__name__).warning('Could not ensure DB indexes at startup')
