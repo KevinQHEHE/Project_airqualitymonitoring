@@ -11,6 +11,11 @@ class Config:
     
     # Flask settings
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
+    # JWT settings
+    from datetime import timedelta
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or SECRET_KEY
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=7)
     
     # MongoDB settings
     MONGO_URI = os.environ.get('MONGO_URI') or 'mongodb://localhost:27017/'

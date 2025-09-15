@@ -3,7 +3,106 @@
 ## Authentication Endpoints
 - `POST /api/auth/register` - User registration
 - `POST /api/auth/login` - User login
-- `POST /api/auth/logout` - User logout
+- `POST /api/auth/logout` - Revoke current access token
+- `POST /api/auth/logout_refresh` - Revoke current refresh token
+
+### Auth: Register & Login
+
+Tokens
+- Access token: JWT, expires in 1 hour
+- Refresh token: JWT, expires in 7 days
+- For protected endpoints, send `Authorization: Bearer <access_token>`
+
+POST `/api/auth/register`
+- Body (JSON):
+```
+{
+  "username": "alice",
+  "email": "alice@example.com",
+  "password": "P@ssword123"
+}
+```
+- Validation:
+  - `username` required
+  - `email` required and valid format
+  - `password` policy: at least 8 chars, includes uppercase, lowercase, digit, and special character
+- Errors: `400` invalid input; `409` duplicate email/username
+- Response `201` (example):
+```
+{
+  "message": "Registration successful",
+  "user": {
+    "id": "66fb9c...",
+    "username": "alice",
+    "email": "alice@example.com",
+    "role": "user",
+    "createdAt": "2025-09-15T10:00:00+00:00"
+  },
+  "access_token": "<jwt>",
+  "refresh_token": "<jwt>"
+}
+```
+- cURL:
+```
+curl -X POST "{{base_url}}/api/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"alice","email":"alice@example.com","password":"P@ssword123"}'
+```
+
+POST `/api/auth/login`
+- Body (JSON) using email or username:
+```
+{ "email": "alice@example.com", "password": "P@ssword123" }
+```
+or
+```
+{ "username": "alice", "password": "P@ssword123" }
+```
+- Errors: `400` missing fields; `401` invalid credentials
+- Response `200`: same token/user shape as register
+- cURL:
+```
+curl -X POST "{{base_url}}/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"alice@example.com","password":"P@ssword123"}'
+```
+
+PowerShell (Windows)
+```
+# Register
+$reg = @{ username = "alice"; email = "alice@example.com"; password = "P@ssword123" } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri http://localhost:5000/api/auth/register -ContentType "application/json" -Body $reg
+
+# Login
+$login = @{ email = "alice@example.com"; password = "P@ssword123" } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri http://localhost:5000/api/auth/login -ContentType "application/json" -Body $login
+
+# Or send raw JSON directly
+Invoke-RestMethod -Method Post -Uri http://localhost:5000/api/auth/login -ContentType "application/json" -Body '{"email":"alice@example.com","password":"P@ssword123"}'
+```
+
+Postman
+- Import: `docs/postman/auth.postman_collection.json` (uses `{{base_url}}`)
+
+Logout
+- Revoke access token:
+```
+curl -X POST "{{base_url}}/api/auth/logout" \
+  -H "Authorization: Bearer <access_token>"
+```
+- Revoke refresh token:
+```
+curl -X POST "{{base_url}}/api/auth/logout_refresh" \
+  -H "Authorization: Bearer <refresh_token>"
+```
+- PowerShell (Windows):
+```
+$token = "<access_token>"
+Invoke-RestMethod -Method Post -Uri http://localhost:5000/api/auth/logout -Headers @{ Authorization = "Bearer $token" }
+
+$refresh = "<refresh_token>"
+Invoke-RestMethod -Method Post -Uri http://localhost:5000/api/auth/logout_refresh -Headers @{ Authorization = "Bearer $refresh" }
+```
 
 ## Station Management
 - `GET /api/stations` - List all monitoring stations

@@ -1,9 +1,13 @@
-"""Flask extensions initialization (PyMongo, Mail, Limiter, Login, Cache)."""
+"""Flask extensions initialization (PyMongo, Mail, Limiter, Login, JWT, Cache).
+
+Includes JWT blocklist checking for logout token revocation.
+"""
 from flask_mail import Mail
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
 from . import db
+from flask_jwt_extended import JWTManager
 
 # Initialize Flask extensions
 mail = Mail()
@@ -12,6 +16,7 @@ limiter = Limiter(
     default_limits=["200 per day", "50 per hour"]
 )
 login_manager = LoginManager()
+jwt = JWTManager()
 
 
 def init_extensions(app):
@@ -24,6 +29,7 @@ def init_extensions(app):
     mail.init_app(app)
     limiter.init_app(app)
     login_manager.init_app(app)
+    jwt.init_app(app)
     
     # Configure login manager
     login_manager.login_view = 'auth.login'
@@ -40,6 +46,26 @@ def init_extensions(app):
     
     # Initialize MongoDB connection using db module
     db.init_app(app)
+
+    # JWT: check if token is in blocklist (revoked)
+    @jwt.token_in_blocklist_loader
+    def check_if_token_revoked(jwt_header, jwt_payload):
+        try:
+            database = db.get_db()
+            jti = jwt_payload.get("jti")
+            if not jti:
+                return False
+            doc = database.jwt_blocklist.find_one({"jti": jti})
+            return doc is not None
+        except Exception:
+            # Fail-safe: if we cannot check, do not block
+            return False
+
+    # Optional: custom response for revoked tokens
+    @jwt.revoked_token_loader
+    def revoked_token_callback(jwt_header, jwt_payload):
+        from flask import jsonify
+        return jsonify({"error": "token has been revoked"}), 401
     
     # Initialize and start the data ingestion scheduler
     try:

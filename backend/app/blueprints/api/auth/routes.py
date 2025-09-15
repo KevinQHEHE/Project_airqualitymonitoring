@@ -1,79 +1,256 @@
-# """Authentication blueprint for user login/logout/registration."""
-# from flask import Blueprint, request, jsonify
-# from werkzeug.security import check_password_hash, generate_password_hash
-# import logging
+"""Authentication blueprint: register and login returning JWT tokens."""
+from flask import Blueprint, request, jsonify
+import logging
+import re
+from datetime import datetime, timezone
+import bcrypt
+from pymongo.errors import DuplicateKeyError
+from flask_jwt_extended import (
+    create_access_token,
+    create_refresh_token,
+    jwt_required,
+    get_jwt,
+)
 
-# logger = logging.getLogger(__name__)
+from backend.app.repositories import users_repo
+from backend.app import db as db_module
 
-# auth_bp = Blueprint('auth', __name__)
+logger = logging.getLogger(__name__)
 
-
-# @auth_bp.route('/login', methods=['POST'])
-# def login():
-#     """User login endpoint.
-    
-#     Expected JSON body:
-#     {
-#         "email": "user@example.com",
-#         "password": "password123"
-#     }
-    
-#     Returns:
-#         JSON: Success response with user info or error message
-#     """
-#     try:
-#         data = request.get_json()
-#         if not data or not data.get('email') or not data.get('password'):
-#             return jsonify({"error": "Email and password are required"}), 400
-        
-#         # TODO: Implement user authentication logic with MongoDB
-#         # For now, return a placeholder response
-#         return jsonify({
-#             "message": "Login successful",
-#             "user": {"email": data['email']}
-#         }), 200
-    
-#     except Exception as e:
-#         logger.error(f"Login error: {str(e)}")
-#         return jsonify({"error": "Internal server error"}), 500
+auth_bp = Blueprint('auth', __name__)
 
 
-# @auth_bp.route('/register', methods=['POST'])
-# def register():
-#     """User registration endpoint.
-    
-#     Expected JSON body:
-#     {
-#         "email": "user@example.com",
-#         "password": "password123",
-#         "name": "User Name"
-#     }
-    
-#     Returns:
-#         JSON: Success response or error message
-#     """
-#     try:
-#         data = request.get_json()
-#         if not data or not data.get('email') or not data.get('password'):
-#             return jsonify({"error": "Email and password are required"}), 400
-        
-#         # TODO: Implement user registration logic with MongoDB
-#         # For now, return a placeholder response
-#         return jsonify({
-#             "message": "Registration successful",
-#             "user": {"email": data['email'], "name": data.get('name', '')}
-#         }), 201
-    
-#     except Exception as e:
-#         logger.error(f"Registration error: {str(e)}")
-#         return jsonify({"error": "Internal server error"}), 500
+def _serialize_user(user_doc):
+    """Sanitize user document for response."""
+    if not user_doc:
+        return None
+    created = user_doc.get("createdAt")
+    if isinstance(created, datetime):
+        created_iso = created.isoformat()
+    else:
+        created_iso = created
+    return {
+        "id": str(user_doc.get("_id")) if user_doc.get("_id") else None,
+        "username": user_doc.get("username"),
+        "email": user_doc.get("email"),
+        "role": user_doc.get("role", "user"),
+        "createdAt": created_iso,
+    }
 
 
-# @auth_bp.route('/logout', methods=['POST'])
-# def logout():
-#     """User logout endpoint.
-    
-#     Returns:
-#         JSON: Logout confirmation
-#     """
-#     return jsonify({"message": "Logout successful"}), 200
+def _validate_email(email: str) -> bool:
+    if not isinstance(email, str):
+        return False
+    return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email))
+
+
+def _validate_password(password: str) -> tuple[bool, list[str]]:
+    """Validate password strength.
+
+    Rules:
+    - at least 8 characters
+    - at least one uppercase letter
+    - at least one lowercase letter
+    - at least one digit
+    - at least one special character
+    """
+    violations: list[str] = []
+    if not isinstance(password, str) or len(password) < 8:
+        violations.append("at least 8 characters")
+    if not re.search(r"[A-Z]", password or ""):
+        violations.append("at least one uppercase letter")
+    if not re.search(r"[a-z]", password or ""):
+        violations.append("at least one lowercase letter")
+    if not re.search(r"\d", password or ""):
+        violations.append("at least one number")
+    if not re.search(r"[^\w\s]", password or ""):
+        violations.append("at least one special character")
+    return (len(violations) == 0), violations
+
+
+@auth_bp.route('/register', methods=['POST'])
+def register():
+    """Register a new user (hashes password)"""
+    try:
+        data = request.get_json(silent=True) or {}
+
+        username = (data.get('username') or '').strip()
+        email = (data.get('email') or '').strip()
+        password = data.get('password') or ''
+
+        if not username:
+            return jsonify({"error": "username is required"}), 400
+        if not email:
+            return jsonify({"error": "email is required"}), 400
+        if not _validate_email(email):
+            return jsonify({"error": "invalid email format"}), 400
+        ok, violations = _validate_password(password)
+        if not ok:
+            return jsonify({
+                "error": "weak_password",
+                "message": "Password does not meet complexity requirements",
+                "requirements": [
+                    "at least 8 characters",
+                    "at least one uppercase letter",
+                    "at least one lowercase letter",
+                    "at least one number",
+                    "at least one special character"
+                ],
+                "violations": violations
+            }), 400
+
+        existing_email = users_repo.find_by_email(email)
+        existing_username = users_repo.find_by_username(username)
+        if existing_email or existing_username:
+            if existing_email and existing_username:
+                return jsonify({
+                    "error": "duplicate",
+                    "message": "Email and username already exist"
+                }), 409
+            if existing_email:
+                return jsonify({
+                    "error": "email_exists",
+                    "message": "Email already exists"
+                }), 409
+            if existing_username:
+                return jsonify({
+                    "error": "username_exists",
+                    "message": "Username already exists"
+                }), 409
+
+        pw_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+        user_doc = {
+            "username": username.lower(),
+            "email": email.lower(),
+            "passwordHash": pw_hash,
+            "role": "user",
+            "createdAt": datetime.now(timezone.utc),
+            "updatedAt": datetime.now(timezone.utc),
+        }
+
+        try:
+            inserted_id = users_repo.insert_one(user_doc)
+        except DuplicateKeyError as e:
+            try:
+                details = getattr(e, 'details', None) or {}
+                key_value = details.get('keyValue') or {}
+                if 'email' in key_value:
+                    return jsonify({"error": "email_exists", "message": "Email already exists"}), 409
+                if 'username' in key_value:
+                    return jsonify({"error": "username_exists", "message": "Username already exists"}), 409
+            except Exception:
+                pass
+            return jsonify({"error": "duplicate", "message": "Email or username already exists"}), 409
+
+        user_doc["_id"] = inserted_id
+
+        identity = str(inserted_id)
+        claims = {
+            "username": user_doc["username"],
+            "email": user_doc["email"],
+            "role": user_doc["role"],
+        }
+        access_token = create_access_token(identity=identity, additional_claims=claims)
+        refresh_token = create_refresh_token(identity=identity, additional_claims={"role": user_doc["role"]})
+
+        return jsonify({
+            "message": "Registration successful",
+            "user": _serialize_user(user_doc),
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+        }), 201
+
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@auth_bp.route('/login', methods=['POST'])
+def login():
+    """Authenticate user and return JWT access and refresh tokens."""
+    try:
+        data = request.get_json(silent=True) or {}
+
+        login_field = (data.get('email') or data.get('username') or '').strip()
+        password = data.get('password') or ''
+
+        if not login_field or not password:
+            return jsonify({"error": "email/username and password are required"}), 400
+
+        user = users_repo.find_by_email(login_field)
+        if not user:
+            user = users_repo.find_by_username(login_field)
+        if not user:
+            return jsonify({"error": "invalid credentials"}), 401
+
+        stored = user.get('passwordHash')
+        if not stored or not bcrypt.checkpw(password.encode('utf-8'), stored.encode('utf-8')):
+            return jsonify({"error": "invalid credentials"}), 401
+
+        identity = str(user.get('_id') or '')
+        claims = {
+            "username": user.get("username"),
+            "email": user.get("email"),
+            "role": user.get("role", "user"),
+        }
+        access_token = create_access_token(identity=identity, additional_claims=claims)
+        refresh_token = create_refresh_token(identity=identity, additional_claims={"role": user.get("role", "user")})
+
+        return jsonify({
+            "message": "Login successful",
+            "user": _serialize_user(user),
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@auth_bp.route('/logout', methods=['POST'])
+@jwt_required()
+def logout_access():
+    """Logout current user by revoking the presented access token.
+
+    Requires Authorization: Bearer <access_token>
+    """
+    try:
+        jti = get_jwt().get("jti")
+        sub = get_jwt().get("sub")
+        ttype = get_jwt().get("type", "access")
+        database = db_module.get_db()
+        database.jwt_blocklist.insert_one({
+            "jti": jti,
+            "user_id": sub,
+            "token_type": ttype,
+            "revokedAt": datetime.now(timezone.utc),
+        })
+        return jsonify({"message": "Logged out (access token revoked)"}), 200
+    except Exception as e:
+        logger.error(f"Logout error: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@auth_bp.route('/logout_refresh', methods=['POST'])
+@jwt_required(refresh=True)
+def logout_refresh():
+    """Revoke the presented refresh token.
+
+    Requires Authorization: Bearer <refresh_token>
+    """
+    try:
+        jti = get_jwt().get("jti")
+        sub = get_jwt().get("sub")
+        database = db_module.get_db()
+        database.jwt_blocklist.insert_one({
+            "jti": jti,
+            "user_id": sub,
+            "token_type": "refresh",
+            "revokedAt": datetime.now(timezone.utc),
+        })
+        return jsonify({"message": "Refresh token revoked"}), 200
+    except Exception as e:
+        logger.error(f"Logout refresh error: {e}")
+        return jsonify({"error": "Internal server error"}), 500

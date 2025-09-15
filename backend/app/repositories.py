@@ -356,7 +356,9 @@ class UsersRepository(BaseRepository):
         # Normalize email and username
         user_data['email'] = user_data['email'].lower()
         user_data['username'] = user_data['username'].lower()
-        user_data['created_at'] = datetime.now(timezone.utc)
+        # Use camelCase timestamps per validator
+        if 'createdAt' not in user_data:
+            user_data['createdAt'] = datetime.now(timezone.utc)
         
         try:
             return self.insert_one(user_data)

@@ -20,6 +20,13 @@ def create_app(config_class=Config):
     # Initialize Flask extensions
     init_extensions(app)
     
+    # Ensure required database indexes (including unique email/username)
+    try:
+        db.ensure_indexes()
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning('Could not ensure DB indexes at startup')
+    
     # Register health check endpoint 
     @app.route('/api/health')
     def health_check():
@@ -64,7 +71,7 @@ def register_blueprints(app):
         app: Flask application instance
     """
     # Import API blueprints here to avoid circular imports
-    # from backend.app.blueprints.api.auth.routes import auth_bp
+    from backend.app.blueprints.api.auth.routes import auth_bp
     from backend.app.blueprints.api.stations.routes import stations_bp
     from backend.app.blueprints.api.air_quality.routes import air_quality_bp
     from backend.app.blueprints.api.forecasts.routes import forecasts_bp
@@ -80,7 +87,7 @@ def register_blueprints(app):
     from backend.app.blueprints.web.routes import web_bp
     
     # Register API blueprints with URL prefixes
-    # app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(stations_bp, url_prefix='/api/stations')
     # Register blueprint with underscore variant
     app.register_blueprint(air_quality_bp, url_prefix='/api/air_quality')

@@ -1,1 +1,90 @@
-<!-- User login form template -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Login • Air Quality</title>
+    <style>
+      body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
+      form { max-width: 360px; padding: 1rem; border: 1px solid #ddd; border-radius: 8px; }
+      label { display:block; margin-top: .5rem; }
+      input { width: 100%; padding: .5rem; margin-top: .25rem; }
+      button { margin-top: 1rem; padding: .5rem .75rem; }
+      .row { margin-top: .5rem; }
+      pre { white-space: pre-wrap; background: #fafafa; padding: .75rem; border: 1px solid #eee; border-radius: 6px; }
+      nav a { margin-right: 1rem; }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/register">Register</a>
+    </nav>
+    <h1>Login</h1>
+    <form id="loginForm">
+      <label>Email</label>
+      <input type="email" id="email" placeholder="alice@example.com" required />
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••" required />
+      <button type="submit">Login</button>
+    </form>
+
+    <div class="row">
+      <button id="logoutBtn" disabled>Logout (revoke access)</button>
+    </div>
+
+    <h3>Result</h3>
+    <pre id="result">—</pre>
+
+    <script>
+      const resEl = document.getElementById('result');
+      const logoutBtn = document.getElementById('logoutBtn');
+
+      function show(obj) {
+        resEl.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+      }
+
+      async function postJson(url, data, headers = {}) {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify(data)
+        });
+        const text = await res.text();
+        try { return { status: res.status, json: JSON.parse(text) }; }
+        catch { return { status: res.status, text }; }
+      }
+
+      document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const out = await postJson('/api/auth/login', { email, password });
+        if (out.json) {
+          show(out.json);
+          if (out.json.access_token) {
+            localStorage.setItem('access_token', out.json.access_token);
+            localStorage.setItem('refresh_token', out.json.refresh_token || '');
+            logoutBtn.disabled = false;
+          }
+        } else {
+          show(out.text);
+        }
+      });
+
+      logoutBtn.addEventListener('click', async () => {
+        const token = localStorage.getItem('access_token');
+        if (!token) return show('No access token found. Login first.');
+        const res = await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + token }
+        });
+        const text = await res.text();
+        try { show(JSON.parse(text)); } catch { show(text); }
+      });
+
+      // Enable logout if token present
+      logoutBtn.disabled = !localStorage.getItem('access_token');
+    </script>
+  </body>
+  </html>

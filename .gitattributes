@@ -1,0 +1,11 @@
+# Enforce consistent text normalization across platforms
+# Let Git detect text files and normalize line endings
+* text=auto
+
+# Ensure common text files use LF in the repository
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sh text eol=lf

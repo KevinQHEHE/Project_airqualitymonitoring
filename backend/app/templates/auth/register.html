@@ -1,1 +1,97 @@
-<!-- User registration form template -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Register • Air Quality</title>
+    <style>
+      body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
+      form { max-width: 420px; padding: 1rem; border: 1px solid #ddd; border-radius: 8px; }
+      label { display:block; margin-top: .5rem; }
+      input { width: 100%; padding: .5rem; margin-top: .25rem; }
+      button { margin-top: 1rem; padding: .5rem .75rem; }
+      pre { white-space: pre-wrap; background: #fafafa; padding: .75rem; border: 1px solid #eee; border-radius: 6px; }
+      nav a { margin-right: 1rem; }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/login">Login</a>
+    </nav>
+    <h1>Register</h1>
+    <form id="regForm">
+      <label>Username</label>
+      <input type="text" id="username" placeholder="alice" required />
+      <label>Email</label>
+      <input type="email" id="email" placeholder="alice@example.com" required />
+      <label>Password</label>
+      <input type="password" id="password" placeholder="at least 8 characters" minlength="8" required />
+      <div id="pw-rules">
+        <small>Must contain:</small>
+        <ul>
+          <li id="rule-length">• at least 8 characters</li>
+          <li id="rule-upper">• at least one uppercase letter</li>
+          <li id="rule-lower">• at least one lowercase letter</li>
+          <li id="rule-digit">• at least one number</li>
+          <li id="rule-special">• at least one special character</li>
+        </ul>
+      </div>
+      <button type="submit">Create account</button>
+    </form>
+
+    <h3>Result</h3>
+    <pre id="result">—</pre>
+
+    <script>
+      const resEl = document.getElementById('result');
+      function show(obj) {
+        resEl.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+      }
+      async function postJson(url, data) {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        const text = await res.text();
+        try { return { status: res.status, json: JSON.parse(text) }; }
+        catch { return { status: res.status, text }; }
+      }
+      // Live password checks
+      const pw = document.getElementById('password');
+      pw.addEventListener('input', () => {
+        const v = pw.value || '';
+        const pass = {
+          length: v.length >= 8,
+          upper: /[A-Z]/.test(v),
+          lower: /[a-z]/.test(v),
+          digit: /\d/.test(v),
+          special: /[^\w\s]/.test(v)
+        };
+        document.getElementById('rule-length').style.color = pass.length ? 'green' : 'inherit';
+        document.getElementById('rule-upper').style.color = pass.upper ? 'green' : 'inherit';
+        document.getElementById('rule-lower').style.color = pass.lower ? 'green' : 'inherit';
+        document.getElementById('rule-digit').style.color = pass.digit ? 'green' : 'inherit';
+        document.getElementById('rule-special').style.color = pass.special ? 'green' : 'inherit';
+      });
+
+      document.getElementById('regForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('username').value;
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const out = await postJson('/api/auth/register', { username, email, password });
+        if (out.json) {
+          show(out.json);
+          if (out.json.access_token) {
+            localStorage.setItem('access_token', out.json.access_token);
+            localStorage.setItem('refresh_token', out.json.refresh_token || '');
+          }
+        } else {
+          show(out.text);
+        }
+      });
+    </script>
+  </body>
+  </html>
