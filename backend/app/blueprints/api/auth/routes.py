@@ -14,7 +14,7 @@ from flask_jwt_extended import (
 
 from backend.app.repositories import users_repo
 from backend.app import db as db_module
-from backend.app.blueprints.reset_password import (
+from backend.app.reset_password import (
     create_password_reset_request,
     send_password_reset_email,
     reset_password_with_token,
