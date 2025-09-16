@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reset Password · Air Quality</title>
+    <style>
+      body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
+      form { max-width: 420px; padding: 1rem; border: 1px solid #ddd; border-radius: 8px; }
+      label { display:block; margin-top: .5rem; }
+      input { width: 100%; padding: .5rem; margin-top: .25rem; }
+      button { margin-top: 1rem; padding: .5rem .75rem; }
+      pre { white-space: pre-wrap; background: #fafafa; padding: .75rem; border: 1px solid #eee; border-radius: 6px; }
+      nav a { margin-right: 1rem; }
+      .hint { color: #555; font-size: .9rem; }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/login">Login</a>
+      <a href="/register">Register</a>
+    </nav>
+    <h1>Reset Password</h1>
+    <p class="hint">Paste the token you received via email and choose a new password.</p>
+    <form id="resetForm">
+      <label>Token</label>
+      <input type="text" id="token" placeholder="paste reset token" required />
+      <label>New password</label>
+      <input type="password" id="new_password" placeholder="NewP@ssw0rd!" minlength="8" required />
+      <label>Confirm new password</label>
+      <input type="password" id="confirm_password" placeholder="NewP@ssw0rd!" minlength="8" required />
+      <button type="submit">Reset password</button>
+    </form>
+
+    <h3>Result</h3>
+    <pre id="result">—</pre>
+
+    <script>
+      const resEl = document.getElementById('result');
+      function show(obj) {
+        resEl.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+      }
+      async function postJson(url, data) {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        const text = await res.text();
+        try { return { status: res.status, json: JSON.parse(text) }; }
+        catch { return { status: res.status, text }; }
+      }
+      // If token provided via ?token= in URL, prefill
+      (function prefillToken() {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const t = params.get('token');
+          if (t) document.getElementById('token').value = t;
+        } catch {}
+      })();
+      document.getElementById('resetForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const token = document.getElementById('token').value.trim();
+        const new_password = document.getElementById('new_password').value;
+        const confirm = document.getElementById('confirm_password').value;
+        if (new_password !== confirm) {
+          return show({ error: 'password_mismatch', message: 'Passwords do not match' });
+        }
+        const out = await postJson('/api/auth/reset-password', { token, new_password });
+        show(out.json || out.text);
+      });
+    </script>
+  </body>
+  </html>
+
