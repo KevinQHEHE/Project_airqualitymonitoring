@@ -1,0 +1,1028 @@
+/* Air Pollution Monitoring App - Two-Column Layout */
+
+:root {
+  /* Light Mode Colors */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-card: #ffffff;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --border-color: #e2e8f0;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  
+  /* Brand Colors */
+  --neon-pink: #ff3b82;
+  --gradient-purple: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  
+  /* Dark theme colors */
+  --dark-bg: #1a1a2e;
+  --dark-card: #16213e;
+  --dark-text: #ffffff;
+  
+  /* Spacing */
+  --border-radius: 12px;
+  --spacing-sm: 1rem;
+  --spacing-md: 1.5rem;
+  --spacing-lg: 2rem;
+  --spacing-xl: 3rem;
+}
+
+/* Dark Mode Colors */
+[data-theme="dark"] {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #16213e;
+  --bg-card: #0f172a;
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --border-color: #475569;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Global Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  transition: all 0.3s ease;
+  overflow-x: hidden; /* Only hide horizontal scroll */
+  min-height: 100vh;
+}
+
+/* Main Login Container */
+.login-container {
+  display: flex !important;
+  min-height: 100vh !important;
+  width: 100% !important;
+  position: relative;
+}
+
+/* Left Side - Purple with Neon Circle */
+/* Neon border for left column */
+.login-left {
+  flex: 1 1 50%;
+  background: var(--gradient-purple);
+  box-shadow: 0 0 0 4px var(--neon-pink), 0 0 40px 0 var(--neon-pink);
+  border-radius: 18px 0 0 18px;
+  position: relative;
+  overflow: hidden;
+  width: 50%;
+  min-width: 0;
+  min-height: 100vh;
+  height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+[data-theme="dark"] .login-left {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+.login-left::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+/* Ensure .login-left and its content fill the column */
+.login-left {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+/* Air Quality Image - Ensure GIF fills left column completely */
+.air-quality-image-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.air-quality-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* Left Side Content */
+.left-content {
+  text-align: center;
+  color: white;
+  position: relative;
+  z-index: 2;
+}
+
+.left-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.left-subtitle {
+  font-size: 1.125rem;
+  opacity: 0.9;
+  font-weight: 400;
+}
+
+/* Right Side - Form */
+.login-right {
+  flex: 1 1 50%;
+  width: 50%;
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  position: relative;
+  overflow-y: auto; /* Allow vertical scroll if needed */
+  min-height: 100vh;
+  border-radius: 0 18px 18px 0;
+}
+
+[data-theme="dark"] .login-right {
+  background: var(--dark-card);
+}
+
+.form-container {
+  width: 100%;
+  max-width: 400px;
+  position: relative;
+  margin: auto;
+  padding: 0.5rem 0; /* Giảm padding để tiết kiệm không gian */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Center content vertically */
+}
+
+/* Form Header */
+.form-header {
+  text-align: left;
+  margin-bottom: 1.2rem;
+}
+
+.brand-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1rem; /* Giảm margin */
+  gap: 0.5rem;
+}
+
+.brand-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--neon-pink);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brand-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: white;
+}
+
+.brand-text h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.brand-text p {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.welcome-text h2 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.welcome-text p {
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
+/* Auth form heading/label color overrides (override inline white) */
+.auth-form-wrapper h3.card-title,
+.auth-form-wrapper .card-title {
+  color: var(--text-primary) !important; /* respects [data-theme] */
+  font-weight: 700 !important;
+}
+
+.auth-form-wrapper .card-category,
+.auth-form-wrapper .text-muted {
+  color: var(--text-secondary) !important;
+}
+
+/* Override any .text-white used inside auth forms (templates sometimes add this inline) */
+.auth-form-wrapper .text-white,
+.auth-form-wrapper label.text-white {
+  color: var(--text-primary) !important;
+}
+
+/* Ensure regular labels and checkbox labels inside auth forms use theme-aware colors */
+.auth-form-wrapper label,
+.auth-form-wrapper .form-label,
+.auth-form-wrapper .form-check-label {
+  color: var(--text-primary) !important;
+}
+
+/* Theme Toggle */
+.theme-toggle {
+  position: absolute;
+  top: 2rem;
+  right: 2rem;
+  background: transparent;
+  border: 2px solid var(--border-color);
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  z-index: 1000;
+}
+
+.theme-toggle:hover {
+  border-color: var(--neon-pink);
+  background: rgba(255, 59, 130, 0.1);
+}
+
+.theme-toggle i {
+  font-size: 1.125rem;
+  color: var(--neon-pink) !important;
+}
+
+/* Đảm bảo SVG cũng có màu hồng */
+.theme-toggle svg {
+  font-size: 1.125rem;
+  color: var(--neon-pink) !important;
+  fill: var(--neon-pink) !important;
+}
+
+.theme-toggle i,
+.theme-toggle svg {
+  transition: all 0.3s ease;
+}
+
+/* Icon visibility: ensure only one icon shows. Use !important to override any inline style toggles. */
+.theme-toggle .fa-moon { display: none !important; }
+.theme-toggle .fa-sun { display: inline-block !important; }
+.theme-toggle.active .fa-moon { display: inline-block !important; }
+.theme-toggle.active .fa-sun { display: none !important; }
+
+/* Form Styles */
+.form-group {
+  margin-bottom: 1rem; /* Giảm margin để tiết kiệm không gian */
+  position: relative;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.form-control {
+  width: 100%;
+  padding: 1rem 1rem 1rem 3rem !important;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+/* Special padding for password fields to avoid overlap with toggle button */
+.form-group .form-control[type="password"],
+.form-group .form-control[type="text"] {
+  padding-right: 3.5rem !important;
+}
+
+.form-control:focus {
+  border-color: var(--neon-pink) !important;
+  background: var(--bg-card) !important;
+  box-shadow: 0 0 0 3px rgba(255, 59, 130, 0.1) !important;
+  color: var(--text-primary) !important;
+}
+
+.form-control::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* Specific fix for light mode text visibility */
+[data-theme="light"] .form-control {
+  color: #1e293b !important;
+}
+
+[data-theme="light"] .form-control:focus {
+  color: #1e293b !important;
+}
+
+/* Light-theme: make input-inline wrappers have a visible outer border and subtle shadow */
+[data-theme="light"] .input-inline {
+  background: #ffffff !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: 0 6px 18px rgba(16,24,40,0.06) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .input-inline .form-control {
+  background: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .input-inline .input-left,
+[data-theme="light"] .input-inline .input-icon {
+  color: var(--neon-pink) !important;
+}
+
+[data-theme="light"] .input-inline:focus-within {
+  border-color: var(--neon-pink) !important;
+  box-shadow: 0 10px 30px rgba(255,59,130,0.12) !important;
+}
+
+/* Input Icons */
+.input-icon {
+  position: absolute;
+  left: 1rem;
+  top: 2.5rem;
+  color: var(--text-muted);
+  transition: all 0.3s ease;
+}
+
+.form-control:focus + .input-icon {
+  color: var(--neon-pink);
+}
+
+/* Password Toggle */
+.password-toggle {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease;
+  z-index: 10;
+  /* remove margin-top which caused vertical shift */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  padding: 0;
+}
+
+/* Keep the button visually stable on hover (no translate/scale that moves layout) */
+.password-toggle:hover {
+  color: var(--neon-pink);
+  background: rgba(255, 59, 130, 0.06);
+}
+
+.password-toggle:focus {
+  outline: none;
+  color: var(--neon-pink);
+}
+
+.password-toggle:active {
+  background: rgba(255, 59, 130, 0.12);
+}
+
+/* Ensure the eye icon itself does not intercept pointer events and stays centered */
+.password-toggle i,
+.password-toggle svg {
+  pointer-events: none;
+  font-size: 1.05rem;
+  color: inherit;
+}
+/* High-specificity fix: ensure password toggle stays vertically centered and ignore competing .btn styles */
+.auth-form-wrapper .input-inline .password-toggle,
+.auth-form-wrapper .password-toggle,
+.input-inline .password-toggle {
+  /* reset margin from other button rules */
+  margin: 0 !important;
+  padding: 0 !important;
+  top: 50% !important;
+  right: 0.5rem !important;
+  transform: translateY(-50%) !important;
+  line-height: 1 !important;
+  vertical-align: middle !important;
+  width: 40px !important;
+  height: 40px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Also force hover state to not change layout: only color/background allowed */
+.auth-form-wrapper .password-toggle:hover,
+.input-inline .password-toggle:hover {
+  transform: translateY(-50%) !important;
+  margin: 0 !important;
+}
+
+/* If any global .btn rules apply large padding, ensure the inline icon button doesn't inherit them */
+.auth-form-wrapper .password-toggle.btn,
+.auth-form-wrapper .password-toggle.btn-link,
+.auth-form-wrapper .password-toggle.btn:focus {
+  padding: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Ensure the eye icon remains visible in light theme even if inherited color rules exist */
+[data-theme="light"] .auth-form-wrapper .password-toggle i,
+[data-theme="light"] .input-inline .password-toggle i {
+  color: #1e293b !important;
+}
+
+/* Light-theme: ensure eye icon is visible (dark color) */
+[data-theme="light"] .password-toggle {
+  color: #1e293b !important;
+}
+
+[data-theme="light"] .password-toggle:hover {
+  color: var(--neon-pink) !important;
+}
+
+.password-toggle i,
+.password-toggle svg {
+  font-size: 1rem;
+  pointer-events: none;
+  transition: all 0.2s ease;
+}
+
+/* Checkbox and Links */
+.form-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form-check-input {
+  width: 18px !important;
+  height: 18px !important;
+  border: 2px solid var(--border-color) !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  position: relative !important;
+  transition: all 0.3s ease !important;
+  margin: 0 !important;
+  flex-shrink: 0 !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}
+
+.form-check-input:checked {
+  background: var(--neon-pink) !important;
+  border-color: var(--neon-pink) !important;
+}
+
+.form-check-input:checked::after {
+  content: '✓' !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  color: white !important;
+  font-size: 0.75rem !important;
+  font-weight: bold !important;
+}
+
+.form-check-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.forgot-link {
+  color: var(--neon-pink);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.forgot-link:hover {
+  text-decoration: underline;
+}
+
+/* Submit Button */
+.btn-submit {
+  display: block;
+  margin: 0 auto 1.5rem auto; /* center and provide bottom spacing */
+  padding: 0.95rem 1.25rem;
+  background: var(--neon-pink);
+  color: #fff;
+  border: none;
+  border-radius: calc(var(--border-radius) - 2px);
+  font-size: 1.025rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  max-width: 520px;
+  width: 60%;
+  min-width: 220px;
+  box-shadow: 0 8px 20px rgba(255,59,130,0.18);
+}
+
+.btn-submit:hover {
+  background: #e91e63;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(255, 59, 130, 0.36);
+}
+
+.btn-submit:active {
+  transform: translateY(0);
+}
+
+/* Footer Link */
+.form-footer {
+  text-align: center;
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.form-footer p {
+  font-size: 0.925rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* Compatibility: older templates used .auth-footer-links */
+.auth-form-wrapper .auth-footer-links, .auth-form-footer, .auth-footer-links {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.auth-form-wrapper .auth-footer-links a, .auth-form-footer a, .auth-footer-links a {
+  color: var(--neon-pink);
+  font-weight: 600;
+}
+
+/* Optimizations for container and form */
+.form-container .auth-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.signup-link {
+  color: var(--neon-pink);
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.signup-link:hover {
+  text-decoration: underline;
+}
+
+/* Alert Styles */
+.alert {
+  padding: 1rem;
+  border-radius: var(--border-radius);
+  margin-bottom: 1.5rem;
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Password rules list styling (used on reset/register pages) */
+.password-rules {
+  width: 100%;
+  max-width: 420px;
+  margin: 0.75rem auto 1.25rem auto; /* center and add breathing room */
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem; /* vertical spacing between rules */
+  align-items: flex-start;
+}
+
+.password-rules .rule {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem; /* space between icon and text */
+  color: var(--text-secondary);
+  font-size: 1.05rem; /* slightly larger for readability */
+  line-height: 1.25;
+}
+
+.password-rules .rule i {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  color: var(--text-muted);
+}
+
+.password-rules .rule.rule-valid {
+  color: #bff3e0; /* soft green text in dark mode */
+}
+
+.password-rules .rule.rule-valid i {
+  color: #00d4aa; /* neon green accent for check */
+}
+
+.password-rules .rule.rule-invalid {
+  color: var(--text-secondary);
+}
+
+.password-rules .rule.rule-invalid i {
+  color: #fda4af; /* soft pink for invalid */
+}
+
+/* Ensure rules contrast in light theme */
+[data-theme="light"] .password-rules .rule {
+  color: #334155; /* darker text for light bg */
+}
+
+[data-theme="light"] .password-rules .rule i {
+  color: #9aa6b2;
+}
+
+[data-theme="light"] .password-rules .rule.rule-valid i {
+  color: #059669; /* green for valid in light theme */
+}
+
+[data-theme="light"] .password-rules .rule.rule-invalid i {
+  color: #ef4444; /* red for invalid in light theme */
+}
+
+
+.alert-danger {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.2);
+  color: #dc2626;
+}
+
+.alert-info {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.2);
+  color: #2563eb;
+}
+
+[data-theme="dark"] .alert-info {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .login-container {
+    flex-direction: column;
+  }
+  
+  .login-left {
+    min-height: 40vh;
+    padding: 2rem;
+  }
+  
+  .air-quality-image-wrapper {
+    width: 100%;
+    height: 100%;
+  }
+  
+  .left-title {
+    font-size: 2rem;
+  }
+  
+  .login-right {
+    min-height: 60vh;
+    padding: 1.5rem;
+    overflow-y: auto;
+  }
+  
+  .form-container {
+    padding: 0.5rem 0;
+  }
+  
+  .form-group {
+    margin-bottom: 1.25rem;
+  }
+  
+  .theme-toggle {
+    top: 1rem;
+    right: 1rem;
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-left {
+    padding: 1.5rem;
+  }
+  
+  .login-right {
+    padding: 1rem;
+    overflow-y: auto;
+    min-height: 100vh;
+  }
+  
+  .form-container {
+    padding: 0.5rem 0;
+    max-width: 100%;
+  }
+  
+  .form-group {
+    margin-bottom: 0.8rem;
+  }
+  
+  .form-header {
+    margin-bottom: 1rem;
+  }
+  
+  .air-quality-image-wrapper {
+    width: 100%;
+    height: 100%;
+  }
+  
+  .left-title {
+    font-size: 1.75rem;
+  }
+}
+
+/* Page-specific fixes: remove vertical scrollbar for auth forms where full-screen layout is used */
+#rightColumn .auth-form-wrapper {
+  /* Keep content centered but hide the browser vertical scrollbar on the right column */
+  overflow-y: hidden !important;
+}
+
+/* Ensure password toggle is perfectly centered vertically inside input wrappers across pages */
+.auth-form-wrapper .password-toggle,
+.auth-form-wrapper .input-inline .password-toggle {
+  top: 70% !important;
+  transform: translateY(-50%) !important;
+}
+
+/* Desktop-only: visually remove the page scrollbar for register page while keeping internal scrolling if needed */
+@media (min-width: 992px) {
+  .full-page.register-page {
+    height: 100vh;
+    overflow: hidden; /* remove outer scrollbar */
+  }
+
+  /* Allow the right column to scroll internally but hide the scrollbar visually */
+  #rightColumn .auth-form-wrapper {
+    overflow-y: auto !important;
+    height: 100vh;
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  #rightColumn .auth-form-wrapper::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+    width: 0px;
+    height: 0px;
+  }
+}
+
+/* Optimizations for register page with more fields */
+@media (max-height: 800px) {
+  .form-container {
+    padding: 0.25rem 0;
+    max-height: 100vh;
+  }
+  
+  .form-group {
+    margin-bottom: 0.7rem;
+  }
+  
+  .form-header {
+    margin-bottom: 0.8rem;
+  }
+  
+  .brand-header {
+    margin-bottom: 0.8rem;
+  }
+  
+  .welcome-text h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
+  }
+  
+  .welcome-text p {
+    font-size: 0.85rem;
+  }
+}
+
+/* Multi-step form styles */
+.form-step {
+  transition: all 0.3s ease;
+}
+
+.form-step .form-group {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.form-step.fade-in {
+  animation: fadeIn 0.3s ease;
+}
+
+.form-step.fade-out {
+  animation: fadeOut 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+/* OTP input styling */
+input[type="text"]#otp {
+  text-align: center;
+  font-size: 1.2rem;
+  letter-spacing: 0.2rem;
+  font-weight: 600;
+}
+
+/* OTP Timer styling */
+.otp-timer {
+  text-align: center;
+  margin: 1rem 0;
+  padding: 0.75rem;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: var(--border-radius);
+  color: #2563eb;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+[data-theme="dark"] .otp-timer {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+}
+
+.otp-timer i {
+  margin-right: 0.5rem;
+}
+
+/* Resend OTP section */
+.resend-otp {
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.resend-otp p {
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--neon-pink);
+  text-decoration: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: var(--border-radius);
+  transition: all 0.3s ease;
+}
+
+.btn-link:hover {
+  background: rgba(255, 59, 130, 0.1);
+  text-decoration: none;
+}
+
+.btn-link:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Timer warning state */
+.otp-timer.warning {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.2);
+  color: #dc2626;
+}
+
+[data-theme="dark"] .otp-timer.warning {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+/* Button loading state */
+.btn-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-submit .fa-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Pulse animation for urgent timer warnings */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Ensure GIF always fills left column completely */
+

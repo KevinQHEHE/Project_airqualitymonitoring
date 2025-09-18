@@ -6,7 +6,7 @@
   {# Nếu có img thì tạo thư mục img trong js/assets/img/ và copy ảnh vào, còn không thì xóa 2 dòng dưới #}
   {# <link rel="apple-touch-icon" sizes="76x76" href="{{ url_for('static', filename='js/assets/img/apple-icon.png') }}" /> #}
   {# <link rel="icon" type="image/png" href="{{ url_for('static', filename='js/assets/img/favicon.png') }}" /> #}
-  <title>Black Dashboard – Static UI</title>
+  <title>Air Quality Monitor Dashboard</title>
 
   <!-- Fonts and icons -->
   <link href="https://fonts.googleapis.com/css?family=Poppins:200,300,400,600,700,800" rel="stylesheet" />
@@ -21,9 +21,170 @@
     /* Minor overrides for static preview */
     body { overflow-x: hidden; }
     .nav .active > a { color: #fff; }
+    
+    /* Loading overlay */
+    #authLoadingOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #1e1e2e;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    
+    .loading-spinner {
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .loading-text {
+      color: #fff;
+      font-family: 'Poppins', sans-serif;
+      font-size: 16px;
+    }
   </style>
 </head>
 <body class="">
+  <!-- Authentication Loading Overlay -->
+  <div id="authLoadingOverlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Checking authentication...</div>
+  </div>
+
+  <!-- Authentication Check Script -->
+  <script>
+    // Check authentication before showing dashboard
+    (async function() {
+      const token = localStorage.getItem('access_token');
+      
+      if (!token) {
+        // No token, redirect to login
+        window.location.href = '/login';
+        return;
+      }
+      
+      try {
+        // Verify token with server
+        const response = await fetch('/api/auth/verify', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) {
+          // Token is invalid, log error detail
+          let errorMsg = '';
+          try {
+            const errData = await response.json();
+            errorMsg = errData.error || JSON.stringify(errData);
+          } catch (e) {
+            errorMsg = response.statusText || 'Unknown error';
+          }
+          console.error('Token verify failed:', errorMsg);
+          alert('Token verify failed: ' + errorMsg);
+          // Clear storage and redirect
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user_info');
+          window.location.href = '/login';
+          return;
+        }
+        
+        const userData = await response.json();
+        
+        // Token is valid, show dashboard
+        document.getElementById('authLoadingOverlay').style.display = 'none';
+        
+        // Update user info display if needed
+        updateUserInfo(userData);
+        
+      } catch (error) {
+        console.error('Authentication check failed:', error);
+        alert('Authentication check failed: ' + error);
+        // On error, redirect to login
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user_info');
+        window.location.href = '/login';
+      }
+    })();
+    
+    function updateUserInfo(userData) {
+      // Update user display name in sidebar or navbar
+      const userInfo = localStorage.getItem('user_info');
+      if (userInfo) {
+        const user = JSON.parse(userInfo);
+        // Update any user display elements
+        const userElements = document.querySelectorAll('.user-name');
+        userElements.forEach(el => {
+          el.textContent = user.username || user.email || 'User';
+        });
+        
+        // Update navbar username
+        const navbarUsername = document.getElementById('navbar-username');
+        if (navbarUsername) {
+          navbarUsername.textContent = user.username || user.email || 'User';
+        }
+      }
+    }
+
+    // Logout functionality
+    function logout() {
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        // Call logout API to revoke token
+        fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }).then(() => {
+          // Clear local storage
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('user_info');
+          
+          // Redirect to login
+          window.location.href = '/login';
+        }).catch(() => {
+          // Even if logout API fails, clear local storage and redirect
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('user_info');
+          window.location.href = '/login';
+        });
+      } else {
+        // No token, just redirect to login
+        window.location.href = '/login';
+      }
+    }
+
+    // Add logout event listener when DOM is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      const logoutBtn = document.getElementById('logout-btn');
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          logout();
+        });
+      }
+    });
+  </script>
+
   <div class="wrapper">
     <!-- Sidebar -->
     <div class="sidebar" data-color="blue">
@@ -84,10 +245,11 @@
           <div class="collapse navbar-collapse" id="navigation">
             <ul class="navbar-nav ml-auto">
               <li class="input-group d-flex align-items-center mb-0">
-                <label class="switch theme-switch">
-                  <input type="checkbox" class="bsc" checked>
-                  <span class="slider"></span>
-                </label>
+                <!-- Theme toggle button (replaces checkbox switch) -->
+                <button id="themeToggle" class="theme-toggle btn btn-link p-0" type="button" aria-pressed="false" aria-label="Toggle theme">
+                  <i class="fas fa-moon"></i>
+                  <i class="fas fa-sun" style="display:none"></i>
+                </button>
               </li>
               <li class="search-bar input-group">
                 <button class="btn btn-link" id="search-button" data-toggle="modal" data-target="#searchModal">
@@ -107,17 +269,18 @@
                 </ul>
               </li>
               <li class="dropdown nav-item">
-                <a href="#" class="dropdown-toggle nav-link" data-toggle="dropdown">
+                <a href="#" class="dropdown-toggle nav-link" data-toggle="dropdown" id="user-dropdown">
                   <div class="photo">
                     <img src="assets/img/anime3.png" alt="Profile Photo">
                   </div>
+                  <span id="navbar-username" class="d-none d-lg-block">User</span>
                   <b class="caret d-none d-lg-block d-xl-block"></b>
-                  <p class="d-lg-none">Log out</p>
+                  <p class="d-lg-none">User Menu</p>
                 </a>
                 <ul class="dropdown-menu dropdown-navbar">
                   <li class="nav-link"><a href="#" class="nav-item dropdown-item">Profile</a></li>
                   <li class="dropdown-divider"></li>
-                  <li class="nav-link"><a href="#" class="nav-item dropdown-item">Logout</a></li>
+                  <li class="nav-link"><a href="#" class="nav-item dropdown-item" id="logout-btn">Logout</a></li>
                 </ul>
               </li>
               <li class="separator d-lg-none"></li>
@@ -740,21 +903,45 @@
       attributeFilter: ['class']
     });
 
-    // Backup: Also listen for checkbox changes  
-    const themeToggle = document.querySelector('input[type="checkbox"]');
-    if (themeToggle) {
-      themeToggle.addEventListener('change', function() {
-        // Delay lâu hơn để đảm bảo theme đã được apply hoàn toàn
+    // Backup: Also listen for our header theme toggle button and trigger a refresh
+    const headerThemeToggle = document.getElementById('themeToggle');
+    if (headerThemeToggle) {
+      headerThemeToggle.addEventListener('click', function() {
+        // Wait briefly for theme application then refresh dashboard pieces that depend on theme
         setTimeout(() => {
           if (currentForecastData) {
-            console.log('[Theme] Theme toggle state:', themeToggle.checked);
-            console.log('[Theme] Body classes:', document.body.className);
-            console.log('[Theme] Refreshing forecast for theme change');
+            console.log('[Theme] Header theme toggle clicked. Body classes:', document.body.className);
             renderForecastGrid(currentForecastData);
           }
-        }, 300); // Tăng từ 100ms lên 300ms
+        }, 300);
       });
     }
+
+    // Initialize theme from localStorage to ensure dashboard matches auth pages
+    (function initThemeFromStorage() {
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+
+      function syncLegacyClasses(theme) {
+        const isDark = theme === 'dark';
+        if (isDark) document.body.classList.add('dark-mode'); else document.body.classList.remove('dark-mode');
+        document.querySelectorAll('.dark-bg').forEach(el => {
+          if (isDark) { el.classList.add('bg-dark'); el.classList.remove('bg-white'); } else { el.classList.add('bg-white'); el.classList.remove('bg-dark'); }
+        });
+      }
+
+      syncLegacyClasses(savedTheme);
+
+      if (headerThemeToggle) {
+        const moon = headerThemeToggle.querySelector('.fa-moon');
+        const sun = headerThemeToggle.querySelector('.fa-sun');
+        const isLight = savedTheme === 'light';
+        headerThemeToggle.classList.toggle('active', isLight);
+        headerThemeToggle.setAttribute('aria-pressed', isLight ? 'true' : 'false');
+  // Icon visibility is handled by CSS via .theme-toggle.active; avoid inline styles
+  // (kept here for backward compatibility if needed)
+      }
+    })();
 
     // Close suggestions when clicking outside
     document.addEventListener('click', function(e) {

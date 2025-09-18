@@ -14,6 +14,7 @@ from typing import Optional, Tuple
 
 from flask import current_app
 from flask_mail import Message
+import logging
 
 from backend.app.extensions import mail
 from backend.app.repositories import users_repo
@@ -117,7 +118,22 @@ def send_password_reset_email(recipient_email: str, *, token: str, reset_link: O
     )
 
     msg = Message(subject=subject, body=body, recipients=[recipient_email], sender=sender)
-    mail.send(msg)
+    # Log attempt to send email for debugging; do not include secrets
+    logger = logging.getLogger(__name__)
+    try:
+        logger.info(f"Attempting to send password reset email to {recipient_email}")
+        mail.send(msg)
+        logger.info(f"Password reset email sent to {recipient_email}")
+    except Exception as e:
+        # Log the exception with details for operators (no sensitive data)
+        logger.error(f"Failed to send password reset email to {recipient_email}: {e}")
+        # Re-raise only in DEBUG to surface issues during development
+        try:
+            if current_app.config.get('DEBUG'):
+                raise
+        except Exception:
+            # In non-debug, swallow to keep user-facing flow generic
+            pass
 
 
 def reset_password_with_token(token: str, new_password_hash: str) -> bool:
@@ -145,4 +161,16 @@ def reset_password_with_token(token: str, new_password_hash: str) -> bool:
         password_resets_repo.mark_used(token_hash)
         return True
     return False
+
+
+def validate_reset_token(token: str) -> bool:
+    """Check whether a reset token is valid (exists, not used, not expired).
+
+    Returns True when token is valid and can be used to reset a password.
+    """
+    if not token:
+        return False
+    token_hash = _hash_token(token)
+    doc = password_resets_repo.find_valid_by_token_hash(token_hash)
+    return bool(doc)
 

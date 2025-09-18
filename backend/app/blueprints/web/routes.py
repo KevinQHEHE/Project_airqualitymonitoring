@@ -26,6 +26,14 @@ def forgot_password_page():
 def reset_password_page():
     return render_template('auth/reset.html')
 
+
+@web_bp.route('/verify-code')
+def verify_code_page():
+    # optional email query param for context
+    from flask import request
+    email = request.args.get('email', '')
+    return render_template('auth/verifycode.html', email=email)
+
 # Short aliases
 @web_bp.route('/forgot')
 def forgot_alias():
@@ -34,3 +42,35 @@ def forgot_alias():
 @web_bp.route('/reset')
 def reset_alias():
     return redirect(url_for('web.reset_password_page'), code=302)
+
+@web_bp.route('/clear-auth')
+def clear_auth():
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Clear Auth</title>
+    </head>
+    <body>
+        <h1>Clear Authentication</h1>
+        <button onclick="clearAuth()">Clear LocalStorage</button>
+        <div id="result"></div>
+        
+        <script>
+            function clearAuth() {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token'); 
+                localStorage.removeItem('user_info');
+                document.getElementById('result').innerHTML = 'Authentication cleared! <a href="/dashboard">Try Dashboard</a>';
+            }
+            
+            // Show current state
+            document.getElementById('result').innerHTML = `
+                <p>Current tokens:</p>
+                <p>Access Token: ${localStorage.getItem('access_token') ? 'EXISTS' : 'NONE'}</p>
+                <p>User Info: ${localStorage.getItem('user_info') ? 'EXISTS' : 'NONE'}</p>
+            `;
+        </script>
+    </body>
+    </html>
+    """

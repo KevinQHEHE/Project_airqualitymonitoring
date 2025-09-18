@@ -1,90 +1,311 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Login • Air Quality</title>
-    <style>
-      body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
-      form { max-width: 360px; padding: 1rem; border: 1px solid #ddd; border-radius: 8px; }
-      label { display:block; margin-top: .5rem; }
-      input { width: 100%; padding: .5rem; margin-top: .25rem; }
-      button { margin-top: 1rem; padding: .5rem .75rem; }
-      .row { margin-top: .5rem; }
-      pre { white-space: pre-wrap; background: #fafafa; padding: .75rem; border: 1px solid #eee; border-radius: 6px; }
-      nav a { margin-right: 1rem; }
-    </style>
-  </head>
-  <body>
-    <nav>
-      <a href="/">Home</a>
-      <a href="/register">Register</a>
-    </nav>
-    <h1>Login</h1>
-    <form id="loginForm">
-      <label>Email</label>
-      <input type="email" id="email" placeholder="alice@example.com" required />
-      <label>Password</label>
-      <input type="password" id="password" placeholder="••••••••" required />
-      <button type="submit">Login</button>
-    </form>
 
-    <div class="row">
-      <button id="logoutBtn" disabled>Logout (revoke access)</button>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link rel="apple-touch-icon" sizes="76x76" href="{{ url_for('static', filename='js/assets/img/apple-icon.png') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='js/assets/img/favicon.png') }}">
+  <title>Login | Air Quality Monitor</title>
+  <!--     Fonts and icons     -->
+  <link href="https://fonts.googleapis.com/css?family=Poppins:200,300,400,600,700,800" rel="stylesheet" />
+  <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet">
+  <!-- Nucleo Icons -->
+  <link href="{{ url_for('static', filename='js/assets/css/nucleo-icons.css') }}" rel="stylesheet" />
+  <!-- CSS Files -->
+  <link href="{{ url_for('static', filename='js/assets/css/black-dashboard.min.css') }}" rel="stylesheet" />
+  <!-- Black Dashboard Auth Styles -->
+
+  <link href="{{ url_for('static', filename='js/assets/css/two-column-auth.css') }}" rel="stylesheet" />
+  <link href="{{ url_for('static', filename='js/assets/css/auth-overrides.css') }}" rel="stylesheet" />
+</head>
+
+<body class="login-page">
+  <div class="wrapper wrapper-full-page">
+    <div class="full-page login-page section-image" data-color="black" data-image="{{ url_for('static', filename='js/assets/img/full-screen-image-2.jpg') }}">
+      <!--   Big container   -->
+      <div class="content">
+        <div class="container-fluid">
+          <div class="row min-vh-100">
+            <!-- Left Side - GIF -->
+            <div class="col-lg-6 col-md-6 p-0 d-flex align-items-stretch">
+              <div class="w-100 h-100" style="overflow:hidden;">
+                <img src="{{ url_for('static', filename='js/assets/img/test.gif') }}" alt="Air Quality Animation" style="object-fit:cover;width:100%;height:100vh;">
+              </div>
+            </div>
+            <!-- Right Side - Form -->
+            <div id="rightColumn" class="col-lg-6 col-md-6 d-flex align-items-center justify-content-lg-end justify-content-center bg-white dark-bg" style="position:relative;">
+              <!-- Theme toggle placed at the top-right of this column -->
+              <div class="theme-toggle-container" style="position:absolute;top:18px;right:20px;z-index:50;">
+                <button id="themeToggle" class="theme-toggle btn btn-link" type="button" title="Toggle Theme" aria-pressed="false" aria-label="Toggle theme">
+                  <i class="fas fa-moon" aria-hidden="true"></i>
+                  <i class="fas fa-sun" aria-hidden="true"></i>
+                </button>
+              </div>
+              <div class="auth-form-wrapper w-100" style="max-width: none; padding: 48px;">
+                <form class="form" id="loginForm" style="max-width:400px;margin:0 auto;">
+                  <div class="card-header bg-transparent" style="margin-bottom:1.5rem;">
+                    <div class="card-header-text text-center" style="margin-bottom:0;">
+                      <h3 class="card-title mb-2" style="font-size:2.4rem;font-weight:800;margin-bottom:0.5rem;letter-spacing:-1px;">Welcome Back</h3>
+                      <p class="card-category mb-0" style="font-size:1.18rem;font-weight:500;letter-spacing:-0.5px;margin-bottom:0.2rem;">Sign In To Access Your Air Quality Dashboard</p>
+                    </div>
+                  </div>
+                  <div class="mb-3 d-flex flex-column align-items-center justify-content-center">
+                    <div class="form-group mb-3 w-100" style="max-width:400px;">
+                      <label class="text-white" style="font-weight:600;">Username</label>
+                      <div class="input-inline" style="background:rgba(255,255,255,0.02);border-radius:12px;display:flex;align-items:center;padding:0 1rem;height:56px;">
+                        <span class="input-left" style="color:#ff4da6;font-size:1.25rem;display:flex;align-items:center;margin-right:12px;"><i class="tim-icons icon-single-02"></i></span>
+                        <input type="text" class="form-control border-0 bg-transparent" name="username" id="username" placeholder="Enter your username" required style="padding-left:0;box-shadow:none;height:100%;font-size:1.08rem;flex:1;">
+                      </div>
+                    </div>
+
+                    <div class="form-group mb-3 w-100" style="max-width:400px;">
+                      <label class="text-white" style="font-weight:600;">Password</label>
+                      <div class="input-inline" style="background:rgba(255,255,255,0.02);border-radius:12px;display:flex;align-items:center;padding:0 0.75rem;height:56px;">
+                        <span class="input-left" style="color:#ff4da6;font-size:1.25rem;display:flex;align-items:center;margin-right:12px;"><i class="tim-icons icon-lock-circle"></i></span>
+                        <input type="password" class="form-control border-0 bg-transparent" name="password" id="password" placeholder="Enter your password" required style="padding-left:0;box-shadow:none;height:100%;font-size:1.08rem;flex:1;">
+                        <button type="button" class="btn btn-link password-toggle" aria-label="Toggle password visibility" style="color:rgba(255,255,255,0.7);font-size:1.05rem;padding:0 8px;margin-left:6px;">
+                          <i class="fas fa-eye-slash" aria-hidden="true"></i>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="d-flex align-items-center justify-content-between w-100" style="max-width:400px;">
+                      <div class="form-check" style="text-align:left;">
+                        <label class="form-check-label" style="font-size:1rem;color:rgba(255,255,255,0.9);">
+                          <input class="form-check-input" type="checkbox" id="rememberMe">
+                          <span class="form-check-sign"></span>
+                          Remember me
+                        </label>
+                      </div>
+                      <div>
+                        <a href="/forgot" class="link footer-link" style="font-size:1rem;color:#ff6ea6;">Forgot Password?</a>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="bg-transparent">
+                      <button type="submit" class="btn btn-primary btn-block py-2 mt-2" style="font-size:1.13rem;max-width:400px;width:100%;margin:0 auto;">Sign In</button>
+                      <div class="auth-footer-links" style="max-width:400px;width:100%;margin:0 auto;">
+                        <span style="font-size:1rem;">Don't have an account? <a href="/register" class="link footer-link">Sign Up</a></span>
+                      </div>
+                  </div>
+                </form>
+                <!-- Alert for showing results -->
+                <div id="alertContainer" style="margin-top: 20px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+  </div>
+  <!--   Core JS Files   -->
+  <script src="{{ url_for('static', filename='js/assets/js/core/jquery.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/core/popper.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/core/bootstrap.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/plugins/perfect-scrollbar.jquery.min.js') }}"></script>
+  <!--  Plugin for Switches, full documentation here: http://www.jque.re/plugins/version3/bootstrap.switch/ -->
+  <!-- <script src="{{ url_for('static', filename='js/assets/js/plugins/bootstrap-switch.js') }}"></script> -->
+  <!--  Plugin for the Sliders, full documentation here: http://refreshless.com/nouislider/ -->
+  <!-- <script src="{{ url_for('static', filename='js/assets/js/plugins/nouislider.min.js') }}"></script> -->
+  <!-- Control Center for Black Dashboard: parallax effects, scripts for the example pages etc -->
+  <script src="{{ url_for('static', filename='js/assets/js/black-dashboard.min.js') }}"></script>
 
-    <h3>Result</h3>
-    <pre id="result">—</pre>
+  <script>
+    // Theme toggle (unified)
+    document.addEventListener('DOMContentLoaded', function() {
+      const themeToggle = document.getElementById('themeToggle');
+      const rightColumn = document.getElementById('rightColumn');
 
-    <script>
-      const resEl = document.getElementById('result');
-      const logoutBtn = document.getElementById('logoutBtn');
-
-      function show(obj) {
-        resEl.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
-      }
-
-      async function postJson(url, data, headers = {}) {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...headers },
-          body: JSON.stringify(data)
+      function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        document.querySelectorAll('.dark-bg').forEach(function(el){
+          if (theme === 'light') { el.classList.remove('bg-dark'); el.classList.add('bg-white'); }
+          else { el.classList.remove('bg-white'); el.classList.add('bg-dark'); }
         });
-        const text = await res.text();
-        try { return { status: res.status, json: JSON.parse(text) }; }
-        catch { return { status: res.status, text }; }
-      }
-
-      document.getElementById('loginForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        const out = await postJson('/api/auth/login', { email, password });
-        if (out.json) {
-          show(out.json);
-          if (out.json.access_token) {
-            localStorage.setItem('access_token', out.json.access_token);
-            localStorage.setItem('refresh_token', out.json.refresh_token || '');
-            logoutBtn.disabled = false;
-          }
-        } else {
-          show(out.text);
+        if (rightColumn) {
+          if (theme === 'light') { rightColumn.classList.remove('bg-dark'); rightColumn.classList.add('bg-white'); }
+          else { rightColumn.classList.remove('bg-white'); rightColumn.classList.add('bg-dark'); }
         }
-      });
+      }
 
-      logoutBtn.addEventListener('click', async () => {
-        const token = localStorage.getItem('access_token');
-        if (!token) return show('No access token found. Login first.');
-        const res = await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { Authorization: 'Bearer ' + token }
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      applyTheme(savedTheme);
+
+      if (themeToggle) {
+        const isLight = savedTheme === 'light';
+        themeToggle.classList.toggle('active', isLight);
+        themeToggle.setAttribute('aria-pressed', isLight ? 'true' : 'false');
+
+        themeToggle.addEventListener('click', function(e) {
+          e.preventDefault();
+          const current = document.documentElement.getAttribute('data-theme') || 'dark';
+          const next = current === 'dark' ? 'light' : 'dark';
+          localStorage.setItem('theme', next);
+          applyTheme(next);
+          const nowLight = next === 'light';
+          themeToggle.classList.toggle('active', nowLight);
+          themeToggle.setAttribute('aria-pressed', nowLight ? 'true' : 'false');
         });
-        const text = await res.text();
-        try { show(JSON.parse(text)); } catch { show(text); }
-      });
+      }
+      // Check if user is already logged in
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        // Verify token is still valid
+        verifyToken(token);
+      }
+    });
 
-      // Enable logout if token present
-      logoutBtn.disabled = !localStorage.getItem('access_token');
-    </script>
-  </body>
-  </html>
+    function showAlert(message, type = 'danger') {
+      const alertContainer = $('#alertContainer');
+      const alertHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          <span class="alert-text">${message}</span>
+          <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+      `;
+      alertContainer.html(alertHTML);
+      
+      // Auto hide after 5 seconds
+      setTimeout(() => {
+        alertContainer.find('.alert').fadeOut();
+      }, 5000);
+    }
+
+    async function verifyToken(token) {
+      try {
+        const response = await fetch('/api/auth/verify', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          // Token is valid, redirect to dashboard
+          window.location.href = '/';
+        } else {
+          // Token is invalid, remove it
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+        }
+      } catch (error) {
+        console.error('Token verification failed:', error);
+      }
+    }
+
+    // Password visibility toggle
+    document.addEventListener('DOMContentLoaded', function() {
+      const pwdToggle = document.querySelector('.password-toggle');
+      if (pwdToggle) {
+        pwdToggle.addEventListener('click', function() {
+          const input = document.getElementById('password');
+          const icon = pwdToggle.querySelector('i');
+          if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+          } else {
+            input.type = 'password';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+          }
+        });
+      }
+    });
+
+    $('#loginForm').on('submit', async function(e) {
+      e.preventDefault();
+      
+      const username = $('#username').val();
+      const password = $('#password').val();
+      const rememberMe = $('#rememberMe').is(':checked');
+      
+      if (!username || !password) {
+        showAlert('Please fill in all fields');
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            username: username,
+            password: password
+          })
+        });
+        
+  const data = await response.json();
+
+  // If login succeeded normally
+  if (response.ok) {
+          // Login successful
+          showAlert('Login successful! Redirecting...', 'success');
+          
+          // Store tokens
+          localStorage.setItem('access_token', data.access_token);
+          if (data.refresh_token) {
+            localStorage.setItem('refresh_token', data.refresh_token);
+          }
+          
+          // Store user info
+          if (data.user) {
+            localStorage.setItem('user_info', JSON.stringify(data.user));
+          }
+          
+          // Redirect to dashboard after short delay
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 1500);
+          
+        } else {
+          // If backend expects 'email' instead of 'username', try fallback once
+          if (!response.ok && !this._retriedWithEmail) {
+            this._retriedWithEmail = true;
+            try {
+              const retryResp = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: username, password: password })
+              });
+              const retryData = await retryResp.json();
+              if (retryResp.ok) {
+                showAlert('Login successful! Redirecting...', 'success');
+                localStorage.setItem('access_token', retryData.access_token);
+                if (retryData.refresh_token) localStorage.setItem('refresh_token', retryData.refresh_token);
+                if (retryData.user) localStorage.setItem('user_info', JSON.stringify(retryData.user));
+                setTimeout(() => { window.location.href = '/'; }, 1500);
+                return;
+              } else {
+                const serverMsg = retryData.message || retryData.error || 'Login failed. Please check your credentials.';
+                showAlert(serverMsg);
+                return;
+              }
+            } catch (err) {
+              console.error('Retry login error:', err);
+            }
+          }
+
+          // Login failed — show server-provided message or debug_reason if available (dev only)
+          console.info('Login failed response:', data);
+          const serverMsg = data.message || data.error || 'Login failed. Please check your credentials.';
+          let debugInfo = '';
+          if (data.debug_reason) {
+            debugInfo = ` (${data.debug_reason})`;
+          }
+          showAlert(serverMsg + debugInfo);
+        }
+        
+      } catch (error) {
+        console.error('Login error:', error);
+        showAlert('An error occurred. Please try again.');
+      }
+    });
+  </script>
+</body>
+
+</html>
