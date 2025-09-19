@@ -10,11 +10,13 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import hashlib
 import secrets
+import uuid
 from typing import Optional, Tuple
 
 from flask import current_app
 from flask_mail import Message
 import logging
+from urllib.parse import quote_plus
 
 from backend.app.extensions import mail
 from backend.app.repositories import users_repo
@@ -57,20 +59,52 @@ class PasswordResetsRepository(BaseRepository):
             {'$set': {'usedAt': datetime.now(timezone.utc)}}
         )
 
+    def count_recent_requests(self, email: str, *, hours: int = 1) -> int:
+        """Count reset requests for an email within the past `hours` hours.
+
+        Used for simple rate limiting (e.g. max 3 per hour).
+        """
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(hours=hours)
+        try:
+            return self.collection.count_documents({
+                'email': email.lower(),
+                'createdAt': {'$gte': window_start}
+            })
+        except Exception:
+            # On DB error, be permissive (avoid denying legitimate users)
+            return 0
+
 
 password_resets_repo = PasswordResetsRepository()
+
 
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode('utf-8')).hexdigest()
 
 
-def generate_reset_token(nbytes: int = 32) -> str:
-    """Generate a URL-safe opaque token string."""
-    return secrets.token_urlsafe(nbytes)
+def generate_reset_token(nbytes: Optional[int] = None) -> str:
+    """Generate a URL-safe token. Length is configurable via Flask config
+
+    - If `nbytes` passed, it is forwarded to `secrets.token_urlsafe` behavior.
+    - Otherwise, we consult `current_app.config['PASSWORD_RESET_TOKEN_NBYTES']` if available,
+      else fall back to a compact default (16 bytes -> ~22 chars).
+    """
+    try:
+        from flask import current_app
+        cfg_n = current_app.config.get('PASSWORD_RESET_TOKEN_NBYTES')
+    except Exception:
+        cfg_n = None
+
+    if nbytes is None:
+        nbytes = cfg_n or 16
+
+    # Use token_urlsafe to produce URL-safe characters; length roughly 4/3*nbytes
+    return secrets.token_urlsafe(int(nbytes))
 
 
-def create_password_reset_request(email: str, *, token_ttl_minutes: int = 15) -> Tuple[bool, Optional[str]]:
+def create_password_reset_request(email: str, *, token_ttl_minutes: Optional[int] = None, token_ttl_hours: int = 24) -> Tuple[bool, Optional[str]]:
     """Create a password reset request if the user exists.
 
     Returns (created, token_or_none). To avoid user enumeration, callers
@@ -81,11 +115,27 @@ def create_password_reset_request(email: str, *, token_ttl_minutes: int = 15) ->
         # Do not indicate non-existence to caller
         return False, None
 
+    # Rate limiting: allow max 4 reset requests per email per hour
+    try:
+        recent = password_resets_repo.count_recent_requests(email, hours=1)
+    except Exception:
+        recent = 0
+    if recent >= 4:
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Password reset rate limit exceeded for {email} (recent={recent})")
+        # For security, act like the request succeeded but do not create a new token
+        return False, None
+
     token = generate_reset_token()
     token_hash = _hash_token(token)
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=token_ttl_minutes)
 
-    # Persist reset request (store the ObjectId, not str)
+    # Backwards-compatible TTL behavior: if minutes provided, use minutes; else use hours
+    if token_ttl_minutes is not None:
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=token_ttl_minutes)
+    else:
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=token_ttl_hours)
+
+    # Persist reset request
     password_resets_repo.create_reset(
         user_id=user.get('_id'),
         email=user.get('email'),
@@ -108,11 +158,24 @@ def send_password_reset_email(recipient_email: str, *, token: str, reset_link: O
     if not reset_link:
         # Fallback to a generic API hint if frontend URL is unknown
         api_url = (current_app.config.get('PUBLIC_BASE_URL') or '').rstrip('/') or 'http://localhost:5000'
+        # Default to API endpoint if no frontend reset page is configured
         reset_link = f"{api_url}/api/auth/reset-password"
 
+    # Prepare a clickable reset link that includes the token as a query parameter
+    try:
+        token_q = quote_plus(token)
+        # If reset_link already contains a query, append with & otherwise with ?
+        sep = '&' if '?' in reset_link else '?'
+        token_url = f"{reset_link.rstrip('/')}{sep}token={token_q}"
+    except Exception:
+        token_url = reset_link
+
+    token_lifetime = current_app.config.get('PASSWORD_RESET_TOKEN_LIFETIME_HOURS') or 24
     body = (
         "We received a request to reset your password.\n\n"
-        f"Use the following token in the next 15 minutes: {token}\n\n"
+        f"Click the link below to open the reset page (this will include the token):\n{token_url}\n\n"
+        f"Or use the following token directly: {token}\n\n"
+        f"This token will expire in approximately {token_lifetime} hours and can only be used once.\n\n"
         f"Alternatively, POST to: {reset_link} with JSON {{\"token\": \"<above token>\", \"new_password\": \"<NewP@ssw0rd>\"}}\n\n"
         "If you did not request this, you can safely ignore this email."
     )
@@ -124,9 +187,10 @@ def send_password_reset_email(recipient_email: str, *, token: str, reset_link: O
         logger.info(f"Attempting to send password reset email to {recipient_email}")
         mail.send(msg)
         logger.info(f"Password reset email sent to {recipient_email}")
-    except Exception as e:
-        # Log the exception with details for operators (no sensitive data)
-        logger.error(f"Failed to send password reset email to {recipient_email}: {e}")
+        return True
+    except Exception:
+        # Log full traceback for operators (without revealing tokens)
+        logger.exception(f"Failed to send password reset email to {recipient_email}")
         # Re-raise only in DEBUG to surface issues during development
         try:
             if current_app.config.get('DEBUG'):
@@ -134,6 +198,7 @@ def send_password_reset_email(recipient_email: str, *, token: str, reset_link: O
         except Exception:
             # In non-debug, swallow to keep user-facing flow generic
             pass
+        return False
 
 
 def reset_password_with_token(token: str, new_password_hash: str) -> bool:
