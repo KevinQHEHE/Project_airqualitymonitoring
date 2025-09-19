@@ -100,6 +100,15 @@ def register():
             allowed = True
             validation_result = None
 
+        # DEV: log validation result for troubleshooting when DEBUG is enabled
+        try:
+            if current_app.config.get('DEBUG'):
+                vr_status = getattr(validation_result, 'status', None) if validation_result else None
+                vr_reason = getattr(validation_result, 'reason', None) if validation_result else None
+                logger.info(f"[DEV] Email validation for {email}: allowed={allowed}, status={vr_status}, reason={vr_reason}")
+        except Exception:
+            pass
+
         if not allowed:
             # Map result to clear error codes
             reason = getattr(validation_result, 'reason', None) if validation_result else None

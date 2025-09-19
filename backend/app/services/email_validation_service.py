@@ -113,7 +113,7 @@ class EmailValidationService:
         except Exception:
             return False
 
-    def _call_external_api(self, email: str) -> Optional[dict]:
+    def _call_external_api(self, email: str) -> tuple[Optional[dict], bool]:
         """Call configured external email validation API. Supports Abstract API as example.
 
         Configuration in Flask config:
@@ -125,24 +125,27 @@ class EmailValidationService:
         """
         cfg = current_app.config.get('EMAIL_VALIDATION') or {}
         provider = (cfg.get('provider') or '').lower()
+        # attempted indicates whether a provider was configured and we attempted a call
         if not provider:
-            return None
+            return None, False
         try:
             # Abstract API
             if provider == 'abstract':
                 api_key = cfg.get('api_key')
                 if not api_key:
-                    return None
+                    # provider configured but missing key -> treated as attempted
+                    return None, True
                 url = cfg.get('url') or 'https://emailvalidation.abstractapi.com/v1/'
                 resp = requests.get(url, params={'api_key': api_key, 'email': email}, timeout=3)
                 if resp.status_code == 200:
-                    return resp.json()
+                    return resp.json(), True
                 else:
                     # Log non-200 responses without exposing the API key
                     body = resp.text or ''
                     if len(body) > 1000:
                         body = body[:1000] + '...[truncated]'
                     logger.warning("External provider 'abstract' returned status %s: %s", resp.status_code, body)
+                    return None, True
 
             # an EmailJS-like generic provider) by setting `EMAIL_VALIDATION` in Flask config.
 
@@ -150,7 +153,7 @@ class EmailValidationService:
             if provider in ('emailjs', 'email_js', 'email-js'):
                 url = cfg.get('url')
                 if not url:
-                    return None
+                    return None, True
                 method = (cfg.get('method') or 'GET').upper()
                 headers = cfg.get('headers') or {}
                 params = cfg.get('params') or {}
@@ -162,18 +165,20 @@ class EmailValidationService:
                 else:
                     payload = {**(cfg.get('body') or {}), 'email': email}
                     resp = requests.post(url, json=payload, headers=headers, timeout=3)
+                # evaluate response
                 if resp.status_code == 200:
-                    return resp.json()
+                    return resp.json(), True
                 else:
                     body = resp.text or ''
                     if len(body) > 1000:
                         body = body[:1000] + '...[truncated]'
                     logger.warning("External provider '%s' returned status %s: %s", provider, resp.status_code, body)
+                    return None, True
 
         except requests.RequestException as e:
             logger.warning(f"External email API request failed: {e}")
-            return None
-        return None
+            return None, True
+        return None, False
 
     def _interpret_api_response(self, api_resp: Any) -> tuple[str, Optional[str], dict]:
         """Interpret common external provider responses and map to (status, reason, details).
@@ -283,10 +288,12 @@ class EmailValidationService:
 
             # External API (best-effort)
             api_resp = None
+            provider_attempted = False
             try:
-                api_resp = self._call_external_api(email)
+                api_resp, provider_attempted = self._call_external_api(email)
             except Exception:
                 api_resp = None
+                provider_attempted = True
 
             # Interpret external API response if present
             if api_resp:
@@ -295,18 +302,27 @@ class EmailValidationService:
                 local_result.reason = reason
                 local_result.details['api'] = details
             else:
-                # No API: fallback to MX result
-                if has_mx:
-                    local_result.status = 'valid'
-                    local_result.reason = 'mx_found'
-                else:
-                    # If strict mode is high, treat no MX as invalid
+                # Provider was configured but call failed/returned non-200 -> treat as risky or invalid
+                if provider_attempted:
                     if strict == 'high':
                         local_result.status = 'invalid'
-                        local_result.reason = 'no_mx'
+                        local_result.reason = 'provider_unavailable'
                     else:
                         local_result.status = 'risky'
-                        local_result.reason = 'no_mx'
+                        local_result.reason = 'provider_unavailable'
+                else:
+                    # No provider configured: fallback to MX result
+                    if has_mx:
+                        local_result.status = 'valid'
+                        local_result.reason = 'mx_found'
+                    else:
+                        # If strict mode is high, treat no MX as invalid
+                        if strict == 'high':
+                            local_result.status = 'invalid'
+                            local_result.reason = 'no_mx'
+                        else:
+                            local_result.status = 'risky'
+                            local_result.reason = 'no_mx'
 
         except Exception as e:
             logger.exception(f"Email validation internal error for {email}: {e}")
