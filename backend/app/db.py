@@ -199,6 +199,15 @@ def ensure_indexes() -> bool:
         except Exception:
             # If TTL index options conflict, ignore silently to avoid startup failure
             pass
+
+        # Email validation cache TTL index (expiresAt) to support caching for 24 hours
+        try:
+            email_cache = db.email_validation_cache
+            email_cache.create_index('email', unique=True)
+            email_cache.create_index('expiresAt', expireAfterSeconds=0)
+        except Exception:
+            # Ignore index errors to avoid blocking startup
+            pass
         
         logger.info("Database indexes created/verified successfully")
         return True

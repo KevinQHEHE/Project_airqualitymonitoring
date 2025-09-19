@@ -16,6 +16,19 @@ def create_app(config_class=Config):
     """
     app = Flask(__name__)
     app.config.from_object(config_class)
+    # --- Auto-configure EMAIL_VALIDATION from environment (safe, no secrets committed) ---
+    # If an Abstract API key is present in the environment, populate a minimal
+    # EMAIL_VALIDATION dict so services can call the provider without requiring
+    # additional manual config. Keys remain in environment; we don't write them
+    # to disk or commit them.
+    import os
+    abstract_key = os.environ.get('ABSTRACT_API_KEY')
+    if abstract_key and not app.config.get('EMAIL_VALIDATION'):
+        app.config['EMAIL_VALIDATION'] = {
+            'provider': 'abstract',
+            'api_key': abstract_key,
+            'url': os.environ.get('EMAIL_VALIDATION_URL') or 'https://emailvalidation.abstractapi.com/v1/'
+        }
     
     # Initialize Flask extensions
     init_extensions(app)

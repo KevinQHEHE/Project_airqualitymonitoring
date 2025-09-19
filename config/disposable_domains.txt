@@ -1,0 +1,28 @@
+# Disposable email domains list (small curated subset). One domain per line.
+# Source: curated list for locally blocking obvious disposable providers.
+# Do not commit secrets. This file can be extended later.
+10minutemail.com
+mailinator.com
+trashmail.com
+guerrillamail.com
+tempmail.com
+dispostable.com
+getairmail.com
+fakeinbox.com
+yopmail.com
+tempmail.org
+10minutemail.net
+maildrop.cc
+spamgourmet.com
+moakt.com
+disposablemail.com
+getnada.com
+throwawaymail.com
+mail-temporaire.com
+trashmail.net
+emailondeck.com
+spam4.me
+tmpmail.net
+mintemail.com
+sharklasers.com
+anysilo.com

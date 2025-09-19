@@ -18,6 +18,9 @@ requests>=2.31.0
 # Task Scheduling
 APScheduler>=3.10.0
 
+# DNS utilities for MX lookups
+dnspython>=2.3.0
+
 # Flask Extensions
 Flask-Mail>=0.9.1
 Flask-Limiter>=3.0.0
