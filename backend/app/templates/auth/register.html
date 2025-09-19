@@ -1,97 +1,348 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Register • Air Quality</title>
-    <style>
-      body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
-      form { max-width: 420px; padding: 1rem; border: 1px solid #ddd; border-radius: 8px; }
-      label { display:block; margin-top: .5rem; }
-      input { width: 100%; padding: .5rem; margin-top: .25rem; }
-      button { margin-top: 1rem; padding: .5rem .75rem; }
-      pre { white-space: pre-wrap; background: #fafafa; padding: .75rem; border: 1px solid #eee; border-radius: 6px; }
-      nav a { margin-right: 1rem; }
-    </style>
-  </head>
-  <body>
-    <nav>
-      <a href="/">Home</a>
-      <a href="/login">Login</a>
-    </nav>
-    <h1>Register</h1>
-    <form id="regForm">
-      <label>Username</label>
-      <input type="text" id="username" placeholder="alice" required />
-      <label>Email</label>
-      <input type="email" id="email" placeholder="alice@example.com" required />
-      <label>Password</label>
-      <input type="password" id="password" placeholder="at least 8 characters" minlength="8" required />
-      <div id="pw-rules">
-        <small>Must contain:</small>
-        <ul>
-          <li id="rule-length">• at least 8 characters</li>
-          <li id="rule-upper">• at least one uppercase letter</li>
-          <li id="rule-lower">• at least one lowercase letter</li>
-          <li id="rule-digit">• at least one number</li>
-          <li id="rule-special">• at least one special character</li>
-        </ul>
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link rel="apple-touch-icon" sizes="76x76" href="{{ url_for('static', filename='js/assets/img/apple-icon.png') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='js/assets/img/favicon.png') }}">
+  <title>Register | Air Quality Monitor</title>
+  <!--     Fonts and icons     -->
+  <link href="https://fonts.googleapis.com/css?family=Poppins:200,300,400,600,700,800" rel="stylesheet" />
+  <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet">
+  <!-- Nucleo Icons -->
+  <link href="{{ url_for('static', filename='js/assets/css/nucleo-icons.css') }}" rel="stylesheet" />
+  <!-- CSS Files -->
+  <link href="{{ url_for('static', filename='js/assets/css/black-dashboard.min.css') }}" rel="stylesheet" />
+  <!-- Black Dashboard Auth Styles -->
+
+  <link href="{{ url_for('static', filename='js/assets/css/two-column-auth.css') }}" rel="stylesheet" />
+  <link href="{{ url_for('static', filename='js/assets/css/auth-overrides.css') }}" rel="stylesheet" />
+  
+  <style>
+    .password-rules {
+      font-size: 0.8rem;
+      margin-top: 10px;
+    }
+    .password-rules .rule {
+      margin-bottom: 5px;
+    }
+    .rule-valid {
+      color: #00d4aa;
+    }
+    .rule-invalid {
+      color: #fd5d93;
+    }
+  </style>
+</head>
+
+<body class="register-page">
+  <div class="wrapper wrapper-full-page">
+    <div class="full-page register-page section-image" data-color="black" data-image="{{ url_for('static', filename='js/assets/img/full-screen-image-3.jpg') }}">
+      <!--   Big container   -->
+      <div class="content">
+        <div class="container-fluid">
+          <div class="row min-vh-100">
+            <!-- Left Side - GIF -->
+            <div class="col-lg-6 col-md-6 p-0 d-flex align-items-stretch">
+              <div class="w-100 h-100" style="overflow:hidden;">
+                <img src="{{ url_for('static', filename='js/assets/img/test.gif') }}" alt="Air Quality Animation" style="object-fit:cover;width:100%;height:100vh;">
+              </div>
+            </div>
+            <!-- Right Side - Form -->
+            <div id="rightColumn" class="col-lg-6 col-md-6 d-flex align-items-center justify-content-lg-end justify-content-center bg-white dark-bg" style="position:relative;">
+              <div class="theme-toggle-container" style="position:absolute;top:18px;right:20px;z-index:50;">
+                <button id="themeToggle" class="theme-toggle btn btn-link" type="button" aria-pressed="false" aria-label="Toggle theme">
+                  <i class="fas fa-moon" aria-hidden="true"></i>
+                  <i class="fas fa-sun" aria-hidden="true"></i>
+                </button>
+              </div>
+              <div class="auth-form-wrapper w-100 d-flex flex-column align-items-center justify-content-center" style="max-width:none; padding:48px; min-height:100vh;">
+                <form class="form w-100" id="registerForm" style="max-width:400px;margin:0 auto;">
+                  <div class="card-header bg-transparent">
+                    <div class="card-header-text text-center">
+                      <h3 class="card-title mb-2" style="font-size:2.4rem;font-weight:800;margin-bottom:0.5rem;letter-spacing:-1px;">Welcome!</h3>
+                      <p class="card-category mb-0" style="font-size:1.18rem;font-weight:500;letter-spacing:-0.5px;margin-bottom:0.2rem;">Create your account to access air quality dashboard</p>
+                    </div>
+                  </div>
+                  <div class="card-body p-0 d-flex flex-column align-items-center justify-content-center w-100" style="min-height: 350px;">
+                    <div class="form-group mb-4 w-100">
+                      <div style="background:rgba(255,255,255,0.08);border-radius:18px;box-shadow:0 2px 12px rgba(2,6,23,0.10);display:flex;align-items:center;padding:0 1.2rem;height:56px;">
+                        <span style="color:#ff4da6;font-size:1.4rem;display:flex;align-items:center;"><i class="tim-icons icon-single-02"></i></span>
+                        <input id="username" type="text" class="form-control border-0 bg-transparent" name="username" placeholder="Username" required style="padding-left:0;box-shadow:none;height:100%;font-size:1.08rem;flex:1;">
+                      </div>
+                    </div>
+                    <div class="form-group mb-4 w-100">
+                      <div style="background:rgba(255,255,255,0.08);border-radius:18px;box-shadow:0 2px 12px rgba(2,6,23,0.10);display:flex;align-items:center;padding:0 1.2rem;height:56px;">
+                        <span style="color:#ff4da6;font-size:1.4rem;display:flex;align-items:center;"><i class="tim-icons icon-email-85"></i></span>
+                        <input id="email" type="email" class="form-control border-0 bg-transparent" name="email" placeholder="Email" required style="padding-left:0;box-shadow:none;height:100%;font-size:1.08rem;flex:1;">
+                      </div>
+                    </div>
+                    <div class="form-group mb-4 w-100">
+                      <div style="background:rgba(255,255,255,0.08);border-radius:18px;box-shadow:0 2px 12px rgba(2,6,23,0.10);display:flex;align-items:center;padding:0 0.75rem;height:56px;">
+                        <span style="color:#ff4da6;font-size:1.4rem;display:flex;align-items:center;margin-right:12px;"><i class="tim-icons icon-lock-circle"></i></span>
+                        <input id="password" type="password" class="form-control border-0 bg-transparent" name="password" placeholder="Password" required style="padding-left:0;box-shadow:none;height:100%;font-size:1.08rem;flex:1;">
+                        <button type="button" class="btn btn-link password-toggle" aria-label="Toggle password visibility" style="color:rgba(0,0,0,0.6);font-size:1.05rem;padding:0 8px;margin-left:6px;">
+                          <i class="fas fa-eye-slash" aria-hidden="true"></i>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="form-check mb-3 w-100" style="text-align:left;">
+                      <label class="form-check-label" style="font-size:1rem;">
+                        <input class="form-check-input" type="checkbox" id="agreeTerms">
+                        <span class="form-check-sign"></span>
+                        I agree to the <a href="#" class="link">Terms and Conditions</a>
+                      </label>
+                    </div>
+                  </div>
+                    <div class="bg-transparent mt-2 d-flex flex-column align-items-center w-100">
+                    <button type="submit" class="btn btn-primary btn-block py-2 mt-2" style="font-size:1.13rem;width:100%;margin:0 auto;" id="registerBtn">Sign Up</button>
+                    <div class="auth-footer-links mt-3 w-100">
+                      <span style="font-size:1rem;display:block;width:100%;text-align:center;">Already have an account? <a href="/login" class="link footer-link">Sign In</a></span>
+                    </div>
+                  </div>
+                </form>
+                <!-- Alert for showing results -->
+                <div id="alertContainer" style="margin-top: 20px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <button type="submit">Create account</button>
-    </form>
+    </div>
+  </div>
+  <!--   Core JS Files   -->
+  <script src="{{ url_for('static', filename='js/assets/js/core/jquery.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/core/popper.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/core/bootstrap.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/plugins/perfect-scrollbar.jquery.min.js') }}"></script>
+  <!-- Control Center for Black Dashboard: parallax effects, scripts for the example pages etc -->
+  <script src="{{ url_for('static', filename='js/assets/js/black-dashboard.min.js') }}"></script>
 
-    <h3>Result</h3>
-    <pre id="result">—</pre>
+  <script>
+    $(document).ready(function() {
+      // Check if user is already logged in
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        // Verify token and redirect if valid
+        verifyToken(token);
+      }
 
-    <script>
-      const resEl = document.getElementById('result');
-      function show(obj) {
-        resEl.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
-      }
-      async function postJson(url, data) {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        });
-        const text = await res.text();
-        try { return { status: res.status, json: JSON.parse(text) }; }
-        catch { return { status: res.status, text }; }
-      }
-      // Live password checks
-      const pw = document.getElementById('password');
-      pw.addEventListener('input', () => {
-        const v = pw.value || '';
-        const pass = {
-          length: v.length >= 8,
-          upper: /[A-Z]/.test(v),
-          lower: /[a-z]/.test(v),
-          digit: /\d/.test(v),
-          special: /[^\w\s]/.test(v)
-        };
-        document.getElementById('rule-length').style.color = pass.length ? 'green' : 'inherit';
-        document.getElementById('rule-upper').style.color = pass.upper ? 'green' : 'inherit';
-        document.getElementById('rule-lower').style.color = pass.lower ? 'green' : 'inherit';
-        document.getElementById('rule-digit').style.color = pass.digit ? 'green' : 'inherit';
-        document.getElementById('rule-special').style.color = pass.special ? 'green' : 'inherit';
+      // Real-time password validation
+      $('#password').on('input', function() {
+        validatePassword($(this).val());
       });
+    });
 
-      document.getElementById('regForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const username = document.getElementById('username').value;
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        const out = await postJson('/api/auth/register', { username, email, password });
-        if (out.json) {
-          show(out.json);
-          if (out.json.access_token) {
-            localStorage.setItem('access_token', out.json.access_token);
-            localStorage.setItem('refresh_token', out.json.refresh_token || '');
+    function showAlert(message, type = 'danger') {
+      const alertContainer = $('#alertContainer');
+      const alertHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          <span class="alert-text">${message}</span>
+          <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+      `;
+      alertContainer.html(alertHTML);
+      
+      // Auto hide after 5 seconds
+      setTimeout(() => {
+        alertContainer.find('.alert').fadeOut();
+      }, 5000);
+    }
+
+    async function verifyToken(token) {
+      try {
+        const response = await fetch('/api/auth/verify', {
+          headers: {
+            'Authorization': `Bearer ${token}`
           }
+        });
+        
+        if (response.ok) {
+          // Token is valid, redirect to dashboard
+          window.location.href = '/';
         } else {
-          show(out.text);
+          // Token is invalid, remove it
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+        }
+      } catch (error) {
+        console.error('Token verification failed:', error);
+      }
+    }
+
+    function validatePassword(password) {
+      const rules = {
+        length: password.length >= 8,
+        upper: /[A-Z]/.test(password),
+        lower: /[a-z]/.test(password),
+        digit: /\d/.test(password),
+        special: /[^\w\s]/.test(password)
+      };
+
+      // Update rule indicators
+      Object.keys(rules).forEach(rule => {
+        const element = $(`#rule-${rule}`);
+        const icon = element.find('i');
+        
+        if (rules[rule]) {
+          element.removeClass('rule-invalid').addClass('rule-valid');
+          icon.removeClass('fa-times').addClass('fa-check');
+        } else {
+          element.removeClass('rule-valid').addClass('rule-invalid');
+          icon.removeClass('fa-check').addClass('fa-times');
         }
       });
-    </script>
-  </body>
-  </html>
+
+      // Enable/disable submit button
+      const allValid = Object.values(rules).every(rule => rule);
+      $('#registerBtn').prop('disabled', !allValid);
+      
+      return allValid;
+    }
+
+    $('#registerForm').on('submit', async function(e) {
+      e.preventDefault();
+      
+      const username = $('#username').val().trim();
+      const email = $('#email').val().trim();
+      const password = $('#password').val();
+      const agreeTerms = $('#agreeTerms').is(':checked');
+      
+      // Validate inputs
+      if (!username || !email || !password) {
+        showAlert('Please fill in all fields');
+        return;
+      }
+      
+      if (!agreeTerms) {
+        showAlert('Please agree to the Terms and Conditions');
+        return;
+      }
+      
+      if (!validatePassword(password)) {
+        showAlert('Password does not meet requirements');
+        return;
+      }
+      
+      // Disable button during submission
+      const submitBtn = $('#registerBtn');
+      const originalText = submitBtn.text();
+      submitBtn.prop('disabled', true).text('Creating Account...');
+      
+      try {
+        const response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            username: username,
+            email: email,
+            password: password
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          // Registration successful
+          showAlert('Account created successfully! Redirecting...', 'success');
+          
+          // Store tokens
+          localStorage.setItem('access_token', data.access_token);
+          if (data.refresh_token) {
+            localStorage.setItem('refresh_token', data.refresh_token);
+          }
+          
+          // Store user info
+          if (data.user) {
+            localStorage.setItem('user_info', JSON.stringify(data.user));
+          }
+          
+          // Redirect to dashboard after short delay
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 1500);
+          
+        } else {
+          // Registration failed
+          showAlert(data.message || 'Registration failed. Please try again.');
+        }
+        
+      } catch (error) {
+        console.error('Registration error:', error);
+        showAlert('An error occurred. Please try again.');
+      } finally {
+        // Re-enable button
+        submitBtn.prop('disabled', false).text(originalText);
+      }
+    });
+  </script>
+  <script>
+    // Unified theme toggle: data-theme on :root + localStorage and legacy class syncing
+    document.addEventListener('DOMContentLoaded', function() {
+      const themeToggle = document.getElementById('themeToggle');
+      const rightColumn = document.getElementById('rightColumn');
+
+      function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        document.querySelectorAll('.dark-bg').forEach(function(el){
+          if (theme === 'light') {
+            el.classList.remove('bg-dark'); el.classList.add('bg-white');
+          } else {
+            el.classList.remove('bg-white'); el.classList.add('bg-dark');
+          }
+        });
+        if (rightColumn) {
+          if (theme === 'light') {
+            rightColumn.classList.remove('bg-dark'); rightColumn.classList.add('bg-white');
+          } else {
+            rightColumn.classList.remove('bg-white'); rightColumn.classList.add('bg-dark');
+          }
+        }
+      }
+
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      applyTheme(savedTheme);
+
+      if (themeToggle) {
+        const isLight = savedTheme === 'light';
+        themeToggle.classList.toggle('active', isLight);
+        themeToggle.setAttribute('aria-pressed', isLight ? 'true' : 'false');
+
+        themeToggle.addEventListener('click', function() {
+          const current = document.documentElement.getAttribute('data-theme') || 'dark';
+          const next = current === 'dark' ? 'light' : 'dark';
+          localStorage.setItem('theme', next);
+          applyTheme(next);
+          const nowLight = next === 'light';
+          themeToggle.classList.toggle('active', nowLight);
+          themeToggle.setAttribute('aria-pressed', nowLight ? 'true' : 'false');
+        });
+      }
+
+      // Password visibility toggles for register page (support multiple toggles)
+      document.querySelectorAll('.password-toggle').forEach(function(pwdToggle) {
+        pwdToggle.addEventListener('click', function(e) {
+          e.preventDefault();
+          const wrapper = pwdToggle.closest('.form-group') || pwdToggle.parentElement;
+          const input = wrapper.querySelector('input[type="password"], input[type="text"]') || document.getElementById('password');
+          if (!input) return;
+          const icon = pwdToggle.querySelector('i');
+          if (input.type === 'password') {
+            input.type = 'text';
+            if (icon) { icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye'); }
+          } else {
+            input.type = 'password';
+            if (icon) { icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash'); }
+          }
+        });
+      });
+    });
+  </script>
+</body>
+
+</html>

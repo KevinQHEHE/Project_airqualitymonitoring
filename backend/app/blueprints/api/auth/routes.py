@@ -1,5 +1,5 @@
 """Authentication blueprint: register and login returning JWT tokens."""
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 import logging
 import re
 from datetime import datetime, timezone
@@ -187,10 +187,23 @@ def login():
         if not user:
             user = users_repo.find_by_username(login_field)
         if not user:
+            # Do not reveal details in production; when in DEBUG include a reason for local troubleshooting
+            try:
+                if current_app.config.get('DEBUG'):
+                    logger.info(f"[DEV] Login failed for '{login_field}': user_not_found")
+                    return jsonify({"error": "invalid credentials", "debug_reason": "user_not_found"}), 401
+            except Exception:
+                pass
             return jsonify({"error": "invalid credentials"}), 401
 
         stored = user.get('passwordHash')
         if not stored or not bcrypt.checkpw(password.encode('utf-8'), stored.encode('utf-8')):
+            try:
+                if current_app.config.get('DEBUG'):
+                    logger.info(f"[DEV] Login failed for '{login_field}': bad_password")
+                    return jsonify({"error": "invalid credentials", "debug_reason": "bad_password"}), 401
+            except Exception:
+                pass
             return jsonify({"error": "invalid credentials"}), 401
 
         identity = str(user.get('_id') or '')
@@ -229,6 +242,24 @@ def forgot_password():
         if not _validate_email(email):
             return jsonify({"message": "If an account exists for that email, a reset link has been sent."}), 200
 
+        # If the account exists but was created via an external provider (e.g. Google OAuth),
+        # we should avoid sending a password-reset email because the user authenticates
+        # externally and does not have a local password. The code keeps the response
+        # generic to avoid user enumeration.
+        try:
+            user = users_repo.find_by_email(email)
+        except Exception:
+            user = None
+
+        if user and user.get('provider') and user.get('provider') != 'local':
+            # Log for operators (do not reveal to caller). Do not send reset email for
+            # social/OAuth accounts.
+            try:
+                logger.info(f"Password reset request for {email} skipped: provider={user.get('provider')}")
+            except Exception:
+                pass
+            return jsonify({"message": "If an account exists for that email, a reset link has been sent."}), 200
+
         created, token = create_password_reset_request(email, token_ttl_minutes=15)
 
         # Compose a friendly reset link if we know a base URL
@@ -239,10 +270,25 @@ def forgot_password():
             reset_page = None
 
         if created and token:
+            # In development, log the token to server logs to aid testing.
+            try:
+                if current_app.config.get('DEBUG'):
+                    logger.info(f"[DEV] Password reset token for {email}: {token}")
+            except Exception:
+                pass
+
             send_password_reset_email(email, token=token, reset_link=reset_page)
 
-        # Always respond with success message
-        return jsonify({"message": "If an account exists for that email, a reset link has been sent."}), 200
+        # Always respond with success message. If running in DEBUG and token was created,
+        # include the token in the response under `dev_token` to make local testing easier.
+        resp = {"message": "If an account exists for that email, a reset link has been sent."}
+        try:
+            if current_app.config.get('DEBUG') and created and token:
+                resp['dev_token'] = token
+        except Exception:
+            # ignore config access errors
+            pass
+        return jsonify(resp), 200
     except Exception as e:
         logger.error(f"Forgot password error: {e}")
         # Still avoid leaking info
@@ -283,6 +329,30 @@ def reset_password():
         return jsonify({"message": "Password has been reset successfully"}), 200
     except Exception as e:
         logger.error(f"Reset password error: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@auth_bp.route('/verify-reset-token', methods=['POST'])
+def verify_reset_token():
+    """Verify that a provided reset token exists and is valid (not expired/used).
+
+    Request JSON: { "token": "<token>" }
+    Response: 200 if valid, 400 otherwise with generic message.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        token = (data.get('token') or '').strip()
+        if not token:
+            return jsonify({"error": "invalid_token"}), 400
+
+        from backend.app.reset_password import validate_reset_token
+
+        valid = validate_reset_token(token)
+        if valid:
+            return jsonify({"message": "token_valid"}), 200
+        return jsonify({"error": "invalid_or_expired_token"}), 400
+    except Exception as e:
+        logger.error(f"Verify reset token error: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -331,3 +401,20 @@ def logout_refresh():
     except Exception as e:
         logger.error(f"Logout refresh error: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
+
+@auth_bp.route('/verify', methods=['GET'])
+@jwt_required()
+def verify_access_token():
+    """Simple endpoint to confirm access token validity.
+
+    Returns 200 with a tiny payload when the provided Bearer token is valid.
+    Frontend calls /api/auth/verify to check session before redirecting to dashboard.
+    """
+    try:
+        # We don't reveal sensitive info here; return minimal confirmation and claims if present
+        claims = get_jwt() or {}
+        return jsonify({"message": "token_valid", "claims": claims}), 200
+    except Exception as e:
+        logger.info(f"Token verification failed: {e}")
+        return jsonify({"error": "NOT FOUND"}), 404

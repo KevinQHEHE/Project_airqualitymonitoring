@@ -1,59 +1,202 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Forgot Password · Air Quality</title>
-    <style>
-      body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
-      form { max-width: 420px; padding: 1rem; border: 1px solid #ddd; border-radius: 8px; }
-      label { display:block; margin-top: .5rem; }
-      input { width: 100%; padding: .5rem; margin-top: .25rem; }
-      button { margin-top: 1rem; padding: .5rem .75rem; }
-      pre { white-space: pre-wrap; background: #fafafa; padding: .75rem; border: 1px solid #eee; border-radius: 6px; }
-      nav a { margin-right: 1rem; }
-      .hint { color: #555; font-size: .9rem; }
-    </style>
-  </head>
-  <body>
-    <nav>
-      <a href="/">Home</a>
-      <a href="/login">Login</a>
-      <a href="/register">Register</a>
-    </nav>
-    <h1>Forgot Password</h1>
-    <p class="hint">Enter your account email. If an account exists, a reset email will be sent.</p>
-    <form id="forgotForm">
-      <label>Email</label>
-      <input type="email" id="email" placeholder="alice@example.com" required />
-      <button type="submit">Send reset email</button>
-    </form>
 
-    <h3>Result</h3>
-    <pre id="result">—</pre>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link rel="apple-touch-icon" sizes="76x76" href="{{ url_for('static', filename='js/assets/img/apple-icon.png') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='js/assets/img/favicon.png') }}">
+  <title>Forgot Password | Air Quality Monitor</title>
+  <!--     Fonts and icons     -->
+  <link href="https://fonts.googleapis.com/css?family=Poppins:200,300,400,600,700,800" rel="stylesheet" />
+  <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet">
+  <!-- Nucleo Icons -->
+  <link href="{{ url_for('static', filename='js/assets/css/nucleo-icons.css') }}" rel="stylesheet" />
+  <!-- CSS Files -->
+  <link href="{{ url_for('static', filename='js/assets/css/black-dashboard.min.css') }}" rel="stylesheet" />
+  <!-- Black Dashboard Auth Styles -->
+  <link href="{{ url_for('static', filename='js/assets/css/two-column-auth.css') }}" rel="stylesheet" />
+  <link href="{{ url_for('static', filename='js/assets/css/auth-overrides.css') }}" rel="stylesheet" />
+</head>
 
-    <script>
-      const resEl = document.getElementById('result');
-      function show(obj) {
-        resEl.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+<body class="login-page">
+  <div class="wrapper wrapper-full-page">
+    <div class="full-page login-page section-image" data-color="black" data-image="{{ url_for('static', filename='js/assets/img/full-screen-image-2.jpg') }}">
+      <!--   Big container   -->
+      <div class="container-fluid">
+        <div class="row min-vh-100">
+          <!-- Left Side - GIF -->
+          <div class="col-lg-6 col-md-6 p-0 d-flex align-items-stretch">
+            <div class="w-100 h-100" style="overflow:hidden;">
+              <img src="{{ url_for('static', filename='js/assets/img/test.gif') }}" alt="Air Quality Animation" style="object-fit:cover;width:100%;height:100vh;">
+            </div>
+          </div>
+          <!-- Right Side - Form -->
+          <div id="rightColumn" class="col-lg-6 col-md-6 d-flex align-items-center justify-content-center bg-white dark-bg">
+            <div class="auth-form-wrapper w-100 d-flex flex-column align-items-center justify-content-center" style="max-width:none; padding:48px; min-height:100vh; position:relative;">
+              <!-- Top-right toggle container (absolute inside right column) -->
+              <div class="theme-toggle-container" style="position:absolute;top:18px;right:20px;z-index:50;">
+                <button id="themeToggle" class="theme-toggle btn btn-link" type="button" aria-pressed="false" aria-label="Toggle theme">
+                  <i class="fas fa-moon" aria-hidden="true"></i>
+                  <i class="fas fa-sun" aria-hidden="true"></i>
+                </button>
+              </div>
+              <form class="form w-100" id="forgotForm" style="max-width:400px;margin:0 auto;">
+                <div class="card-header bg-transparent">
+                  <div class="card-header-text text-center">
+                    <h3 class="card-title mb-2">Forgot Password</h3>
+                    <p class="card-category mb-0">Enter your email to reset your password</p>
+                  </div>
+                </div>
+                <div class="mb-3 w-100">
+                  <div class="form-group mb-4 w-100">
+                    <div style="background:rgba(255,255,255,0.08);border-radius:18px;box-shadow:0 2px 12px rgba(2,6,23,0.10);display:flex;align-items:center;padding:0 1.2rem;height:56px;">
+                      <span style="color:#ff4da6;font-size:1.4rem;display:flex;align-items:center;"><i class="tim-icons icon-email-85"></i></span>
+                      <input type="email" class="form-control border-0 bg-transparent" name="email" id="email" placeholder="Email" required style="padding-left:0;box-shadow:none;height:100%;font-size:1.08rem;flex:1;">
+                    </div>
+                  </div>
+                </div>
+                <div class="bg-transparent mt-2 d-flex flex-column align-items-center w-100">
+                  <button type="submit" class="btn btn-primary btn-block py-2 mt-2" style="font-size:1.13rem;width:100%;margin:0 auto;">Send Reset Link</button>
+                  <div class="auth-footer-links mt-3 w-100">
+                    <span style="font-size:1rem;display:block;width:100%;text-align:center;">Remembered? <a href="/login" class="link footer-link">Sign In</a></span>
+                  </div>
+                </div>
+              </form>
+              <!-- The user will be redirected to a dedicated verify-code page after submitting their email -->
+              <!-- Alert for showing results -->
+              <div id="alertContainer" style="margin-top: 20px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!--   Core JS Files   -->
+  <script src="{{ url_for('static', filename='js/assets/js/core/jquery.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/core/popper.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/core/bootstrap.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/plugins/perfect-scrollbar.jquery.min.js') }}"></script>
+  <!--  Plugin for Switches, full documentation here: http://www.jque.re/plugins/version3/bootstrap.switch/ -->
+  <!-- <script src="{{ url_for('static', filename='js/assets/js/plugins/bootstrap-switch.js') }}"></script> -->
+  <!--  Plugin for the Sliders, full documentation here: http://refreshless.com/nouislider/ -->
+  <!-- <script src="{{ url_for('static', filename='js/assets/js/plugins/nouislider.min.js') }}"></script> -->
+  <!-- Control Center for Black Dashboard: parallax effects, scripts for the example pages etc -->
+  <script src="{{ url_for('static', filename='js/assets/js/black-dashboard.min.js') }}"></script>
+
+  <script>
+    function showAlert(message, type = 'danger') {
+      const alertContainer = $('#alertContainer');
+      const alertHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          <span class="alert-text">${message}</span>
+          <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+      `;
+      alertContainer.html(alertHTML);
+      
+      // Auto hide after 8 seconds for forgot password
+      setTimeout(() => {
+        alertContainer.find('.alert').fadeOut();
+      }, 8000);
+    }
+
+    $('#forgotForm').on('submit', async function(e) {
+      e.preventDefault();
+      
+      const email = $('#email').val().trim();
+      
+      if (!email) {
+        showAlert('Please enter your email address');
+        return;
       }
-      async function postJson(url, data) {
-        const res = await fetch(url, {
+      
+      // Disable button during submission
+      const submitBtn = $(this).find('button[type="submit"]');
+      const originalText = submitBtn.text();
+      submitBtn.prop('disabled', true).text('Sending...');
+      
+      try {
+        const response = await fetch('/api/auth/forgot-password', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            email: email
+          })
         });
-        const text = await res.text();
-        try { return { status: res.status, json: JSON.parse(text) }; }
-        catch { return { status: res.status, text }; }
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          // Success - show message and redirect to verify-code page where user can paste token
+          showAlert('If an account exists with this email, you will receive a reset token shortly. You will be redirected to the code verification page.', 'success');
+          $('#email').val(''); // Clear form
+          setTimeout(() => {
+            window.location.href = `/verify-code`;
+          }, 1200);
+        } else {
+          // For security, still show success message and redirect
+          showAlert('If an account exists with this email, you will receive a reset token shortly. You will be redirected to the code verification page.', 'success');
+          setTimeout(() => {
+            window.location.href = `/verify-code`;
+          }, 1200);
+        }
+
+        
+      } catch (error) {
+        console.error('Forgot password error:', error);
+        showAlert('If an account exists with this email, you will receive a password reset link shortly.', 'success');
+      } finally {
+        // Re-enable button
+        submitBtn.prop('disabled', false).text(originalText);
       }
-      document.getElementById('forgotForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('email').value;
-        const out = await postJson('/api/auth/forgot-password', { email });
-        show(out.json || out.text);
-      });
-    </script>
-  </body>
-  </html>
+    });
+
+    // No in-page token input anymore; users are redirected to /verify-code
+  </script>
+  <script>
+    // Unified theme toggle: data-theme on :root + localStorage and legacy class syncing
+    document.addEventListener('DOMContentLoaded', function() {
+      const themeToggle = document.getElementById('themeToggle');
+      const rightColumn = document.getElementById('rightColumn');
+
+      function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        document.querySelectorAll('.dark-bg').forEach(function(el){
+          if (theme === 'light') { el.classList.remove('bg-dark'); el.classList.add('bg-white'); }
+          else { el.classList.remove('bg-white'); el.classList.add('bg-dark'); }
+        });
+        if (rightColumn) {
+          if (theme === 'light') { rightColumn.classList.remove('bg-dark'); rightColumn.classList.add('bg-white'); }
+          else { rightColumn.classList.remove('bg-white'); rightColumn.classList.add('bg-dark'); }
+        }
+      }
+
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      applyTheme(savedTheme);
+
+      if (themeToggle) {
+        const isLight = savedTheme === 'light';
+        themeToggle.classList.toggle('active', isLight);
+        themeToggle.setAttribute('aria-pressed', isLight ? 'true' : 'false');
+
+        themeToggle.addEventListener('click', function() {
+          const current = document.documentElement.getAttribute('data-theme') || 'dark';
+          const next = current === 'dark' ? 'light' : 'dark';
+          localStorage.setItem('theme', next);
+          applyTheme(next);
+          const nowLight = next === 'light';
+          themeToggle.classList.toggle('active', nowLight);
+          themeToggle.setAttribute('aria-pressed', nowLight ? 'true' : 'false');
+        });
+      }
+    });
+  </script>
+</body>
+
+</html>
 
