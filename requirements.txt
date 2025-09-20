@@ -39,3 +39,6 @@ scikit-learn>=1.3.0
 
 # PDF Generation
 reportlab>=4.0.0
+ 
+# Password strength estimator
+zxcvbn-python>=4.4.0

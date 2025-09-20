@@ -14,6 +14,12 @@ def login_page():
 def register_page():
     return render_template('auth/register.html')
 
+
+@web_bp.route('/terms')
+def terms_page():
+    """Render the Terms of Service page."""
+    return render_template('auth/terms_of_service.html')
+
 @web_bp.route('/reports')
 def reports_page():
     return render_template('reports/summary.html')

@@ -12,14 +12,25 @@ from flask_jwt_extended import (
     get_jwt,
 )
 
+from flask import make_response
+
+
 from backend.app.repositories import users_repo
 from backend.app import db as db_module
-from backend.app.reset_password import (
+from backend.app.auth_scripts.reset_password import (
     create_password_reset_request,
     send_password_reset_email,
     reset_password_with_token,
 )
-from backend.app.services.email_validator import validate_email_for_registration
+from backend.app.auth_scripts.email_validator import validate_email_for_registration
+from backend.app.auth_scripts.registration_validator import validate_registration_email
+from backend.app.extensions import limiter
+
+# Optional: use zxcvbn if installed for a better password strength score
+try:
+    from zxcvbn import zxcvbn  # type: ignore
+except Exception:
+    zxcvbn = None
 
 logger = logging.getLogger(__name__)
 
@@ -75,25 +86,42 @@ def _validate_password(password: str) -> tuple[bool, list[str]]:
 
 
 @auth_bp.route('/register', methods=['POST'])
+@limiter.limit("5 per hour")
 def register():
-    """Register a new user (hashes password)"""
+    """Register a new user (hashes password)
+
+    Enhanced validations:
+    - structured error responses per-field
+    - email validation via registration_validator
+    - password strength scoring with zxcvbn (optional)
+    - terms-of-service acceptance required
+    """
     try:
         data = request.get_json(silent=True) or {}
 
         username = (data.get('username') or '').strip()
         email = (data.get('email') or '').strip()
         password = data.get('password') or ''
+        accept_tos = data.get('accept_tos') or False
+
+        errors: dict = {}
 
         if not username:
-            return jsonify({"error": "username is required"}), 400
+            errors['username'] = 'username is required'
         if not email:
-            return jsonify({"error": "email is required"}), 400
-        if not _validate_email(email):
-            return jsonify({"error": "invalid email format"}), 400
+            errors['email'] = 'email is required'
+        elif not _validate_email(email):
+            errors['email'] = 'invalid email format'
+        if not accept_tos:
+            errors['accept_tos'] = 'You must accept the Terms of Service to continue'
+
+        # If any quick validation failed, return structured errors
+        if errors:
+            return jsonify({"error": "validation_failed", "errors": errors}), 400
 
         # Email validation service: format validated above, now run deeper checks
         try:
-            allowed, validation_result = validate_email_for_registration(email)
+            allowed, validation_result = validate_registration_email(email)
         except Exception as e:
             # Fail open: if the validation service encounters an error, allow registration
             logger.warning(f"Email validation service error: {e}")
@@ -110,47 +138,97 @@ def register():
             pass
 
         if not allowed:
-            # Map result to clear error codes
+            # Map result to clear error codes and return a consistent errors mapping
             reason = getattr(validation_result, 'reason', None) if validation_result else None
             if reason == 'disposable_domain':
-                return jsonify({"error": "disposable_email", "message": "Disposable email addresses are not allowed"}), 400
+                body = {
+                    "error": "validation_failed",
+                    "errors": {"email": "Disposable email addresses are not allowed"}
+                }
+                try:
+                    if current_app.config.get('DEBUG') and validation_result:
+                        body['debug'] = {'email_validation': validation_result.__dict__}
+                except Exception:
+                    pass
+                return jsonify(body), 400
             if reason in ('format', 'no_mx', 'api_undeliverable'):
-                return jsonify({"error": "invalid_email", "message": "Email address appears invalid"}), 400
+                body = {
+                    "error": "validation_failed",
+                    "errors": {"email": "Email address appears invalid"}
+                }
+                try:
+                    if current_app.config.get('DEBUG') and validation_result:
+                        body['debug'] = {'email_validation': validation_result.__dict__}
+                except Exception:
+                    pass
+                return jsonify(body), 400
             # generic rejection
-            return jsonify({"error": "email_rejected", "message": "Email address not allowed"}), 400
+            body = {
+                "error": "validation_failed",
+                "errors": {"email": "Email address not allowed"}
+            }
+            try:
+                if current_app.config.get('DEBUG') and validation_result:
+                    body['debug'] = {'email_validation': validation_result.__dict__}
+            except Exception:
+                pass
+            return jsonify(body), 400
+        # Password checks: complexity + optional zxcvbn score
         ok, violations = _validate_password(password)
-        if not ok:
-            return jsonify({
-                "error": "weak_password",
-                "message": "Password does not meet complexity requirements",
-                "requirements": [
-                    "at least 8 characters",
-                    "at least one uppercase letter",
-                    "at least one lowercase letter",
-                    "at least one number",
-                    "at least one special character"
-                ],
-                "violations": violations
-            }), 400
+        pw_score = None
+        pw_feedback = None
+        try:
+            if zxcvbn and password:
+                res = zxcvbn(password, user_inputs=[username, email])
+                pw_score = int(res.get('score', 0))
+                pw_feedback = res.get('feedback') or None
+        except Exception:
+            pw_score = None
+            pw_feedback = None
 
+        if not ok or (pw_score is not None and pw_score < 2):
+            # Return a consistent validation_failed envelope with password details
+            password_msg = "Password does not meet complexity or strength requirements"
+            errors_obj = {"password": password_msg}
+            resp = {
+                "error": "validation_failed",
+                "errors": errors_obj,
+                "details": {
+                    "requirements": [
+                        "at least 8 characters",
+                        "at least one uppercase letter",
+                        "at least one lowercase letter",
+                        "at least one number",
+                        "at least one special character"
+                    ],
+                    "violations": violations,
+                }
+            }
+            if pw_score is not None:
+                resp['details']['zxcvbn_score'] = pw_score
+                if pw_feedback:
+                    resp['details']['zxcvbn_feedback'] = pw_feedback
+            try:
+                if current_app.config.get('DEBUG'):
+                    # attach raw zxcvbn output when available
+                    resp.setdefault('debug', {})
+                    if pw_score is not None:
+                        resp['debug']['zxcvbn_score'] = pw_score
+                        if pw_feedback:
+                            resp['debug']['zxcvbn_feedback'] = pw_feedback
+            except Exception:
+                pass
+            return jsonify(resp), 400
         existing_email = users_repo.find_by_email(email)
         existing_username = users_repo.find_by_username(username)
         if existing_email or existing_username:
-            if existing_email and existing_username:
-                return jsonify({
-                    "error": "duplicate",
-                    "message": "Email and username already exist"
-                }), 409
+            # Return uniform conflict payload with per-field messages
+            errors_obj = {}
             if existing_email:
-                return jsonify({
-                    "error": "email_exists",
-                    "message": "Email already exists"
-                }), 409
+                errors_obj['email'] = 'Email already exists'
             if existing_username:
-                return jsonify({
-                    "error": "username_exists",
-                    "message": "Username already exists"
-                }), 409
+                errors_obj['username'] = 'Username already exists'
+            return jsonify({"error": "conflict", "errors": errors_obj}), 409
 
         pw_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
@@ -169,13 +247,16 @@ def register():
             try:
                 details = getattr(e, 'details', None) or {}
                 key_value = details.get('keyValue') or {}
+                errors_obj = {}
                 if 'email' in key_value:
-                    return jsonify({"error": "email_exists", "message": "Email already exists"}), 409
+                    errors_obj['email'] = 'Email already exists'
                 if 'username' in key_value:
-                    return jsonify({"error": "username_exists", "message": "Username already exists"}), 409
+                    errors_obj['username'] = 'Username already exists'
+                if errors_obj:
+                    return jsonify({"error": "conflict", "errors": errors_obj}), 409
             except Exception:
                 pass
-            return jsonify({"error": "duplicate", "message": "Email or username already exists"}), 409
+            return jsonify({"error": "conflict", "errors": {"_": "Email or username already exists"}}), 409
 
         user_doc["_id"] = inserted_id
 
@@ -193,6 +274,7 @@ def register():
             "user": _serialize_user(user_doc),
             "access_token": access_token,
             "refresh_token": refresh_token,
+            "next_steps": ["geolocation_prompt"]
         }), 201
 
     except Exception as e:
@@ -253,6 +335,133 @@ def login():
 
     except Exception as e:
         logger.error(f"Login error: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+
+@auth_bp.route('/check-username', methods=['GET'])
+@limiter.limit("10 per minute")
+def check_username():
+    """Check username availability. Query param: ?username=foo"""
+    try:
+        username = (request.args.get('username') or '').strip()
+        if not username:
+            return jsonify({"error": "username is required"}), 400
+        user = users_repo.find_by_username(username)
+        return jsonify({"available": user is None}), 200
+    except Exception as e:
+        logger.error(f"Check username error: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@auth_bp.route('/check-email', methods=['GET'])
+@limiter.limit("10 per minute")
+def check_email():
+    """Check email availability and (optionally) deliverability.
+
+    Query param: ?email=foo@example.com
+    Response: { available: bool, checked: bool, reason?: str }
+    """
+    try:
+        email = (request.args.get('email') or '').strip()
+        if not email:
+            return jsonify({"error": "email is required"}), 400
+        if not _validate_email(email):
+            return jsonify({"error": "invalid_format", "message": "invalid email format"}), 400
+
+        # Check existing account
+        try:
+            user = users_repo.find_by_email(email)
+        except Exception:
+            user = None
+        if user:
+            return jsonify({"available": False, "checked": True, "reason": "exists"}), 200
+
+        # Deeper deliverability check via registration validator. Fail-open on errors.
+        try:
+            allowed, validation_result = validate_registration_email(email)
+        except Exception as e:
+            logger.debug(f"Email validation provider error on check-email: {e}")
+            return jsonify({"available": True, "checked": False}), 200
+
+        if not allowed:
+            reason = getattr(validation_result, 'reason', None) if validation_result else None
+            return jsonify({"available": False, "checked": True, "reason": reason}), 200
+
+        return jsonify({"available": True, "checked": True}), 200
+    except Exception as e:
+        logger.error(f"Check email error: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+# Flask-Limiter will raise a 429; return JSON rather than HTML
+@auth_bp.errorhandler(429)
+def ratelimit_handler(e):
+    # flask_limiter may attach description or headers
+    try:
+        retry_after = e.description if hasattr(e, 'description') else None
+    except Exception:
+        retry_after = None
+    body = {"error": "rate_limited", "message": "Too many requests, please try again later."}
+    if retry_after:
+        body['retry_after'] = str(retry_after)
+    resp = make_response(jsonify(body), 429)
+    return resp
+
+
+
+@auth_bp.route('/password-strength', methods=['POST'])
+@limiter.limit("20 per minute")
+def password_strength():
+    """Return a password strength score and feedback for client-side meter.
+
+    Request JSON: {"password": "...", "username": "...", "email": "..."}
+    Response: {"score": 0-4, "feedback": {...}, "violations": [...]} or error.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        password = data.get('password') or ''
+        username = (data.get('username') or '').strip()
+        email = (data.get('email') or '').strip()
+
+        if not password:
+            return jsonify({"error": "password is required"}), 400
+
+        # Basic complexity violations
+        ok, violations = _validate_password(password)
+
+        result = {
+            "violations": violations,
+        }
+
+        # zxcvbn gives a score 0-4; return when available
+        try:
+            if zxcvbn:
+                res = zxcvbn(password, user_inputs=[username, email])
+                result['score'] = int(res.get('score', 0))
+                result['feedback'] = res.get('feedback') or {}
+            else:
+                # Fallback simple metric: map length+complexity to score
+                score = 0
+                if len(password) >= 8:
+                    score += 1
+                if len(password) >= 12:
+                    score += 1
+                if re.search(r"[A-Z]", password):
+                    score += 1
+                if re.search(r"\d", password) and re.search(r"[^\w\s]", password):
+                    score += 1
+                # cap at 4
+                result['score'] = min(score, 4)
+                result['feedback'] = {"warning": "Install zxcvbn for richer feedback", "suggestions": []}
+        except Exception as e:
+            logger.debug(f"Password scoring failed: {e}")
+            result['score'] = None
+            result['feedback'] = {"warning": "scoring_failed"}
+
+        return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Password strength error: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -374,7 +583,7 @@ def verify_reset_token():
         if not token:
             return jsonify({"error": "invalid_token"}), 400
 
-        from backend.app.reset_password import validate_reset_token
+        from backend.app.auth_scripts.reset_password import validate_reset_token
 
         valid = validate_reset_token(token)
         if valid:

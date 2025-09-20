@@ -157,7 +157,7 @@ def create_password_reset_request(email: str, *, token_ttl_minutes: Optional[int
         recent = password_resets_repo.count_recent_requests(email, hours=1)
     except Exception:
         recent = 0
-    if recent >= 4:
+    if recent >= 10:
         logger = logging.getLogger(__name__)
         logger.warning(f"Password reset rate limit exceeded for {email} (recent={recent})")
         # For security, act like the request succeeded but do not create a new token
