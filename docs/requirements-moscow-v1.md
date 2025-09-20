@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 
 # Sprint 1: Air Quality Website Development Proposal
 
@@ -175,4 +176,331 @@ Note: Although 7 pollutants are monitored, since **AQI** is aggregated from the 
 * Data accuracy vs reference stations
 
 ---
+=======
+**# Air Quality Website Development Proposal**
+
+
+
+**\*\*Request:\*\* Design a website for monitoring and analyzing air quality.**
+
+
+
+**## 1. Project Overview**
+
+
+
+**### Objectives**
+
+
+
+**Design and develop a website for monitoring and analyzing air quality with the ability to display real-time data, trend analysis**
+
+
+
+**### Scope**
+
+
+
+**· Manage data from monitoring stations and open APIs**  
+
+**· Real-time dashboard**  
+
+**· Map (select coordinates of locations to analyze)**  
+
+**· Basic analysis and charts**  
+
+**· User management**  
+
+**· Alert system**  
+
+**· Support for exporting reports**  
+
+
+
+**## 2. Air quality parameters to monitor**
+
+
+
+**Core pollutants (≥7 indicators)**  
+
+**1. PM2.5 - Fine dust particles (≤2.5 micrometers)**  
+
+**2. PM10 - Coarse dust particles (≤10 micrometers)**  
+
+**3. O3 - Ozone**  
+
+**4. NO2 - Nitrogen Dioxide**  
+
+**5. SO2 - Sulfur Dioxide**  
+
+**6. CO - Carbon Monoxide**  
+
+**7. AQI - Air Quality Index (Air quality index): built based on the relationship between the concentrations of pollutants and potential impacts on health.**  
+
+
+
+**\*\*Note:\*\* There are up to 7 air quality parameters to monitor, but since AQI is aggregated from the remaining 6 parameters, the website only displays AQI, PM 2.5 and PM 10.**
+
+
+
+**### Reference standards**
+
+
+
+**· NAAQS (National Ambient Air Quality Standards) from EPA: air quality standards established by the United States Environmental Protection Agency (EPA). Its role is a legal tool to manage and control air pollution in the US.**  
+
+**· WHO Air Quality Guidelines: Air quality standards of the World Health Organization (WHO) are a set of recommendations based on scientific evidence on safe levels of air pollution for human health.**  
+
+**· AQI Scale: 0-500 (0-50: Good, 51-100: Moderate, 101-150: Unhealthy for sensitive groups, 151-200: Unhealthy, 201-300: Very unhealthy, 301-500: Hazardous)**  
+
+
+
+**### Data sources**
+
+
+
+**· Primary: Government monitoring stations**  
+
+**· Secondary: API (open data) from aqicn.org**  
+
+
+
+**## 3. Requirement classification according to MoSCoW**
+
+
+
+**### MUST-HAVE** 
+
+
+
+**#### Functional requirements**
+
+
+
+**| Feature                  | Detailed description                                                                 | Acceptance Criteria                                                                 |**
+
+**|--------------------------|--------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------|**
+
+**| Manage monitoring stations | CRUD monitoring stations with location information (city/zip/coordinates)            | - Full CRUD API endpoints<br>- Input data validation<br>- Support GPS coordinates  |**
+
+**| Display real-time data   | Dashboard displaying the latest AQI and 2 pollution indicators (PM 2.5, PM 10)       | - Data update ≤10 minutes<br>- Color coding according to AQI thresholds<br>- Responsive design |**
+
+**| Search by location       | Search by city/zip code/coordinates (e.g.: zip 66000 for Lâm Đồng)                   | - Support text search and geo-location<br>- Results returned ≤3 seconds<br>- Autocomplete suggestions |**
+
+**| Basic authentication     | Registration/login with JWT and role-based access                                    | - JWT token with refresh<br>- 3 roles: public, admin <br>- Password hashing        |**
+
+**| Basic analysis           | Data aggregation by day/month, average AQI                                           | - MongoDB aggregation pipeline<br>- Charts displaying trends<br>- Basic CSV export |**
+
+
+
+**#### Non-functional requirements**
+
+
+
+**| Type       | Requirement                                 | Measurement indicator                       |**
+
+**|------------|---------------------------------------------|---------------------------------------------|**
+
+**| Performance| Page load and API response                  | ≤3 seconds for common queries               |**
+
+**| Security   | HTTPS, input validation, SQL injection prevention | 100% HTTPS, sanitized inputs                |**
+
+**| Reliability| Uptime and data accuracy                    | ≥99% uptime, data validation                |**
+
+**| Usability  | Responsive design, intuitive UI             | Mobile-friendly, WCAG AA compliance         |**
+
+
+
+**### SHOULD-HAVE**
+
+
+
+**#### Advanced features**
+
+
+
+**| Feature          | Description                                                             | Priority reason                     |**
+
+**|------------------|-------------------------------------------------------------------------|-------------------------------------|**
+
+**| Alert system     | Email alerts when AQI exceeds custom thresholds                         | Protect public health, increase engagement |**
+
+**| Simple forecasting | Forecast AQI 24h using Moving Average/Linear Regression                 | Support planning, competitive advantage |**
+
+**| Interactive map  | Leaflet.js with markers displaying AQI by color                         | Visualize geographic data           |**
+
+**| PDF reports      | Export reports with charts and tables                                   | Serve management agencies and research |**
+
+**| City ranking     | Ranking table of cities by AQI                                          | Create awareness and comparison     |**
+
+
+
+**#### Optimization**
+
+
+
+**· Caching for common queries (Redis/Flask-Caching)**  
+
+**· Database indexing for performance**  
+
+**· Materialized aggregations for quick reports**  
+
+
+
+**### COULD-HAVE (Possible - Post-MVP)**
+
+
+
+**| Feature                  | Description                                           | Condition                          |**
+
+**|--------------------------|-------------------------------------------------------|------------------------------------|**
+
+**| Advanced OpenAQ integration | Real-time sync with scheduled jobs                    | If there is time and resources     |**
+
+**| Advanced ML forecasting  | XGBoost, LSTM for accurate forecasting                | If there is data scientist         |**
+
+**| Mobile app               | Native iOS/Android app                                | If there is budget for mobile development |**
+
+**| Social features          | Comments, sharing, community features                 | If need to increase user engagement |**
+
+
+
+**### WON'T-HAVE** 
+
+
+
+**· Real-time streaming (SSE/WebSocket) - high complexity**  
+
+**· Multi-tenant architecture - not necessary for MVP**  
+
+**· Advanced data visualization (3D maps, AR) - overkill**  
+
+**· Blockchain integration - not suitable for use case**  
+
+**· AI chatbot - not priority**  
+
+**· Payment system - business model not clear**  
+
+**· Multi-language besides Vietnamese**  
+
+
+
+**## 4. Technical architecture**
+
+
+
+**### Tech Stack**
+
+
+
+**· Backend: Flask (Python) + REST API**  
+
+**· Database: MongoDB (time-series data, aggregation)**  
+
+**· Frontend: Flask Jinja2 + Bootstrap + Chart.js**  
+
+**· Map: Leaflet.js**  
+
+**· Task Queue: Celery (for alerts \& data sync)**  
+
+**· Security: JWT, HTTPS, input validation**  
+
+
+
+**## 5. Definition of Done (DoD)**
+
+
+
+**### Function**
+
+
+
+**· Feature operates according to defined AC: ensure the feature operates according to the specified AC requirements.**  
+
+**· Unit tests coverage ≥70%: require unit tests to cover at least 70% of the source code.**  
+
+**· Integration tests pass: Ensure integration tests run successfully to check interactions between modules or different systems (e.g.: frontend and backend, application with database).**  
+
+**· Security scan has no critical issues.**  
+
+**· Performance test meets requirements (≤3s): Ensure the feature meets performance requirements, for example, page load time not exceeding 3 seconds.**  
+
+
+
+**### Quality**
+
+
+
+**· Code review approved: require code to be reviewed and approved by other team members, helping improve quality, discussion, knowledge sharing, and early error detection.**  
+
+**· Documentation updated: ensure all documents such as API, configuration guides, business research documents, … are compiled and updated.**  
+
+**· Browser compatibility (Chrome, Firefox, Safari): Ensure the feature operates stably and consistently on the most popular web browsers.**  
+
+
+
+**### Deployment**
+
+
+
+**· Deployed to staging environment: The feature has been successfully deployed to the staging environment**  
+
+**· Database migration successful: Ensure that all changes to the database structure have been applied successfully without errors.**  
+
+**· Monitoring \& logging configured: Set up monitoring and logging system to track feature performance and detect issues in the real environment.**  
+
+**· User acceptance testing completed: Ensure the feature has been tested and accepted by end users or third parties. This is the final step to confirm that the feature meets user needs.**  
+
+
+
+**## 6. Risks \& Mitigation**
+
+
+
+**| Risk                       | Impact | Probability | Mitigation                              |**
+
+**|----------------------------|--------|-------------|-----------------------------------------|**
+
+**| OpenAQ API rate limits     | High   | Medium      | Implement caching, backup data sources  |**
+
+**| AQI calculation complexity | Medium | High        | Use established formulas, extensive testing |**
+
+**| Data quality issues        | High   | Medium      | Implement data validation, outlier detection |**
+
+**| Performance degradation    | Medium | Medium      | Database indexing, query optimization   |**
+
+**| Security vulnerabilities   | High   | Low         | Regular security audits, input sanitization |**
+
+
+
+**## 7. Success Metrics**
+
+
+
+**### Technical KPIs**
+
+
+
+**· API response time ≤3 seconds**  
+
+**· System uptime ≥99%**  
+
+**· Page load time ≤3 seconds**  
+
+**· Zero critical security vulnerabilities**  
+
+
+
+**### Business KPIs**
+
+
+
+**· User registration rate**  
+
+**· Daily active users**  
+
+**· Alert subscription rate**  
+
+**· Data accuracy vs reference stations**
+>>>>>>> 3dc63b0 (Add Moscow requirements draft)
 
