@@ -79,6 +79,43 @@ class PasswordResetsRepository(BaseRepository):
 password_resets_repo = PasswordResetsRepository()
 
 
+class EmailVerificationsRepository(BaseRepository):
+    """Repository for email verification tokens."""
+
+    def __init__(self):
+        super().__init__('email_verifications')
+
+    def create_verification(self, *, user_id: str, email: str, token_hash: str, expires_at: datetime) -> str:
+        now = datetime.now(timezone.utc)
+        doc = {
+            'user_id': user_id,
+            'email': email.lower(),
+            'tokenHash': token_hash,
+            'createdAt': now,
+            'expiresAt': expires_at,
+            'usedAt': None,
+        }
+        inserted_id = self.insert_one(doc)
+        return str(inserted_id)
+
+    def find_valid_by_token_hash(self, token_hash: str) -> Optional[dict]:
+        now = datetime.now(timezone.utc)
+        return self.find_one({
+            'tokenHash': token_hash,
+            'usedAt': None,
+            'expiresAt': {'$gt': now},
+        })
+
+    def mark_used(self, token_hash: str) -> bool:
+        return self.update_one(
+            {'tokenHash': token_hash, 'usedAt': None},
+            {'$set': {'usedAt': datetime.now(timezone.utc)}}
+        )
+
+
+email_verifications_repo = EmailVerificationsRepository()
+
+
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode('utf-8')).hexdigest()
@@ -144,6 +181,78 @@ def create_password_reset_request(email: str, *, token_ttl_minutes: Optional[int
     )
 
     return True, token
+
+
+def create_email_verification_request(user_id: str, email: str, *, token_ttl_hours: int = 24) -> Tuple[bool, Optional[str]]:
+    """Create an email verification token for the given user.
+
+    Returns (created, token)
+    """
+    token = generate_reset_token()
+    token_hash = _hash_token(token)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=token_ttl_hours)
+
+    try:
+        email_verifications_repo.create_verification(
+            user_id=user_id,
+            email=email,
+            token_hash=token_hash,
+            expires_at=expires_at,
+        )
+        return True, token
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.exception(f"Failed to create email verification record for {email}: {e}")
+        return False, None
+
+
+def send_verification_email(recipient_email: str, *, token: str, verify_link: Optional[str] = None) -> bool:
+    """Send an email verification message containing a token link."""
+    sender = current_app.config.get('MAIL_DEFAULT_SENDER') or 'no-reply@example.com'
+    subject = 'Verify your email address'
+
+    if not verify_link:
+        api_url = (current_app.config.get('PUBLIC_BASE_URL') or '').rstrip('/') or 'http://localhost:5000'
+        verify_link = f"{api_url}/api/auth/verify-email"
+
+    try:
+        token_q = quote_plus(token)
+        sep = '&' if '?' in verify_link else '?'
+        token_url = f"{verify_link.rstrip('/')}{sep}token={token_q}"
+    except Exception:
+        token_url = verify_link
+
+    body = (
+        "Welcome!\n\n"
+        "Please verify your email address by clicking the link below:\n"
+        f"{token_url}\n\n"
+        "If you did not create an account, you can ignore this message.\n"
+    )
+
+    msg = Message(subject=subject, body=body, recipients=[recipient_email], sender=sender)
+    logger = logging.getLogger(__name__)
+    try:
+        logger.info(f"Attempting to send verification email to {recipient_email}")
+        mail.send(msg)
+        logger.info(f"Verification email sent to {recipient_email}")
+        return True
+    except Exception:
+        logger.exception(f"Failed to send verification email to {recipient_email}")
+        try:
+            if current_app.config.get('DEBUG'):
+                raise
+        except Exception:
+            pass
+        return False
+
+
+def validate_verification_token(token: str) -> Optional[dict]:
+    """Validate verification token and return the verification document if valid."""
+    if not token:
+        return None
+    token_hash = _hash_token(token)
+    doc = email_verifications_repo.find_valid_by_token_hash(token_hash)
+    return doc
 
 
 def send_password_reset_email(recipient_email: str, *, token: str, reset_link: Optional[str] = None) -> None:

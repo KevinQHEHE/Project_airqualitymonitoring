@@ -19,6 +19,7 @@ from backend.app.reset_password import (
     send_password_reset_email,
     reset_password_with_token,
 )
+from backend.app.services.email_validator import validate_email_for_registration
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,34 @@ def register():
             return jsonify({"error": "email is required"}), 400
         if not _validate_email(email):
             return jsonify({"error": "invalid email format"}), 400
+
+        # Email validation service: format validated above, now run deeper checks
+        try:
+            allowed, validation_result = validate_email_for_registration(email)
+        except Exception as e:
+            # Fail open: if the validation service encounters an error, allow registration
+            logger.warning(f"Email validation service error: {e}")
+            allowed = True
+            validation_result = None
+
+        # DEV: log validation result for troubleshooting when DEBUG is enabled
+        try:
+            if current_app.config.get('DEBUG'):
+                vr_status = getattr(validation_result, 'status', None) if validation_result else None
+                vr_reason = getattr(validation_result, 'reason', None) if validation_result else None
+                logger.info(f"[DEV] Email validation for {email}: allowed={allowed}, status={vr_status}, reason={vr_reason}")
+        except Exception:
+            pass
+
+        if not allowed:
+            # Map result to clear error codes
+            reason = getattr(validation_result, 'reason', None) if validation_result else None
+            if reason == 'disposable_domain':
+                return jsonify({"error": "disposable_email", "message": "Disposable email addresses are not allowed"}), 400
+            if reason in ('format', 'no_mx', 'api_undeliverable'):
+                return jsonify({"error": "invalid_email", "message": "Email address appears invalid"}), 400
+            # generic rejection
+            return jsonify({"error": "email_rejected", "message": "Email address not allowed"}), 400
         ok, violations = _validate_password(password)
         if not ok:
             return jsonify({
