@@ -240,6 +240,9 @@ def register():
             # Do not write a top-level `email_verified` field because the
             # MongoDB users collection enforces a strict schema. Store
             # verification status under `preferences` instead when needed.
+            # NOTE: Email verification emails are currently disabled by
+            # configuration above. Do not write verification flags here to
+            # avoid introducing fields that older code may not expect.
             "role": "user",
             "createdAt": datetime.now(timezone.utc),
             "updatedAt": datetime.now(timezone.utc),
@@ -334,27 +337,9 @@ def login():
                 pass
             return jsonify({"error": "invalid credentials"}), 401
 
-        # Enforce email verification before allowing login (legacy or nested flag)
-        try:
-            email_verified = False
-            # Legacy top-level flag (some older docs may have this)
-            if user.get('email_verified') is True:
-                email_verified = True
-            # New nested preferences flag
-            prefs = user.get('preferences') or {}
-            if prefs.get('email_verified') is True:
-                email_verified = True
-            if not email_verified:
-                # Provide a helpful response; do not leak extra info in prod
-                try:
-                    if current_app.config.get('DEBUG'):
-                        return jsonify({"error": "email_not_verified", "debug_reason": "email_not_verified"}), 403
-                except Exception:
-                    pass
-                return jsonify({"error": "email_not_verified", "message": "Please verify your email address before signing in"}), 403
-        except Exception:
-            # If anything goes wrong determining verification state, be permissive
-            pass
+        # Email verification enforcement removed: do not block login based on
+        # any email verification flags. This simplifies UX for now and avoids
+        # 403 responses when accounts lack verification fields.
 
         identity = str(user.get('_id') or '')
         claims = {
