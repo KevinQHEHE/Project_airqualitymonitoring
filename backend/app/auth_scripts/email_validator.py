@@ -5,7 +5,7 @@ an actionable tuple (allowed: bool, result: ValidationResult).
 """
 from __future__ import annotations
 
-from backend.app.services.email_validation_service import get_default_service, ValidationResult
+from .email_validation_service import get_default_service, ValidationResult
 from flask import current_app
 
 

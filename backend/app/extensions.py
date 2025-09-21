@@ -13,7 +13,8 @@ from flask_jwt_extended import JWTManager
 mail = Mail()
 limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"]
+    default_limits=["200 per day", "50 per hour"],
+    headers_enabled=True,
 )
 login_manager = LoginManager()
 jwt = JWTManager()

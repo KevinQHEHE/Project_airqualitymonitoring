@@ -71,12 +71,14 @@
                         <span style="color:#ff4da6;font-size:1.4rem;display:flex;align-items:center;"><i class="tim-icons icon-single-02"></i></span>
                         <input id="username" type="text" class="form-control border-0 bg-transparent" name="username" placeholder="Username" required style="padding-left:0;box-shadow:none;height:100%;font-size:1.08rem;flex:1;">
                       </div>
+                      <div id="usernameFeedback" style="font-size:0.85rem;margin-top:6px;color:#6c757d;display:block;padding-left:1.2rem;min-height:18px;"></div>
                     </div>
                     <div class="form-group mb-4 w-100">
                       <div style="background:rgba(255,255,255,0.08);border-radius:18px;box-shadow:0 2px 12px rgba(2,6,23,0.10);display:flex;align-items:center;padding:0 1.2rem;height:56px;">
                         <span style="color:#ff4da6;font-size:1.4rem;display:flex;align-items:center;"><i class="tim-icons icon-email-85"></i></span>
                         <input id="email" type="email" class="form-control border-0 bg-transparent" name="email" placeholder="Email" required style="padding-left:0;box-shadow:none;height:100%;font-size:1.08rem;flex:1;">
                       </div>
+                      <div id="emailFeedback" style="font-size:0.85rem;margin-top:6px;color:#6c757d;display:block;padding-left:1.2rem;min-height:18px;"></div>
                     </div>
                     <div class="form-group mb-4 w-100">
                       <div style="background:rgba(255,255,255,0.08);border-radius:18px;box-shadow:0 2px 12px rgba(2,6,23,0.10);display:flex;align-items:center;padding:0 0.75rem;height:56px;">
@@ -86,13 +88,18 @@
                           <i class="fas fa-eye-slash" aria-hidden="true"></i>
                         </button>
                       </div>
+                      <div id="passwordFeedback" style="font-size:0.85rem;margin-top:6px;color:#6c757d;display:block;padding-left:1.2rem;min-height:18px;"></div>
+                      <div id="passwordStrength" style="height:8px;background:#e9ecef;border-radius:6px;margin-top:8px;overflow:hidden;">
+                        <div id="passwordStrengthBar" style="height:100%;width:0%;background:#fd5d93;transition:width 200ms ease;"></div>
+                      </div>
                     </div>
                     <div class="form-check mb-3 w-100" style="text-align:left;">
-                      <label class="form-check-label" style="font-size:1rem;">
+                        <label class="form-check-label" style="font-size:1rem;">
                         <input class="form-check-input" type="checkbox" id="agreeTerms">
                         <span class="form-check-sign"></span>
-                        I agree to the <a href="#" class="link">Terms and Conditions</a>
+                        I agree to the <a href="/terms" target="_blank" class="link">Terms and Conditions</a>
                       </label>
+                      <div id="acceptTosFeedback" style="font-size:0.85rem;margin-top:6px;color:#6c757d;display:block;padding-left:1.2rem;min-height:18px;"></div>
                     </div>
                   </div>
                     <div class="bg-transparent mt-2 d-flex flex-column align-items-center w-100">
@@ -131,6 +138,69 @@
       // Real-time password validation
       $('#password').on('input', function() {
         validatePassword($(this).val());
+      });
+
+      // Real-time username/email blur checks
+      $('#username').on('blur', function() {
+        const u = $(this).val().trim();
+        const fb = $('#usernameFeedback');
+        if (!u) { fb.text(''); return; }
+        fb.text('Checking...');
+        fetch(`/api/auth/check-username?username=${encodeURIComponent(u)}`)
+          .then(r => r.json())
+          .then(d => {
+            if (d && d.available) {
+              fb.css('color', '#00d4aa').text('Username available');
+            } else if (d && d.available === false) {
+              fb.css('color', '#fd5d93').text('Username already taken');
+            } else {
+              fb.css('color', '#6c757d').text('Could not check username');
+            }
+          }).catch(e => { fb.css('color', '#6c757d').text('Error checking username'); });
+      });
+
+      $('#email').on('blur', function() {
+        const e = $(this).val().trim();
+        const fb = $('#emailFeedback');
+        if (!e) { fb.text(''); return; }
+        fb.text('Checking...');
+        fetch(`/api/auth/check-email?email=${encodeURIComponent(e)}`)
+          .then(r => r.json())
+          .then(d => {
+            if (d && d.available === true) {
+              fb.css('color', '#00d4aa').text('Email looks usable');
+            } else if (d && d.reason === 'exists') {
+              fb.css('color', '#fd5d93').text('Email already registered');
+            } else if (d && d.available === false) {
+              fb.css('color', '#fd5d93').text('Email not allowed or deliverable');
+            } else {
+              fb.css('color', '#6c757d').text('Could not fully validate email');
+            }
+          }).catch(e => { fb.css('color', '#6c757d').text('Error checking email'); });
+      });
+
+      // Password strength meter using server-side endpoint
+      $('#password').on('input', function() {
+        const pwd = $(this).val();
+        const fb = $('#passwordFeedback');
+        const bar = $('#passwordStrengthBar');
+        if (!pwd) { fb.text(''); bar.css('width','0%'); return; }
+        fetch('/api/auth/password-strength', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pwd, username: $('#username').val().trim(), email: $('#email').val().trim() }) })
+          .then(r => r.json())
+          .then(d => {
+            const score = (d && typeof d.score !== 'undefined') ? d.score : null;
+            const suggestions = d && d.feedback && (d.feedback.suggestions || d.feedback.warning) ? (d.feedback.suggestions || d.feedback.warning) : '';
+            if (score === null) {
+              fb.text('Could not evaluate strength');
+              bar.css('width','25%').css('background','#fd5d93');
+              return;
+            }
+            const pct = ((score + 1) / 5) * 100; // map 0-4 to 20%-100%
+            bar.css('width', pct + '%');
+            if (score <= 1) { bar.css('background','#fd5d93'); fb.css('color','#fd5d93').text('Weak' + (suggestions ? ': '+suggestions : '')); }
+            else if (score == 2) { bar.css('background','#ffb86b'); fb.css('color','#ffb86b').text('Moderate' + (suggestions ? ': '+suggestions : '')); }
+            else { bar.css('background','#00d4aa'); fb.css('color','#00d4aa').text('Strong'); }
+          }).catch(e => { fb.text('Strength check failed'); bar.css('width','25%').css('background','#fd5d93'); });
       });
     });
 
@@ -232,7 +302,7 @@
       const originalText = submitBtn.text();
       submitBtn.prop('disabled', true).text('Creating Account...');
       
-      try {
+        try {
         const response = await fetch('/api/auth/register', {
           method: 'POST',
           headers: {
@@ -241,37 +311,61 @@
           body: JSON.stringify({
             username: username,
             email: email,
-            password: password
+            password: password,
+            accept_tos: agreeTerms
           })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
           // Registration successful
           showAlert('Account created successfully! Redirecting...', 'success');
-          
+
           // Store tokens
           localStorage.setItem('access_token', data.access_token);
           if (data.refresh_token) {
             localStorage.setItem('refresh_token', data.refresh_token);
           }
-          
+
           // Store user info
           if (data.user) {
             localStorage.setItem('user_info', JSON.stringify(data.user));
           }
-          
+
           // Redirect to dashboard after short delay
           setTimeout(() => {
             window.location.href = '/';
           }, 1500);
-          
+
         } else {
-          // Registration failed
-          showAlert(data.message || 'Registration failed. Please try again.');
+          // Registration failed: prefer field-level errors when provided
+          // Clear previous inline messages
+          $('#usernameFeedback').text('');
+          $('#emailFeedback').text('');
+          $('#passwordFeedback').text('');
+          $('#acceptTosFeedback').text('');
+
+          if (data && data.errors) {
+            // Map known fields
+            if (data.errors.username) { $('#usernameFeedback').css('color','#fd5d93').text(data.errors.username); }
+            if (data.errors.email) { $('#emailFeedback').css('color','#fd5d93').text(data.errors.email); }
+            if (data.errors.password) { $('#passwordFeedback').css('color','#fd5d93').text(data.errors.password); }
+            if (data.errors.accept_tos || data.errors.acceptTos || data.errors.acceptTos === false) { $('#acceptTosFeedback').css('color','#fd5d93').text(data.errors.accept_tos || data.errors.acceptTos || 'You must accept the Terms of Service'); }
+            // Fallback alert for other messages
+            const other = Object.keys(data.errors).filter(k => !['username','email','password','accept_tos','acceptTos'].includes(k));
+            if (other.length) {
+              showAlert(Object.entries(data.errors).map(([k,v])=>`${k}: ${v}`).join('; '));
+            }
+          } else if (data && data.message) {
+            showAlert(data.message);
+          } else if (data && data.error) {
+            showAlert(data.error);
+          } else {
+            showAlert('Registration failed. Please try again.');
+          }
         }
-        
+
       } catch (error) {
         console.error('Registration error:', error);
         showAlert('An error occurred. Please try again.');
