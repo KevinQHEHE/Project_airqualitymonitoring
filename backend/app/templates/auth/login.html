@@ -262,7 +262,7 @@
             window.location.href = '/';
           }, 1500);
           
-        } else {
+              } else {
           // If backend expects 'email' instead of 'username', try fallback once
           if (!response.ok && !this._retriedWithEmail) {
             this._retriedWithEmail = true;
@@ -281,7 +281,11 @@
                 setTimeout(() => { window.location.href = '/'; }, 1500);
                 return;
               } else {
-                const serverMsg = retryData.message || retryData.error || 'Login failed. Please check your credentials.';
+                // Hide any server-side 'email_not_verified' message on retry and show a generic error instead
+                let serverMsg = retryData.message || retryData.error || 'Login failed. Please check your credentials.';
+                if (retryData.error === 'email_not_verified') {
+                  serverMsg = 'Login failed. Please check your credentials.';
+                }
                 showAlert(serverMsg);
                 return;
               }
@@ -292,7 +296,13 @@
 
           // Login failed — show server-provided message or debug_reason if available (dev only)
           console.info('Login failed response:', data);
-          const serverMsg = data.message || data.error || 'Login failed. Please check your credentials.';
+          // Suppress the explicit "email_not_verified" message in the login UI and show a generic failure message
+          let serverMsg;
+          if (data.error === 'email_not_verified') {
+            serverMsg = 'Login failed. Please check your credentials.';
+          } else {
+            serverMsg = data.message || data.error || 'Login failed. Please check your credentials.';
+          }
           let debugInfo = '';
           if (data.debug_reason) {
             debugInfo = ` (${data.debug_reason})`;

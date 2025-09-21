@@ -29,6 +29,29 @@ def create_app(config_class=Config):
             'api_key': abstract_key,
             'url': os.environ.get('EMAIL_VALIDATION_URL') or 'https://emailvalidation.abstractapi.com/v1/'
         }
+        # Quick validation of the provider key to avoid noisy runtime failures.
+        # Make a lightweight call to the provider; if it returns 401 (invalid key)
+        # disable EMAIL_VALIDATION so the app falls back to MX-only checks and fail-open behavior.
+        try:
+            import requests
+            cfg = app.config['EMAIL_VALIDATION']
+            test_url = cfg.get('url')
+            api_key = cfg.get('api_key')
+            if test_url and api_key:
+                try:
+                    resp = requests.get(test_url, params={'api_key': api_key, 'email': 'verify@example.com'}, timeout=3)
+                    if resp.status_code == 401:
+                        # Invalid API key — disable provider use and log clear message
+                        app.logger.error('Email validation provider returned 401 (invalid API key). Disabling external provider checks. Please verify ABSTRACT_API_KEY in your environment.')
+                        app.config.pop('EMAIL_VALIDATION', None)
+                        # Ensure fail-open is enabled to avoid blocking registrations
+                        app.config['EMAIL_VALIDATION_FAIL_OPEN'] = True
+                except requests.RequestException as e:
+                    # Network issues — leave provider configured but warn
+                    app.logger.warning(f'Could not validate email provider at startup: {e} (will attempt at runtime)')
+        except Exception:
+            # If requests not available or other error, do not block startup
+            pass
     
     # Initialize Flask extensions
     init_extensions(app)

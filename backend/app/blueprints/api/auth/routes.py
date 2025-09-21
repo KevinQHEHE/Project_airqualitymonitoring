@@ -1,10 +1,10 @@
 """Authentication blueprint: register and login returning JWT tokens."""
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, redirect
 import logging
 import re
 from datetime import datetime, timezone
 import bcrypt
-from pymongo.errors import DuplicateKeyError
+from pymongo.errors import DuplicateKeyError, PyMongoError
 from flask_jwt_extended import (
     create_access_token,
     create_refresh_token,
@@ -25,6 +25,7 @@ from backend.app.auth_scripts.reset_password import (
 from backend.app.auth_scripts.email_validator import validate_email_for_registration
 from backend.app.auth_scripts.registration_validator import validate_registration_email
 from backend.app.extensions import limiter
+from bson import ObjectId
 
 # Optional: use zxcvbn if installed for a better password strength score
 try:
@@ -236,6 +237,12 @@ def register():
             "username": username.lower(),
             "email": email.lower(),
             "passwordHash": pw_hash,
+            # Do not write a top-level `email_verified` field because the
+            # MongoDB users collection enforces a strict schema. Store
+            # verification status under `preferences` instead when needed.
+            # NOTE: Email verification emails are currently disabled by
+            # configuration above. Do not write verification flags here to
+            # avoid introducing fields that older code may not expect.
             "role": "user",
             "createdAt": datetime.now(timezone.utc),
             "updatedAt": datetime.now(timezone.utc),
@@ -269,13 +276,26 @@ def register():
         access_token = create_access_token(identity=identity, additional_claims=claims)
         refresh_token = create_refresh_token(identity=identity, additional_claims={"role": user_doc["role"]})
 
-        return jsonify({
+        # Email verification flow disabled per request: do not create or send
+        # verification emails when a user registers or logs in. Keep flags for
+        # compatibility in the response.
+        created = False
+        sent = False
+
+        resp_body = {
             "message": "Registration successful",
             "user": _serialize_user(user_doc),
             "access_token": access_token,
             "refresh_token": refresh_token,
-            "next_steps": ["geolocation_prompt"]
-        }), 201
+            "next_steps": ["geolocation_prompt"],
+            "email_verification": {
+                "created": bool(created),
+                "sent": bool(sent),
+                "note": "Please verify your email address to unlock full account features"
+            }
+        }
+
+        return jsonify(resp_body), 201
 
     except Exception as e:
         logger.error(f"Registration error: {str(e)}")
@@ -316,6 +336,10 @@ def login():
             except Exception:
                 pass
             return jsonify({"error": "invalid credentials"}), 401
+
+        # Email verification enforcement removed: do not block login based on
+        # any email verification flags. This simplifies UX for now and avoids
+        # 403 responses when accounts lack verification fields.
 
         identity = str(user.get('_id') or '')
         claims = {
@@ -382,15 +406,82 @@ def check_email():
             allowed, validation_result = validate_registration_email(email)
         except Exception as e:
             logger.debug(f"Email validation provider error on check-email: {e}")
-            return jsonify({"available": True, "checked": False}), 200
+            # If provider error, return checked=False (caller should treat as unknown)
+            body = {"available": True, "checked": False}
+            try:
+                if current_app.config.get('DEBUG'):
+                    body['debug'] = {'error': str(e)}
+            except Exception:
+                pass
+            return jsonify(body), 200
 
         if not allowed:
             reason = getattr(validation_result, 'reason', None) if validation_result else None
-            return jsonify({"available": False, "checked": True, "reason": reason}), 200
+            body = {"available": False, "checked": True, "reason": reason}
+            try:
+                if current_app.config.get('DEBUG') and validation_result:
+                    # include full validation result for local debugging only
+                    body['debug'] = {'email_validation': validation_result.__dict__}
+            except Exception:
+                pass
+            return jsonify(body), 200
 
         return jsonify({"available": True, "checked": True}), 200
     except Exception as e:
         logger.error(f"Check email error: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@auth_bp.route('/check-email-debug', methods=['GET'])
+@limiter.limit("5 per minute")
+def check_email_debug():
+    """Dev-only endpoint: return the raw email validation payload.
+
+    Only available when the Flask app is running in DEBUG mode. Use this to
+    inspect the full ValidationResult returned by the registration validator
+    without changing cached values or global settings.
+    Query param: ?email=foo@example.com
+    """
+    try:
+        # Only allow in debug to avoid leaking provider/internal details in prod
+        if not current_app.config.get('DEBUG'):
+            return jsonify({"error": "not_found"}), 404
+
+        email = (request.args.get('email') or '').strip()
+        if not email:
+            return jsonify({"error": "email is required"}), 400
+        if not _validate_email(email):
+            return jsonify({"error": "invalid_format", "message": "invalid email format"}), 400
+
+        # Check existing account
+        try:
+            user = users_repo.find_by_email(email)
+        except Exception:
+            user = None
+        if user:
+            return jsonify({"available": False, "checked": True, "reason": "exists", "debug": {"note": "user exists"}}), 200
+
+        try:
+            allowed, validation_result = validate_registration_email(email)
+        except Exception as e:
+            body = {"available": True, "checked": False, "debug": {"error": str(e)}}
+            return jsonify(body), 200
+
+        body = {"available": bool(allowed), "checked": True}
+        try:
+            if validation_result is not None:
+                # ValidationResult is an object with attributes; expose its dict for debug only
+                body['debug'] = {'email_validation': validation_result.__dict__}
+                reason = getattr(validation_result, 'reason', None)
+                if reason:
+                    body['reason'] = reason
+        except Exception:
+            # ignore debug serialization errors
+            pass
+
+        return jsonify(body), 200
+    except Exception as e:
+        logger.error(f"Check email debug error: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 

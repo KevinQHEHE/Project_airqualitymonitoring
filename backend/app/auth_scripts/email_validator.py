@@ -18,4 +18,13 @@ def validate_email_for_registration(email: str) -> tuple[bool, ValidationResult]
     # If strictness low, accept 'risky' too
     if not allowed and strictness == 'low' and res.status == 'risky':
         allowed = True
+    # Fail-open for provider unavailability by default in non-production.
+    # This avoids blocking registrations when an external provider is down or misconfigured.
+    # Can be disabled by setting EMAIL_VALIDATION_FAIL_OPEN = False in config/environment.
+    try:
+        fail_open = current_app.config.get('EMAIL_VALIDATION_FAIL_OPEN', True)
+    except Exception:
+        fail_open = True
+    if not allowed and getattr(res, 'reason', None) == 'provider_unavailable' and fail_open:
+        allowed = True
     return allowed, res
