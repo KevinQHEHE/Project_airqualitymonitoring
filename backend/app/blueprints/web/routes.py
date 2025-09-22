@@ -6,6 +6,11 @@ web_bp = Blueprint('web', __name__)
 def dashboard():
     return render_template('dashboard/index.html')
 
+@web_bp.route('/admin')
+def admin_dashboard():
+    """Admin dashboard for user management."""
+    return render_template('admin/user_management.html')
+
 @web_bp.route('/login')
 def login_page():
     return render_template('auth/login.html')
