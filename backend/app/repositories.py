@@ -229,7 +229,10 @@ class UsersRepository(BaseRepository):
             return False
         try:
             result = self.collection.update_one({'_id': oid}, update_operations)
-            return result.modified_count > 0
+            # Treat a matched document as success even if nothing was modified.
+            # This makes update operations idempotent from the caller's perspective
+            # and avoids failing when the new value equals the existing value.
+            return (result.modified_count > 0) or (getattr(result, 'matched_count', 0) > 0)
         except PyMongoError as e:
             logger.error(f"Error updating user {user_id}: {e}")
             raise
@@ -276,8 +279,10 @@ class UsersRepository(BaseRepository):
             return 0
 
 
+
 # Repository instances for easy import
 stations_repo = StationsRepository()
 readings_repo = ReadingsRepository()
 forecasts_repo = ForecastsRepository()
 users_repo = UsersRepository()
+# legacy: favorites are stored on the users collection at `users.location`
