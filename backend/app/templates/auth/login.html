@@ -257,9 +257,13 @@
             localStorage.setItem('user_info', JSON.stringify(data.user));
           }
           
-          // Redirect to dashboard after short delay
+          // Check user role and redirect accordingly
+          const userRole = data.user?.role || 'user';
+          const redirectUrl = userRole === 'admin' ? '/admin' : '/';
+          
+          // Redirect to appropriate dashboard after short delay
           setTimeout(() => {
-            window.location.href = '/';
+            window.location.href = redirectUrl;
           }, 1500);
           
               } else {
@@ -278,7 +282,11 @@
                 localStorage.setItem('access_token', retryData.access_token);
                 if (retryData.refresh_token) localStorage.setItem('refresh_token', retryData.refresh_token);
                 if (retryData.user) localStorage.setItem('user_info', JSON.stringify(retryData.user));
-                setTimeout(() => { window.location.href = '/'; }, 1500);
+                
+                // Check user role and redirect accordingly  
+                const userRole = retryData.user?.role || 'user';
+                const redirectUrl = userRole === 'admin' ? '/admin' : '/';
+                setTimeout(() => { window.location.href = redirectUrl; }, 1500);
                 return;
               } else {
                 // Hide any server-side 'email_not_verified' message on retry and show a generic error instead
