@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, jsonify, redirect, url_for
+from flask import Blueprint, render_template, jsonify, redirect, url_for, request
 
 web_bp = Blueprint('web', __name__)
 
@@ -80,3 +80,17 @@ def clear_auth():
     </body>
     </html>
     """
+
+
+@web_bp.route('/debug/headers', methods=['GET', 'POST'])
+def debug_headers():
+    """Temporary debug endpoint: returns incoming request headers as JSON.
+
+    Use this locally to confirm whether the Authorization header (or others)
+    are reaching the Flask app. Do NOT enable or expose this in production.
+    """
+    try:
+        hdrs = {k: v for k, v in request.headers.items()}
+        return jsonify({"headers": hdrs}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

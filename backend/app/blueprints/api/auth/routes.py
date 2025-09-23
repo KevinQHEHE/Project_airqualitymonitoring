@@ -17,13 +17,13 @@ from flask import make_response
 
 from backend.app.repositories import users_repo
 from backend.app import db as db_module
-from backend.app.auth_scripts.reset_password import (
+from backend.app.services.auth.reset_password import (
     create_password_reset_request,
     send_password_reset_email,
     reset_password_with_token,
 )
-from backend.app.auth_scripts.email_validator import validate_email_for_registration
-from backend.app.auth_scripts.registration_validator import validate_registration_email
+from backend.app.services.auth.email_validator import validate_email_for_registration
+from backend.app.services.auth.registration_validator import validate_registration_email
 from backend.app.extensions import limiter
 from bson import ObjectId
 
@@ -244,6 +244,16 @@ def register():
             # configuration above. Do not write verification flags here to
             # avoid introducing fields that older code may not expect.
             "role": "user",
+            # Optionally write a top-level status field on registration when
+            # configuration requests it. This is disabled by default to
+            # preserve compatibility with deployments that manage status
+            # through admin APIs or expect the field to be absent.
+            **({"status": "active"} if current_app.config.get('REGISTER_SET_STATUS_ON_REGISTRATION') else {}),
+            # NOTE: Do not write a top-level `status` field here to avoid
+            # MongoDB document validation failures on deployments that use a
+            # stricter users collection schema. Login checks default to
+            # "active" when the field is absent, so omitting it here is
+            # safe and keeps the registration flow compatible.
             "createdAt": datetime.now(timezone.utc),
             "updatedAt": datetime.now(timezone.utc),
         }
@@ -326,6 +336,9 @@ def login():
             except Exception:
                 pass
             return jsonify({"error": "invalid credentials"}), 401
+
+        if user.get("status", "active") != "active":
+            return jsonify({"error": "account_inactive"}), 403
 
         stored = user.get('passwordHash')
         if not stored or not bcrypt.checkpw(password.encode('utf-8'), stored.encode('utf-8')):
@@ -674,7 +687,7 @@ def verify_reset_token():
         if not token:
             return jsonify({"error": "invalid_token"}), 400
 
-        from backend.app.auth_scripts.reset_password import validate_reset_token
+        from backend.app.services.auth.reset_password import validate_reset_token
 
         valid = validate_reset_token(token)
         if valid:
