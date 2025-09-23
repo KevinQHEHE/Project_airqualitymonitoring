@@ -7,11 +7,12 @@ abstracting database operations and providing a clean interface for the API laye
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timezone
 from pymongo.collection import Collection
 from pymongo.errors import DuplicateKeyError, PyMongoError
 from bson import ObjectId
+from bson.errors import InvalidId
 
 from . import db
 
@@ -207,6 +208,44 @@ class StationsRepository(BaseRepository):
             logger.error(f"Error finding stations with pagination: {e}")
             raise
 
+def find_by_station_ids(self, station_ids: List[Any]) -> List[Dict[str, Any]]:
+    """Find stations by WAQI numeric or string identifiers."""
+    if not station_ids:
+        return []
+
+    numeric_ids: List[int] = []
+    string_ids: List[str] = []
+    for value in station_ids:
+        if isinstance(value, int):
+            numeric_ids.append(value)
+            continue
+        try:
+            numeric_ids.append(int(value))
+        except (TypeError, ValueError):
+            string_ids.append(str(value))
+
+    filters: List[Dict[str, Any]] = []
+    if numeric_ids:
+        filters.append({'_id': {'$in': numeric_ids}})
+    if string_ids:
+        filters.append({'station_id': {'$in': string_ids}})
+
+    if not filters:
+        return []
+
+    query: Dict[str, Any]
+    if len(filters) == 1:
+        query = filters[0]
+    else:
+        query = {'$or': filters}
+
+    try:
+        return list(self.collection.find(query))
+    except PyMongoError as e:
+        logger.error(f"Error finding stations by ids: {e}")
+        raise
+
+
 
 class ReadingsRepository(BaseRepository):
     """Repository for air quality readings."""
@@ -313,58 +352,108 @@ class ForecastsRepository(BaseRepository):
         })
 
 
+
 class UsersRepository(BaseRepository):
     """Repository for user accounts."""
-    
-    def __init__(self):
+
+    def __init__(self) -> None:
         super().__init__('users')
-    
+
     def find_by_email(self, email: str) -> Optional[Dict[str, Any]]:
         """Find user by email address.
-        
+
         Args:
             email: User email address
-            
+
         Returns:
             User document if found
         """
         return self.find_one({'email': email.lower()})
-    
+
     def find_by_username(self, username: str) -> Optional[Dict[str, Any]]:
         """Find user by username.
-        
+
         Args:
             username: Username
-            
+
         Returns:
             User document if found
         """
         return self.find_one({'username': username.lower()})
-    
+
     def create_user(self, user_data: Dict[str, Any]) -> ObjectId:
         """Create a new user account.
-        
+
         Args:
             user_data: User account data
-            
+
         Returns:
             Created user ID
-            
+
         Raises:
             DuplicateKeyError: If email or username already exists
         """
-        # Normalize email and username
         user_data['email'] = user_data['email'].lower()
         user_data['username'] = user_data['username'].lower()
-        # Use camelCase timestamps per validator
+        now = datetime.now(timezone.utc)
         if 'createdAt' not in user_data:
-            user_data['createdAt'] = datetime.now(timezone.utc)
-        
+            user_data['createdAt'] = now
+        if 'updatedAt' not in user_data:
+            user_data['updatedAt'] = now
+        if 'status' not in user_data:
+            user_data['status'] = 'active'
+
         try:
             return self.insert_one(user_data)
         except DuplicateKeyError as e:
             logger.warning(f"Duplicate user creation attempt: {e}")
             raise
+
+    def find_by_id(self, user_id: Any) -> Optional[Dict[str, Any]]:
+        """Find a user by ObjectId or its string representation."""
+        try:
+            oid = ObjectId(user_id)
+        except (InvalidId, TypeError, ValueError):
+            return None
+        return self.find_one({'_id': oid})
+
+    def list_with_filters(
+        self,
+        filter_dict: Optional[Dict[str, Any]],
+        page: int,
+        page_size: int,
+        sort: Optional[List[Tuple[str, int]]],
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """List users with pagination and optional sorting."""
+        if filter_dict is None:
+            filter_dict = {}
+        safe_page = max(page, 1)
+        safe_page_size = max(page_size, 0)
+        skip = (safe_page - 1) * safe_page_size if safe_page_size else 0
+        try:
+            total = self.collection.count_documents(filter_dict)
+            cursor = self.collection.find(filter_dict)
+            if sort:
+                cursor = cursor.sort(sort)
+            if skip:
+                cursor = cursor.skip(skip)
+            if safe_page_size:
+                cursor = cursor.limit(safe_page_size)
+            return list(cursor), total
+        except PyMongoError as e:
+            logger.error(f"Error listing users: {e}")
+            raise
+
+    def update_user_by_id(self, user_id: ObjectId, update_operations: Dict[str, Any]) -> bool:
+        """Apply update operations to a user document."""
+        try:
+            result = self.collection.update_one({'_id': user_id}, update_operations)
+            return result.modified_count > 0
+        except PyMongoError as e:
+            logger.error(f"Error updating user {user_id}: {e}")
+            raise
+
+
 
 
 # Repository instances for easy import

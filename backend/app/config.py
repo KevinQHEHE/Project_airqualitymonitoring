@@ -45,6 +45,12 @@ class Config:
     STATION_SCRIPT_TIMEOUT_SECONDS = int(os.environ.get('STATION_SCRIPT_TIMEOUT_SECONDS') or 300)
     ENABLE_STATION_SCHEDULER = os.environ.get('ENABLE_STATION_SCHEDULER', 'true').lower() in ['true', '1', 'on', 'yes']
 
+    # Registration behavior: whether to write a top-level `status` field
+    # to new user documents. Some deployments prefer to omit this field and
+    # treat missing status as 'active'. Set environment variable
+    # REGISTER_SET_STATUS_ON_REGISTRATION=true to enable writing the field.
+    REGISTER_SET_STATUS_ON_REGISTRATION = os.environ.get('REGISTER_SET_STATUS_ON_REGISTRATION', 'false').lower() in ['true', '1', 'on', 'yes']
+
 
 class DevelopmentConfig(Config):
     """Development configuration with debug mode enabled."""

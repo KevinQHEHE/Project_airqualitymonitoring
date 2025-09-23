@@ -120,6 +120,7 @@ def register_blueprints(app):
     # from backend.app.blueprints.api.exports.routes import exports_bp
     # from backend.app.blueprints.api.realtime.routes import realtime_bp
     from backend.app.blueprints.api.scheduler.routes import scheduler_bp
+    from backend.app.blueprints.api.admin.users import admin_users_bp
     
     # Import Web blueprint
     from backend.app.blueprints.web.routes import web_bp
@@ -155,6 +156,7 @@ def register_blueprints(app):
     # app.register_blueprint(forecasts_bp, url_prefix='/api/forecasts')
     # app.register_blueprint(exports_bp, url_prefix='/api/exports')
     # app.register_blueprint(realtime_bp, url_prefix='/api/realtime')
+    app.register_blueprint(admin_users_bp, url_prefix='/api/admin/users')
     app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
     
     # Register Web blueprint (no prefix for main web routes)

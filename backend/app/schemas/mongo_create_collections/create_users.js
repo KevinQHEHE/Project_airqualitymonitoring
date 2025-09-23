@@ -76,6 +76,15 @@ db.createCollection("users", {
         },
         "updatedAt": {
           "bsonType": "date"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "inactive"
+          ]
+        },
+        "deletedAt": {
+          "bsonType": "date"
         }
       },
       "additionalProperties": false

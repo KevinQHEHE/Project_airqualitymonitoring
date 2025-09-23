@@ -72,6 +72,16 @@
         },
         "updatedAt": {
           "bsonType": "date"
+        },
+        "status": {
+          "bsonType": "string",
+          "enum": [
+            "active",
+            "inactive"
+          ]
+        },
+        "deletedAt": {
+          "bsonType": "date"
         }
       },
       "additionalProperties": false

@@ -314,3 +314,19 @@ Acceptance mapping:
 - Supports `limit` & `offset` (AC: pass)
 - Postman/curl examples provided above (AC: pass)
 
+## Admin User Management
+
+All endpoints require a valid admin access token (`Authorization: Bearer <jwt>`).
+
+- `GET /api/admin/users` – List users with pagination (`page`, `page_size`), filters (`role`, `status`, `registered_after`, `registered_before`, `search`), and sorting (`sort`, `order`).
+- `GET /api/admin/users/{id}` – Retrieve a single user including preferences and audit fields.
+- `POST /api/admin/users` – Create a user with role assignment and optional preferences (`username`, `email`, `password`, `role`, `status`).
+- `PUT /api/admin/users/{id}` – Update profile fields, role, status, password, or preferences.
+- `DELETE /api/admin/users/{id}` – Soft delete (marks `status=inactive` and records `deletedAt`).
+- `GET /api/admin/users/{id}/locations` – Return favorite stations and notification settings for the user.
+
+Sample curl:
+```
+curl "http://localhost:5000/api/admin/users?page=1&page_size=20" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
