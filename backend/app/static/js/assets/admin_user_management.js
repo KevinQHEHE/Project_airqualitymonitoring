@@ -317,7 +317,7 @@ class AdminUserManagement {
         // Update showing info
         const showingInfo = document.getElementById('showingInfo');
         if (showingInfo) {
-            showingInfo.textContent = `Hiển thị ${startItem}-${endItem} trong tổng số ${total} người dùng`;
+            showingInfo.textContent = `Hiển thị ${startItem} - ${endItem} trong tổng số ${total} người dùng`;
         }
 
         // Generate pagination buttons

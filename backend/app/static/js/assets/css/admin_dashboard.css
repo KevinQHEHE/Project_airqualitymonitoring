@@ -392,12 +392,6 @@
     font-size: 0.9rem;
     display: flex;
     align-items: center;
-    white-space: nowrap;
-}
-
-.showing-info span {
-    margin: 0 2px;
-    font-weight: 500;
 }
 
 /* ====== MODAL STYLES ====== */
@@ -1110,11 +1104,6 @@ body {
 
 .admin-wrapper.light-mode .showing-info {
     color: #666 !important;
-}
-
-.admin-wrapper.light-mode .showing-info span {
-    color: #444 !important;
-    font-weight: 600;
 }
 
 /* Custom Close Button Styles */
