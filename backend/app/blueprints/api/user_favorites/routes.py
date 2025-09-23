@@ -77,6 +77,26 @@ def update_user_favorite(fav_id: str):
         return jsonify({'error': 'internal_server_error', 'message': str(e)}), 500
 
 
+@favorites_bp.route('/<fav_id>', methods=['GET'])
+@jwt_required()
+def get_user_favorite(fav_id: str):
+    """Return a single favorite for the current user.
+
+    Note: in the current simplified model fav_id is ignored and the user's
+    single location is returned. When migrating to a dedicated
+    `favorite_locations` collection this will return the document by id.
+    """
+    user_id = _get_user_id_from_jwt()
+    try:
+        fav = get_favorite(user_id, fav_id)
+        return jsonify(fav), 200
+    except FavoritesServiceError as e:
+        return jsonify({'error': e.code, 'message': e.message}), e.status
+    except Exception as e:
+        logger.exception('Unexpected error fetching favorite')
+        return jsonify({'error': 'internal_server_error', 'message': str(e)}), 500
+
+
 @favorites_bp.route('/<fav_id>', methods=['DELETE'])
 @jwt_required()
 def delete_user_favorite(fav_id: str):
