@@ -1,0 +1,20 @@
+{
+  "$id": "https://example.com/schemas/alert_subscriptions.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "alert_subscriptions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["user_id", "station_id", "alert_threshold", "status", "createdAt"],
+  "properties": {
+    "_id": { "type": "string" },
+    "user_id": { "type": "string", "description": "ObjectId as hex string" },
+    "station_id": { "type": "string", "description": "waqi station id" },
+    "alert_threshold": { "type": "integer", "minimum": 0, "maximum": 500 },
+    "status": { "type": "string", "enum": ["active", "paused", "expired"] },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": ["string", "null"], "format": "date-time" },
+    "last_triggered": { "type": ["string", "null"], "format": "date-time" },
+    "email_count": { "type": "integer", "minimum": 0 },
+    "metadata": { "type": "object", "description": "Free-form metadata", "additionalProperties": true }
+  }
+}
