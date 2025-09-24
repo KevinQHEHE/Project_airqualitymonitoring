@@ -220,6 +220,121 @@ Stations endpoints (browse these in the address bar):
 
 `http://localhost:5000/api/stations?city=Hanoi`
 
+### Nearest Station Finder
+
+GET `/api/stations/nearest` - Find monitoring stations nearest to a geographic point.
+
+Query parameters (all sent as query params on a GET request):
+- `lat` (required, number) - Latitude in decimal degrees. Range: `-90` to `90`.
+- `lng` (required, number) - Longitude in decimal degrees. Range: `-180` to `180`.
+- `radius` (optional, number) - Search radius in kilometers. Default: `25`. Maximum allowed: `25` (requests with a larger radius will be rejected).
+- `limit` (optional, integer) - Maximum number of stations to return. Default: `5`. Maximum: `25`.
+
+Validation rules:
+- Missing or out-of-range `lat`/`lng` â†’ `400 Bad Request` with JSON `{ "error": "<short message>" }`.
+- Non-numeric `radius` or `limit` or values outside allowed bounds â†’ `400 Bad Request`.
+
+Behavior and notes:
+- The endpoint uses the database's geospatial index (`2dsphere`) and MongoDB's `$geoNear` aggregation to return stations ordered by distance. The result includes the station basic info and the latest available reading (if any) from the `waqi_station_readings` collection.
+- Returned distances are in kilometers and rounded to two decimal places (e.g. `1.23`).
+- Responses are cached for 5 minutes in the server-side `api_response_cache` collection to reduce repeated work; cache entries use an `expiresAt` field and a TTL index created at application startup (see `backend/app/db.py` for index creation).
+- If the geospatial index is missing, the server will fall back to a server-side Haversine-based filter (slower) and still return correct distances.
+- Rate limiting: by default the route is limited to `100` requests per hour per user. If a valid JWT access token is provided the limiter keys by user identity; otherwise the limiter falls back to IP address. Exceeding the limit returns `429 Too Many Requests` with a `Retry-After` header.
+
+Responses
+- `200 OK` - Successful response with an array of stations ordered by proximity.
+- `400 Bad Request` - Invalid or missing query parameters.
+- `422 Unprocessable Entity` - No stations found within the requested radius.
+- `429 Too Many Requests` - Rate limit exceeded.
+- `500 Internal Server Error` - Unexpected server error.
+
+Success response shape (example):
+```
+{
+	"stations": [
+		{
+			"station_id": "13668",
+			"name": "Station Name",
+			"location": { "type": "Point", "coordinates": [106.8272, 10.8231] },
+			"distance_km": 1.23,
+			"latest_reading": {
+				"aqi": 42,
+				"pm25": 12.3,
+				"pm10": 20.1,
+				"o3": 0.01,
+				"no2": 0.002,
+				"so2": 0.0,
+				"co": 0.1,
+				"timestamp": "2025-09-24T12:00:00Z"
+			}
+		},
+		...
+	],
+	"query": { "lat": 10.8231, "lng": 106.8272, "radius_km": 5, "limit": 3 }
+}
+```
+
+Example cURL (default radius 25 km, default limit 5):
+```
+curl "http://localhost:5000/api/stations/nearest?lat=10.8231&lng=106.6297"
+```
+
+Example cURL (custom radius and limit):
+```
+curl "http://localhost:5000/api/stations/nearest?lat=10.8231&lng=106.6297&radius=5&limit=3"
+```
+
+PowerShell (Windows) example:
+```
+Invoke-RestMethod -Method Get -Uri "http://localhost:5000/api/stations/nearest?lat=10.8231&lng=106.6297&radius=5&limit=3"
+```
+
+Notes for integrators & operators:
+- The caching TTL is 5 minutes to balance freshness and load â€” adjust the TTL and index settings in `backend/app/db.py` if you need a different policy.
+- The endpoint expects the `waqi_station_readings` collection to include a timestamped reading per station; if no reading exists the `latest_reading` field will be `null`.
+- For consistent rate-limiting behavior across a cluster, ensure your deployment provides a shared limiter storage (Redis) as configured in `backend/app/extensions.py` for `Flask-Limiter`.
+- Tests: unit and integration tests for this endpoint live under `scripts_test/test_nearest_integration.py` (mocked DB). For full end-to-end testing consider running tests against a dedicated test MongoDB instance or `mongomock`.
+
+Health & troubleshooting
+- `GET /api/stations/health` - Lightweight health endpoint returning database connectivity and basic server info. Useful for monitoring and quick troubleshooting.
+
+Example success response (HTTP `200`):
+```
+{
+	"status": "healthy",
+	"database": "air_quality_db",
+	"server_version": "8.0.13",
+	"collections": 10,
+	"message": "Database connection is operational"
+}
+```
+
+If the health endpoint reports `status: "unhealthy"` or the `nearest` endpoint returns `{"error":"Database unavailable"}` the server cannot reach MongoDB (check `MONGO_URI`, network access, credentials, and mongod process).
+
+Cache clearing (debugging only): cached nearest responses are stored in the `api_response_cache` collection and expire automatically after 5 minutes. To clear cache immediately (development only):
+```
+mongosh "mongodb://localhost:27017/air_quality_db" --eval 'db.api_response_cache.deleteMany({})'
+```
+
+Trailing slash behavior:
+- The `GET /api/stations` endpoint accepts both `/api/stations` and `/api/stations/` to avoid accidental redirects from clients or tooling (for example PowerShell/curl).
+
+Why `nearest` might return no stations
+- Confirm station documents have a GeoJSON `location` field with coordinates in `[longitude, latitude]` order. Example:
+```
+"location": { "type": "Point", "coordinates": [106.6297, 10.8231] }
+```
+- You can inspect a station via the API:
+```
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:5000/api/stations?limit=1" | ConvertTo-Json -Depth 10
+```
+or directly in MongoDB with `mongosh`:
+```
+mongosh "mongodb://localhost:27017/air_quality_db" --quiet --eval 'printjson(db.waqi_stations.findOne({}, {station_id:1, name:1, location:1, latitude:1, longitude:1, _id:0}))'
+```
+
+If station docs use `latitude`/`longitude` fields rather than a GeoJSON `location`, consider either backfilling a `location` field using those coordinates (recommended for indexing and performance) or using a non-indexed distance fallback (slower).
+
 Air-quality endpoints (browse these in the address bar):
 
 `http://localhost:5000/api/air-quality/latest`
@@ -318,12 +433,12 @@ Acceptance mapping:
 
 All endpoints require a valid admin access token (`Authorization: Bearer <jwt>`).
 
-- `GET /api/admin/users` – List users with pagination (`page`, `page_size`), filters (`role`, `status`, `registered_after`, `registered_before`, `search`), and sorting (`sort`, `order`).
-- `GET /api/admin/users/{id}` – Retrieve a single user including preferences and audit fields.
-- `POST /api/admin/users` – Create a user with role assignment and optional preferences (`username`, `email`, `password`, `role`, `status`).
-- `PUT /api/admin/users/{id}` – Update profile fields, role, status, password, or preferences.
-- `DELETE /api/admin/users/{id}` – Soft delete (marks `status=inactive` and records `deletedAt`).
-- `GET /api/admin/users/{id}/locations` – Return favorite stations and notification settings for the user.
+- `GET /api/admin/users` ï¿½ List users with pagination (`page`, `page_size`), filters (`role`, `status`, `registered_after`, `registered_before`, `search`), and sorting (`sort`, `order`).
+- `GET /api/admin/users/{id}` ï¿½ Retrieve a single user including preferences and audit fields.
+- `POST /api/admin/users` ï¿½ Create a user with role assignment and optional preferences (`username`, `email`, `password`, `role`, `status`).
+- `PUT /api/admin/users/{id}` ï¿½ Update profile fields, role, status, password, or preferences.
+- `DELETE /api/admin/users/{id}` ï¿½ Soft delete (marks `status=inactive` and records `deletedAt`).
+- `GET /api/admin/users/{id}/locations` ï¿½ Return favorite stations and notification settings for the user.
 
 Sample curl:
 ```
