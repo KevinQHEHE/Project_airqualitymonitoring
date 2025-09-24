@@ -356,16 +356,6 @@ def _serialize_user(user: Dict[str, Any], *, include_preferences: bool = False) 
         data["deletedAt"] = _serialize_datetime(user.get("deletedAt"))
     if include_preferences:
         data["preferences"] = user.get("preferences") or {}
-    # Backwards compatible shape for templates: provide `favorite_locations` array
-    loc = user.get('location')
-    if loc:
-        data['favorite_locations'] = [{
-            'name': None,
-            'coordinates': loc.get('coordinates'),
-            'alerts_enabled': False,
-        }]
-    else:
-        data['favorite_locations'] = []
     return data
 
 
@@ -376,16 +366,27 @@ def _serialize_datetime(value: Any) -> Optional[str]:
 
 
 def _build_favorite_locations(user: Dict[str, Any]) -> List[Dict[str, Any]]:
-    # The system stores a single user location at `users.location` (GeoJSON Point).
-    loc = user.get('location')
-    if not loc:
+    preferences = user.get("preferences") or {}
+    favorite_ids = preferences.get("favoriteStations") or []
+    if not favorite_ids:
         return []
-    return [{
-        'id': None,
-        'nickname': None,
-        'alert_threshold': None,
-        'location': loc,
-    }]
+    try:
+        stations = stations_repo.find_by_station_ids(favorite_ids)
+    except PyMongoError as exc:
+        logger.error("Failed to load favorite stations for user %s: %s", user.get("_id"), exc)
+        raise UserServiceError("Failed to load favorite locations", status=500) from exc
+
+    serialized: List[Dict[str, Any]] = []
+    for station in stations:
+        serialized.append(
+            {
+                "id": station.get("_id"),
+                "station_id": station.get("station_id"),
+                "name": (station.get("city") or {}).get("name"),
+                "country": station.get("country"),
+            }
+        )
+    return serialized
 
 
 def _log_action(
