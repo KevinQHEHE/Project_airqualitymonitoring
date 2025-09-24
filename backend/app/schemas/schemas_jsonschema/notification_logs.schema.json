@@ -1,0 +1,19 @@
+{
+  "$id": "https://example.com/schemas/notification_logs.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "notification_logs",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["subscription_id", "user_id", "station_id", "sentAt", "status"],
+  "properties": {
+    "_id": { "type": "string" },
+    "subscription_id": { "type": ["string", "null"], "description": "ObjectId as hex string or null for ad-hoc" },
+    "user_id": { "type": "string" },
+    "station_id": { "type": "string" },
+    "sentAt": { "type": "string", "format": "date-time" },
+    "status": { "type": "string", "enum": ["delivered", "failed", "bounced", "deferred"] },
+    "attempts": { "type": "integer", "minimum": 0 },
+    "response": { "type": "object", "additionalProperties": true },
+    "message_id": { "type": ["string", "null"] }
+  }
+}

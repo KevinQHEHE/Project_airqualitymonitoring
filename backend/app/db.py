@@ -14,11 +14,9 @@ from flask import current_app, g
 
 logger = logging.getLogger(__name__)
 
-
 class DatabaseError(Exception):
     """Custom exception for database-related errors."""
     pass
-
 
 def get_mongo_client() -> MongoClient:
     """Get or create MongoDB client instance.
@@ -208,6 +206,32 @@ def ensure_indexes() -> bool:
         except Exception:
             # Ignore index errors to avoid blocking startup
             pass
+        
+        # Alert subscriptions indexes: efficient lookups by user, station, status and threshold
+        try:
+            subs = db.alert_subscriptions
+            subs.create_index([('user_id', 1)])
+            subs.create_index([('station_id', 1)])
+            subs.create_index([('station_id', 1), ('alert_threshold', 1), ('status', 1)])
+            subs.create_index([('user_id', 1), ('status', 1)])
+        except Exception:
+            logger.debug('Could not create indexes for alert_subscriptions')
+
+        # Notification logs: indexing for auditing and TTL retention
+        try:
+            logs = db.notification_logs
+            logs.create_index([('subscription_id', 1)])
+            logs.create_index([('user_id', 1)])
+            logs.create_index([('station_id', 1)])
+            logs.create_index([('sentAt', 1)])
+            # ttl: keep logs for 90 days
+            try:
+                logs.create_index('sentAt', expireAfterSeconds=90 * 24 * 60 * 60)
+            except Exception:
+                # ignore conflicts with existing TTL settings
+                pass
+        except Exception:
+            logger.debug('Could not create indexes for notification_logs')
         
         logger.info("Database indexes created/verified successfully")
         return True

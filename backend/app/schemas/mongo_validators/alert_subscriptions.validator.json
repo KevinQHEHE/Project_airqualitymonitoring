@@ -1,0 +1,18 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "title": "alert_subscriptions",
+    "required": ["user_id", "station_id", "alert_threshold", "status", "createdAt"],
+    "properties": {
+      "user_id": { "bsonType": "objectId", "description": "Reference to users._id" },
+      "station_id": { "bsonType": "string", "description": "Station identifier (waqi station_id)" },
+      "alert_threshold": { "bsonType": "int", "minimum": 0, "maximum": 500, "description": "AQI threshold to trigger an alert" },
+      "status": { "enum": ["active", "paused", "expired"], "description": "Subscription status" },
+      "createdAt": { "bsonType": "date" },
+      "updatedAt": { "bsonType": ["date", "null"] },
+      "last_triggered": { "bsonType": ["date", "null"], "description": "Last time a notification was triggered" },
+      "email_count": { "bsonType": "int", "minimum": 0, "description": "Number of emails sent for this subscription" },
+      "metadata": { "bsonType": "object", "description": "Free-form metadata (client hints, nickname, etc.)" }
+    }
+  }
+}
