@@ -220,6 +220,102 @@ Stations endpoints (browse these in the address bar):
 
 `http://localhost:5000/api/stations?city=Hanoi`
 
+
+### Nearest Station Finder
+
+GET `/api/stations/nearest` - Find monitoring stations nearest to a geographic point.
+
+Query parameters (all sent as query params on a GET request):
+- `lat` (required, number) - Latitude in decimal degrees. Range: `-90` to `90`.
+- `lng` (required, number) - Longitude in decimal degrees. Range: `-180` to `180`.
+- `radius` (optional, number) - Search radius in kilometers. Default: `25`. Maximum allowed: `50` (requests with a larger radius will be rejected).
+- `limit` (optional, integer) - Maximum number of stations to return. Default: `1` (the endpoint commonly returns the single nearest station). Maximum: `25`.
+
+Validation rules:
+- Missing or out-of-range `lat`/`lng` â†’ `400 Bad Request` with JSON `{ "error": "<short message>" }`.
+- Non-numeric `radius` or `limit` or values outside allowed bounds â†’ `400 Bad Request`.
+
+Behavior and notes:
+- The endpoint uses the database's geospatial index (`2dsphere`) and MongoDB's `$geoNear` aggregation to return stations ordered by distance. If a `location` index is not available, the server falls back to an in-process Haversine scan across legacy fields (slower).
+- The aggregation stage performs a `$lookup` into `waqi_station_readings` to attach the latest reading. The lookup now matches readings by either `station_id` (string) or `meta.station_idx` (integer), and orders readings by the normalized `ts` field (UTC datetime) to ensure the most recent reading is returned.
+- Returned distances are in kilometers and rounded to two decimal places (e.g. `1.23`).
+- Responses are cached for 5 minutes in the server-side `api_response_cache` collection to reduce repeated work; cache entries use an `expiresAt` field and a TTL index created at application startup (see `backend/app/db.py` for index creation). When a cached nearest entry is returned the server will attempt to enrich the cached `latest_reading` by checking the readings collection for a newer `ts` and refresh the cache if necessary.
+- Rate limiting: by default the route is limited to `100` requests per hour per user. If a valid JWT access token is provided the limiter keys by user identity; otherwise the limiter falls back to IP address. Exceeding the limit returns `429 Too Many Requests` with a `Retry-After` header.
+
+Responses
+- `200 OK` - Successful response with station(s) ordered by proximity.
+- `400 Bad Request` - Invalid or missing query parameters.
+- `404 Not Found` - No stations found within the requested radius (the endpoint returns a `200` with `station: null` in some fallback cases; check message in response).
+- `429 Too Many Requests` - Rate limit exceeded.
+- `500 Internal Server Error` - Unexpected server error.
+
+Success response shape (example):
+```
+{
+ 	"stations": [
+ 		{
+ 			"station_id": "1583",
+ 			"name": "Hanoi, Vietnam (HÃ  Ná»™i)",
+ 			"location": { "type": "Point", "coordinates": [105.8831, 21.0491] },
+ 			"_distance_km": 0.0,
+ 			"latest_reading": {
+ 				"aqi": 9,
+ 				"iaqi": { "pm25": {"v": 9}, "pm10": {"v": 6}, ... },
+ 				"time": { "iso": "2025-09-24T21:00:00+07:00", "s": "2025-09-24 21:00:00", "v": 1758747600 }
+ 			}
+ 		}
+ 	],
+ 	"query": { "lat": 21.0491, "lng": 105.8831, "radius_km": 25, "limit": 1 }
+}
+```
+
+Notes for integrators & operators:
+- The aggregation `$lookup` matches readings by `station_id` (string) or `meta.station_idx` (integer) and sorts on `ts` (UTC datetime) to find the most recent reading; ensure your ingest writes `ts` and (when applicable) `meta.station_idx` for reliable lookups.
+- The public response is sanitized: debug/internal fields like `dist` and `city_geo` are removed, the nested `city.geo` object is dropped if a top-level `location` is present (to avoid duplicated coordinate blobs), and `station_id` is preferred as the client-facing identifier (the internal `_id` is removed when `station_id` exists).
+- Cache: cached entries are pruned of debug/internal fields before persistence so cache contents are safe to serve. Cache entries are refreshed automatically when a newer `ts`-based reading is detected.
+- For consistent rate-limiting behavior across a cluster, ensure your deployment provides a shared limiter storage (Redis) as configured in `backend/app/extensions.py` for `Flask-Limiter`.
+- Tests: unit and integration tests for this endpoint live under `scripts_test/test_nearest_integration.py` (mocked DB). For full end-to-end testing consider running tests against a dedicated test MongoDB instance or `mongomock`.
+
+Health & troubleshooting
+- `GET /api/stations/health` - Lightweight health endpoint returning database connectivity and basic server info. Useful for monitoring and quick troubleshooting.
+
+Example success response (HTTP `200`):
+```
+{
+	"status": "healthy",
+	"database": "air_quality_db",
+	"server_version": "8.0.13",
+	"collections": 10,
+	"message": "Database connection is operational"
+}
+```
+
+If the health endpoint reports `status: "unhealthy"` or the `nearest` endpoint returns `{"error":"Database unavailable"}` the server cannot reach MongoDB (check `MONGO_URI`, network access, credentials, and mongod process).
+
+Cache clearing (debugging only): cached nearest responses are stored in the `api_response_cache` collection and expire automatically after 5 minutes. To clear cache immediately (development only):
+```
+mongosh "mongodb://localhost:27017/air_quality_db" --eval 'db.api_response_cache.deleteMany({})'
+```
+
+Trailing slash behavior:
+- The `GET /api/stations` endpoint accepts both `/api/stations` and `/api/stations/` to avoid accidental redirects from clients or tooling (for example PowerShell/curl).
+
+Why `nearest` might return no stations
+- Confirm station documents have a GeoJSON `location` field with coordinates in `[longitude, latitude]` order. Example:
+```
+"location": { "type": "Point", "coordinates": [106.6297, 10.8231] }
+```
+- You can inspect a station via the API:
+```
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:5000/api/stations?limit=1" | ConvertTo-Json -Depth 10
+```
+or directly in MongoDB with `mongosh`:
+```
+mongosh "mongodb://localhost:27017/air_quality_db" --quiet --eval 'printjson(db.waqi_stations.findOne({}, {station_id:1, name:1, location:1, latitude:1, longitude:1, _id:0}))'
+```
+
+If station docs use `latitude`/`longitude` fields rather than a GeoJSON `location`, consider either backfilling a `location` field using those coordinates (recommended for indexing and performance) or using a non-indexed distance fallback (slower).
+
 Air-quality endpoints (browse these in the address bar):
 
 `http://localhost:5000/api/air-quality/latest`
@@ -318,12 +414,12 @@ Acceptance mapping:
 
 All endpoints require a valid admin access token (`Authorization: Bearer <jwt>`).
 
-- `GET /api/admin/users` – List users with pagination (`page`, `page_size`), filters (`role`, `status`, `registered_after`, `registered_before`, `search`), and sorting (`sort`, `order`).
-- `GET /api/admin/users/{id}` – Retrieve a single user including preferences and audit fields.
-- `POST /api/admin/users` – Create a user with role assignment and optional preferences (`username`, `email`, `password`, `role`, `status`).
-- `PUT /api/admin/users/{id}` – Update profile fields, role, status, password, or preferences.
-- `DELETE /api/admin/users/{id}` – Soft delete (marks `status=inactive` and records `deletedAt`).
-- `GET /api/admin/users/{id}/locations` – Return favorite stations and notification settings for the user.
+- `GET /api/admin/users` ï¿½ List users with pagination (`page`, `page_size`), filters (`role`, `status`, `registered_after`, `registered_before`, `search`), and sorting (`sort`, `order`).
+- `GET /api/admin/users/{id}` ï¿½ Retrieve a single user including preferences and audit fields.
+- `POST /api/admin/users` ï¿½ Create a user with role assignment and optional preferences (`username`, `email`, `password`, `role`, `status`).
+- `PUT /api/admin/users/{id}` ï¿½ Update profile fields, role, status, password, or preferences.
+- `DELETE /api/admin/users/{id}` ï¿½ Soft delete (marks `status=inactive` and records `deletedAt`).
+- `GET /api/admin/users/{id}/locations` ï¿½ Return favorite stations and notification settings for the user.
 
 Sample curl:
 ```

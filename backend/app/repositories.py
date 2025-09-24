@@ -149,10 +149,10 @@ class ReadingsRepository(BaseRepository):
         super().__init__('waqi_station_readings')
 
     def find_latest_by_station(self, station_id: str, limit: int = 10) -> List[Dict[str, Any]]:
-        return self.find_many({'station_id': station_id}, limit=limit, sort=[('timestamp', -1)])
+        return self.find_many({'station_id': station_id}, limit=limit, sort=[('ts', -1)])
 
     def find_by_time_range(self, station_id: str, start_time: datetime, end_time: datetime) -> List[Dict[str, Any]]:
-        return self.find_many({'station_id': station_id, 'timestamp': {'$gte': start_time, '$lte': end_time}}, sort=[('timestamp', 1)])
+        return self.find_many({'station_id': station_id, 'ts': {'$gte': start_time, '$lte': end_time}}, sort=[('ts', 1)])
 
     def find_by_aqi_range(self, min_aqi: int, max_aqi: int) -> List[Dict[str, Any]]:
         return self.find_many({'aqi': {'$gte': min_aqi, '$lte': max_aqi}})

@@ -164,16 +164,25 @@ def ensure_indexes() -> bool:
     """
     try:
         db = get_db()
-        
+
         # Station readings indexes
         readings_collection = db.waqi_station_readings
-        readings_collection.create_index([('station_id', 1), ('timestamp', -1)])
-        readings_collection.create_index([('timestamp', -1)])
+        readings_collection.create_index([('station_id', 1), ('ts', -1)])
+        readings_collection.create_index([('ts', -1)])
         readings_collection.create_index([('location', '2dsphere')])
-        
+
         # Stations indexes
         stations_collection = db.waqi_stations
-        stations_collection.create_index([('station_id', 1)], unique=True)
+        # station_id should be unique when present; skip documents where station_id is null
+        try:
+            stations_collection.create_index([('station_id', 1)], unique=True, partialFilterExpression={"station_id": {"$exists": True, "$ne": None}})
+        except Exception:
+            # Fallback for Mongo versions that don't support partialFilterExpression
+            try:
+                stations_collection.create_index([('station_id', 1)], unique=True)
+            except Exception:
+                # Ignore to avoid startup failure (index may already exist or conflict)
+                pass
         stations_collection.create_index([('location', '2dsphere')])
         stations_collection.create_index([('city', 1)])
         
@@ -205,6 +214,12 @@ def ensure_indexes() -> bool:
             email_cache.create_index('expiresAt', expireAfterSeconds=0)
         except Exception:
             # Ignore index errors to avoid blocking startup
+            pass
+        # API response cache TTL index (used by nearest endpoint cache)
+        try:
+            api_cache = db.api_response_cache
+            api_cache.create_index('expiresAt', expireAfterSeconds=0)
+        except Exception:
             pass
         
         # Alert subscriptions indexes: efficient lookups by user, station, status and threshold
