@@ -62,18 +62,56 @@ def prepare_response(response: dict) -> dict:
     """
     # Always prune internal aggregation/debug fields from responses served to clients
     if isinstance(response, dict):
-        stations = response.get('stations')
-        if isinstance(stations, list):
-            for s in stations:
-                if isinstance(s, dict):
-                    # remove internal aggregation fields
-                    s.pop('dist', None)
-                    s.pop('city_geo', None)
-                    # trim latest_reading to essential fields to avoid large payloads
-                    lr = s.get('latest_reading')
-                    if isinstance(lr, dict):
-                        trimmed = {k: lr[k] for k in ('aqi', 'time', 'iaqi', 'meta') if k in lr}
-                        s['latest_reading'] = trimmed if trimmed else None
+        # support single 'station' or list 'stations'
+        if 'station' in response and isinstance(response['station'], dict):
+            stations_iter = [response['station']]
+            single = True
+        else:
+            stations_iter = response.get('stations') if isinstance(response.get('stations'), list) else []
+            single = False
+
+        for s in stations_iter:
+            if isinstance(s, dict):
+                s.pop('dist', None)
+                s.pop('city_geo', None)
+                # remove nested city.geo when location already present to avoid duplicate coords
+                if isinstance(s.get('city'), dict) and 'geo' in s.get('city', {}):
+                    try:
+                        # if we also have a top-level location, drop the city's geo to avoid duplication
+                        if s.get('location'):
+                            s['city'].pop('geo', None)
+                    except Exception:
+                        s['city'].pop('geo', None)
+                lr = s.get('latest_reading')
+                if isinstance(lr, dict):
+                    trimmed = {k: lr[k] for k in ('aqi', 'time', 'iaqi', 'meta') if k in lr}
+                    s['latest_reading'] = trimmed if trimmed else None
+
+                # Ensure minimal fallbacks so clients always get an id/name when possible
+                if not s.get('station_id') and s.get('_id') is not None:
+                    try:
+                        s['station_id'] = str(s.get('_id'))
+                    except Exception:
+                        s['station_id'] = s.get('_id')
+
+                # drop duplicate _id if station_id is present (client-facing id is station_id)
+                if s.get('station_id') and s.get('_id') is not None:
+                    s.pop('_id', None)
+
+                if not s.get('name') and isinstance(s.get('city'), dict):
+                    cname = s['city'].get('name')
+                    if cname:
+                        s['name'] = cname
+
+                # ensure location present from city.geo when missing
+                if not s.get('location') and isinstance(s.get('city'), dict):
+                    city_geo = s['city'].get('geo')
+                    if isinstance(city_geo, dict):
+                        s['location'] = city_geo
+
+        # if single, ensure response contains 'station' cleaned
+        if single:
+            response['station'] = stations_iter[0]
     return sanitize_for_json(response)
 
 
@@ -138,12 +176,46 @@ def extract_coords_from_doc(doc):
     return None, None
 
 
+def _extract_latest_from_station_doc(doc):
+    """Return a minimal latest_reading dict from a station document if possible.
+
+    Tries several common fields used across codepaths: 'latest_reading_at',
+    'latest_update_time', 'latest', 'timestamp'. Returns None if not found.
+    If pollutant fields like 'aqi' or 'iaqi' exist, include them.
+    """
+    if not isinstance(doc, dict):
+        return None
+    candidates = ['latest_reading_at', 'latest_update_time', 'latest', 'timestamp', 'last_reading', 'last_update']
+    for key in candidates:
+        val = doc.get(key)
+        if val is not None:
+            lr = {'time': val, 'meta': {'source': f'station.{key}'}}
+            if 'aqi' in doc and doc.get('aqi') is not None:
+                lr['aqi'] = doc.get('aqi')
+            if 'iaqi' in doc and isinstance(doc.get('iaqi'), dict):
+                lr['iaqi'] = doc.get('iaqi')
+            return lr
+    # sometimes nested under city
+    city = doc.get('city') if isinstance(doc.get('city'), dict) else None
+    if city:
+        for key in ('latest_reading_at', 'latest_update_time', 'latest'):
+            val = city.get(key)
+            if val is not None:
+                lr = {'time': val, 'meta': {'source': f'station.city.{key}'}}
+                if 'aqi' in doc and doc.get('aqi') is not None:
+                    lr['aqi'] = doc.get('aqi')
+                if 'iaqi' in doc and isinstance(doc.get('iaqi'), dict):
+                    lr['iaqi'] = doc.get('iaqi')
+                return lr
+    return None
+
+
 def get_latest_reading(database, station_id):
     """Return latest reading document for station_id or None (safe wrapper)."""
     try:
         if station_id is None:
             return None
-        return database.waqi_station_readings.find_one({'station_id': station_id}, sort=[('timestamp', -1)])
+        return database.waqi_station_readings.find_one({'station_id': station_id}, sort=[('ts', -1)])
     except Exception:
         return None
 
@@ -156,26 +228,138 @@ def _sanitize_for_cache(response: dict) -> dict:
     """
     if not isinstance(response, dict):
         return response
-    cleaned = {'stations': []}
-    stations = response.get('stations')
-    if isinstance(stations, list):
-        for s in stations:
-            if not isinstance(s, dict):
-                continue
-            # shallow copy and remove internals
-            item = dict(s)
-            item.pop('dist', None)
-            item.pop('city_geo', None)
-            # trim latest_reading similar to prepare_response
-            lr = item.get('latest_reading')
-            if isinstance(lr, dict):
-                trimmed = {}
-                for key in ('aqi', 'time', 'iaqi', 'meta'):
-                    if key in lr:
-                        trimmed[key] = lr[key]
-                item['latest_reading'] = trimmed if trimmed else None
-            cleaned['stations'].append(item)
-    return cleaned
+    cleaned_list = []
+    # handle single station or stations list
+    if 'station' in response and isinstance(response['station'], dict):
+        src = [response['station']]
+    else:
+        src = response.get('stations') if isinstance(response.get('stations'), list) else []
+
+    for s in src:
+        if not isinstance(s, dict):
+            continue
+        item = dict(s)
+        item.pop('dist', None)
+        item.pop('city_geo', None)
+        # remove nested city.geo to avoid storing duplicate coordinates in cache
+        if isinstance(item.get('city'), dict) and 'geo' in item.get('city', {}):
+            try:
+                if item.get('location'):
+                    item['city'].pop('geo', None)
+            except Exception:
+                item['city'].pop('geo', None)
+        lr = item.get('latest_reading')
+        if isinstance(lr, dict):
+            trimmed = {k: lr[k] for k in ('aqi', 'time', 'iaqi', 'meta') if k in lr}
+            item['latest_reading'] = trimmed if trimmed else None
+        cleaned_list.append(item)
+
+    # always return single-station shape for cache
+    if cleaned_list:
+        return {'station': cleaned_list[0]}
+    return {'station': None}
+
+
+def _build_station_item(doc: dict, database, lat: float, lng: float) -> dict:
+    """Normalize a station document into the single-station response format."""
+    station = {}
+    # normalize identifier: try several common fields
+    raw_id = doc.get('_id') or doc.get('id') or doc.get('uid') or doc.get('station_id')
+    station['_id'] = str(raw_id) if raw_id is not None else None
+    station['station_id'] = doc.get('station_id') or doc.get('id') or doc.get('uid') or None
+    # name fallbacks
+    station['name'] = doc.get('name') or doc.get('station_name') or doc.get('station') or None
+    station['country'] = doc.get('country') if doc.get('country') is not None else None
+    station['city'] = doc.get('city') if isinstance(doc.get('city'), dict) else None
+    # ensure location present
+    loc = doc.get('location') or (doc.get('city', {}).get('geo') if isinstance(doc.get('city'), dict) else None) or doc.get('geo')
+    station['location'] = loc if isinstance(loc, dict) else None
+    dist = _compute_distance_km_from_doc(doc, lat, lng)
+    # if distance couldn't be computed but coordinates exactly match, set 0.0
+    if dist is None:
+        # attempt to extract coords
+        doc_lat, doc_lng = extract_coords_from_doc(doc)
+        try:
+            if doc_lat is not None and doc_lng is not None and abs(doc_lat - lat) < 1e-9 and abs(doc_lng - lng) < 1e-9:
+                dist = 0.0
+        except Exception:
+            pass
+    station['_distance_km'] = dist
+    # attach latest reading (trimmed later in prepare_response)
+    latest = None
+    try:
+        # If aggregation already included a latest_reading, prefer it
+        if doc.get('latest_reading'):
+            latest = doc.get('latest_reading')
+        else:
+            sid = doc.get('station_id')
+            if sid is not None:
+                latest = database.waqi_station_readings.find_one({'station_id': sid}, sort=[('ts', -1)])
+        # fallback: try numeric document id
+        if not latest:
+            raw_id = doc.get('_id')
+            if raw_id is not None:
+                try:
+                    latest = database.waqi_station_readings.find_one({'station_id': int(raw_id)}, sort=[('ts', -1)])
+                except Exception:
+                    pass
+        # fallback: try stringified id
+        if not latest:
+            raw_id = doc.get('_id')
+            if raw_id is not None:
+                try:
+                    latest = database.waqi_station_readings.find_one({'station_id': str(raw_id)}, sort=[('ts', -1)])
+                except Exception:
+                    pass
+        # fallback: match by exact location coordinates in readings if available
+        if not latest:
+            loc = doc.get('location')
+            coords = loc.get('coordinates') if isinstance(loc, dict) else None
+            if coords and isinstance(coords, list) and len(coords) >= 2:
+                station_lng, station_lat = coords[0], coords[1]
+                try:
+                    latest = database.waqi_station_readings.find_one({'location.coordinates': [station_lng, station_lat]}, sort=[('ts', -1)])
+                except Exception:
+                    latest = None
+    except Exception:
+        latest = None
+    station['latest_reading'] = latest if latest else None
+    # If no reading document exists, fall back to station metadata timestamp
+    # Many station documents carry `latest_reading_at` (ISO string) when
+    # a full reading object hasn't been persisted to `waqi_station_readings`.
+    # Provide a minimal `latest_reading` object so clients receive at least
+    # a time indicator (prepare_response will trim fields to a safe subset).
+    if station.get('latest_reading') is None:
+        lr = _extract_latest_from_station_doc(doc)
+        if lr is not None:
+            station['latest_reading'] = lr
+            try:
+                logger.info("Populated latest_reading for station %s from station doc (source=%s)", station.get('station_id') or station.get('_id'), lr.get('meta', {}).get('source'))
+            except Exception:
+                pass
+    # fallback: if no explicit station_id, use the document id
+    if not station.get('station_id') and station.get('_id'):
+        station['station_id'] = station.get('_id')
+    # coerce station_id to string when present
+    if station.get('station_id') is not None:
+        try:
+            station['station_id'] = str(station['station_id'])
+        except Exception:
+            pass
+    # fallback: use city name if station name missing
+    if not station.get('name') and isinstance(station.get('city'), dict):
+        cname = station['city'].get('name')
+        if cname:
+            station['name'] = cname
+    # ensure location from city.geo if absent
+    if not station.get('location') and isinstance(station.get('city'), dict):
+        city_geo = station['city'].get('geo')
+        if isinstance(city_geo, dict):
+            station['location'] = city_geo
+
+    # prune top-level None values for cleaner client response
+    pruned = {k: v for k, v in station.items() if v is not None}
+    return pruned
 
 
 @stations_bp.route('', methods=['GET'])
@@ -288,13 +472,8 @@ def get_nearest_stations():
         if radius > 50:
             return jsonify({"error": "radius cannot exceed 50 km"}), 400
 
-        # limit
-        try:
-            limit = int(request.args.get('limit', 1))
-        except ValueError:
-            return jsonify({"error": "Invalid limit"}), 400
-        if limit <= 0 or limit > 10:
-            return jsonify({"error": "limit must be between 1 and 10"}), 400
+        # For this endpoint we only return the single nearest station
+        limit = 1
 
         # caching key
         cache_key = f"nearest:{lat:.6f}:{lng:.6f}:{radius:.1f}:{limit}"
@@ -312,7 +491,93 @@ def get_nearest_stations():
         cached = cache_coll.find_one({"_id": cache_key})
         if cached:
             response = cached['response']
+            # cached shapes may vary; prepare_response will normalize
             response.pop('_diagnostics', None)
+            # Ensure cached station.latest_reading is fresh: compare with
+            # the most recent reading in `waqi_station_readings` (sorted by 'ts').
+            try:
+                station_obj = None
+                if isinstance(response, dict):
+                    station_obj = response.get('station') if isinstance(response.get('station'), dict) else None
+                    if station_obj is None:
+                        sts = response.get('stations')
+                        if isinstance(sts, list) and len(sts) > 0 and isinstance(sts[0], dict):
+                            station_obj = sts[0]
+
+                if station_obj is not None:
+                    # Lookup the latest reading document from readings collection
+                    latest_doc = None
+                    sid = station_obj.get('station_id')
+                    if sid is not None:
+                        try:
+                            latest_doc = database.waqi_station_readings.find_one({'station_id': sid}, sort=[('ts', -1)])
+                        except Exception:
+                            latest_doc = None
+
+                    # fallback: numeric _id
+                    if latest_doc is None and station_obj.get('_id') is not None:
+                        try:
+                            latest_doc = database.waqi_station_readings.find_one({'station_id': int(station_obj.get('_id'))}, sort=[('ts', -1)])
+                        except Exception:
+                            latest_doc = None
+
+                    # fallback: match by location coordinates
+                    if latest_doc is None and isinstance(station_obj.get('location'), dict):
+                        coords = station_obj['location'].get('coordinates')
+                        if isinstance(coords, list) and len(coords) >= 2:
+                            try:
+                                latest_doc = database.waqi_station_readings.find_one({'location.coordinates': [coords[0], coords[1]]}, sort=[('ts', -1)])
+                            except Exception:
+                                latest_doc = None
+
+                    # If latest_doc exists, check if it's newer than cached one
+                    if latest_doc is not None:
+                        cached_lr = station_obj.get('latest_reading')
+                        need_update = False
+                        try:
+                            # Determine cached timestamp / epoch
+                            cached_v = None
+                            cached_time_iso = None
+                            if isinstance(cached_lr, dict):
+                                t = cached_lr.get('time')
+                                if isinstance(t, dict):
+                                    cached_v = t.get('v')
+                                    cached_time_iso = t.get('iso') or t.get('s')
+                                else:
+                                    cached_time_iso = t
+                            # Latest doc values
+                            latest_v = None
+                            latest_time_iso = None
+                            if isinstance(latest_doc.get('time'), dict):
+                                latest_v = latest_doc['time'].get('v')
+                                latest_time_iso = latest_doc['time'].get('iso') or latest_doc['time'].get('s')
+                            # Compare using epoch if available
+                            if latest_v is not None and cached_v is not None:
+                                try:
+                                    if int(latest_v) != int(cached_v):
+                                        need_update = True
+                                except Exception:
+                                    need_update = True
+                            elif latest_time_iso is not None and cached_time_iso is not None:
+                                if latest_time_iso != cached_time_iso:
+                                    need_update = True
+                            else:
+                                # fallback: if aqi differs
+                                if isinstance(cached_lr, dict) and cached_lr.get('aqi') != latest_doc.get('aqi'):
+                                    need_update = True
+                        except Exception:
+                            need_update = True
+
+                        if need_update:
+                            station_obj['latest_reading'] = latest_doc
+                            try:
+                                _cache_response(response, cache_coll, cache_key)
+                            except Exception:
+                                pass
+            except Exception:
+                # ignore enrichment failures and return cached response
+                pass
+
             return jsonify(prepare_response(response)), 200
 
         max_meters = int(radius * 1000)
@@ -332,8 +597,11 @@ def get_nearest_stations():
                     'from': 'waqi_station_readings',
                     'let': {'sid': '$station_id'},
                     'pipeline': [
-                        {'$match': {'$expr': {'$eq': ['$station_id', '$$sid']}}},
-                        {'$sort': {'timestamp': -1}},
+                        {'$match': {'$expr': {'$or': [
+                            {'$eq': ['$station_id', '$$sid']},
+                            {'$eq': ['$meta.station_idx', {'$toInt': '$$sid'}]}
+                        ]}}},
+                        {'$sort': {'ts': -1}},
                         {'$limit': 1}
                     ],
                     'as': 'latest_reading'
@@ -380,22 +648,11 @@ def get_nearest_stations():
 
         # If aggregation returned results, format and return
         if results:
-            response_list = []
-            for doc in results:
-                dist_km = _compute_distance_km_from_doc(doc, lat, lng)
-                item = doc.copy()
-                item['_distance_km'] = dist_km
-                if '_id' in item:
-                    item['_id'] = str(item['_id'])
-                response_list.append(item)
-
-            response = {"stations": response_list}
-
-            # Cache response (sanitized inside helper)
+            # Only first (nearest) result is needed
+            doc = results[0]
+            station_item = _build_station_item(doc, database, lat, lng)
+            response = {"station": station_item}
             _cache_response(response, cache_coll, cache_key)
-
-                # debug diagnostics removed from responses
-
             return jsonify(prepare_response(response)), 200
 
         # Try alternate geo field `city.geo` (some documents keep coordinates there)
@@ -416,8 +673,11 @@ def get_nearest_stations():
                         'from': 'waqi_station_readings',
                         'let': {'sid': '$station_id'},
                         'pipeline': [
-                            {'$match': {'$expr': {'$eq': ['$station_id', '$$sid']}}},
-                            {'$sort': {'timestamp': -1}},
+                            {'$match': {'$expr': {'$or': [
+                                {'$eq': ['$station_id', '$$sid']},
+                                {'$eq': ['$meta.station_idx', {'$toInt': '$$sid'}]}
+                            ]}}},
+                            {'$sort': {'ts': -1}},
                             {'$limit': 1}
                         ],
                         'as': 'latest_reading'
@@ -440,25 +700,12 @@ def get_nearest_stations():
             alt_results = list(database.waqi_stations.aggregate(alt_pipeline))
             if alt_results:
                 # Normalize docs to include `location` from `city.geo` when missing
-                normalized_results = []
                 for doc in alt_results:
                     if not doc.get('location') and isinstance(doc.get('city_geo'), dict):
                         doc['location'] = doc.get('city_geo')
-                    normalized_results.append(doc)
-
-                results = normalized_results
-
-                response_list = []
-                for doc in results:
-                    dist_km = _compute_distance_km_from_doc(doc, lat, lng)
-                    item = doc.copy()
-                    item['_distance_km'] = dist_km
-                    if '_id' in item:
-                        item['_id'] = str(item['_id'])
-                    response_list.append(item)
-
-                response = {"stations": response_list}
-
+                doc = alt_results[0]
+                station_item = _build_station_item(doc, database, lat, lng)
+                response = {"station": station_item}
                 _cache_response(response, cache_coll, cache_key)
                 return jsonify(prepare_response(response)), 200
         except OperationFailure as e:
@@ -587,44 +834,35 @@ def get_nearest_stations():
                         try:
                             sid = doc.get('station_id')
                             if sid is not None:
-                                latest = database.waqi_station_readings.find_one({'station_id': sid}, sort=[('timestamp', -1)])
+                                latest = database.waqi_station_readings.find_one({'station_id': sid}, sort=[('ts', -1)])
                         except Exception:
                             latest = None
                         item = normalized.copy()
                         item['latest_reading'] = latest if latest else None
-                        response = {"stations": [item]}
-                        # exact match found
-                        # Cache sanitized response
+                        response = {"station": item}
                         _cache_response(response, cache_coll, cache_key)
-                        # exact match found
                         return jsonify(prepare_response(response)), 200
 
             # Build response from selected candidates
-            response_list = []
-            for dist_km, doc, normalized in selected:
+            # Use first selected candidate (nearest)
+            dist_km, doc, normalized = selected[0]
+            latest = None
+            try:
+                sid = doc.get('station_id')
+                if sid is not None:
+                    latest = database.waqi_station_readings.find_one({'station_id': sid}, sort=[('ts', -1)])
+            except Exception:
                 latest = None
-                try:
-                    sid = doc.get('station_id')
-                    if sid is not None:
-                        latest = database.waqi_station_readings.find_one({'station_id': sid}, sort=[('timestamp', -1)])
-                except Exception:
-                    latest = None
 
-                item = normalized.copy()
-                item['latest_reading'] = latest if latest else None
-                response_list.append(item)
-
-            response = {"stations": response_list}
-
-            # Cache sanitized response
+            item = normalized.copy()
+            item['latest_reading'] = latest if latest else None
+            response = {"station": item}
             _cache_response(response, cache_coll, cache_key)
-
             return jsonify(prepare_response(response)), 200
 
         except Exception as e:
             logger.exception("Legacy geo fallback failed: %s", e)
-            resp = {"stations": [], "message": "No stations found within radius"}
-            # debug diagnostics removed from responses
+            resp = {"station": None, "message": "No stations found within radius"}
             return jsonify(resp), 200
 
     except Exception as e:

@@ -166,13 +166,13 @@ def ensure_indexes() -> bool:
     """
     try:
         db = get_db()
-        
+
         # Station readings indexes
         readings_collection = db.waqi_station_readings
-        readings_collection.create_index([('station_id', 1), ('timestamp', -1)])
-        readings_collection.create_index([('timestamp', -1)])
+        readings_collection.create_index([('station_id', 1), ('ts', -1)])
+        readings_collection.create_index([('ts', -1)])
         readings_collection.create_index([('location', '2dsphere')])
-        
+
         # Stations indexes
         stations_collection = db.waqi_stations
         # station_id should be unique when present; skip documents where station_id is null

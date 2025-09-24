@@ -220,6 +220,7 @@ Stations endpoints (browse these in the address bar):
 
 `http://localhost:5000/api/stations?city=Hanoi`
 
+
 ### Nearest Station Finder
 
 GET `/api/stations/nearest` - Find monitoring stations nearest to a geographic point.
@@ -227,71 +228,51 @@ GET `/api/stations/nearest` - Find monitoring stations nearest to a geographic p
 Query parameters (all sent as query params on a GET request):
 - `lat` (required, number) - Latitude in decimal degrees. Range: `-90` to `90`.
 - `lng` (required, number) - Longitude in decimal degrees. Range: `-180` to `180`.
-- `radius` (optional, number) - Search radius in kilometers. Default: `25`. Maximum allowed: `25` (requests with a larger radius will be rejected).
-- `limit` (optional, integer) - Maximum number of stations to return. Default: `5`. Maximum: `25`.
+- `radius` (optional, number) - Search radius in kilometers. Default: `25`. Maximum allowed: `50` (requests with a larger radius will be rejected).
+- `limit` (optional, integer) - Maximum number of stations to return. Default: `1` (the endpoint commonly returns the single nearest station). Maximum: `25`.
 
 Validation rules:
 - Missing or out-of-range `lat`/`lng` → `400 Bad Request` with JSON `{ "error": "<short message>" }`.
 - Non-numeric `radius` or `limit` or values outside allowed bounds → `400 Bad Request`.
 
 Behavior and notes:
-- The endpoint uses the database's geospatial index (`2dsphere`) and MongoDB's `$geoNear` aggregation to return stations ordered by distance. The result includes the station basic info and the latest available reading (if any) from the `waqi_station_readings` collection.
+- The endpoint uses the database's geospatial index (`2dsphere`) and MongoDB's `$geoNear` aggregation to return stations ordered by distance. If a `location` index is not available, the server falls back to an in-process Haversine scan across legacy fields (slower).
+- The aggregation stage performs a `$lookup` into `waqi_station_readings` to attach the latest reading. The lookup now matches readings by either `station_id` (string) or `meta.station_idx` (integer), and orders readings by the normalized `ts` field (UTC datetime) to ensure the most recent reading is returned.
 - Returned distances are in kilometers and rounded to two decimal places (e.g. `1.23`).
-- Responses are cached for 5 minutes in the server-side `api_response_cache` collection to reduce repeated work; cache entries use an `expiresAt` field and a TTL index created at application startup (see `backend/app/db.py` for index creation).
-- If the geospatial index is missing, the server will fall back to a server-side Haversine-based filter (slower) and still return correct distances.
+- Responses are cached for 5 minutes in the server-side `api_response_cache` collection to reduce repeated work; cache entries use an `expiresAt` field and a TTL index created at application startup (see `backend/app/db.py` for index creation). When a cached nearest entry is returned the server will attempt to enrich the cached `latest_reading` by checking the readings collection for a newer `ts` and refresh the cache if necessary.
 - Rate limiting: by default the route is limited to `100` requests per hour per user. If a valid JWT access token is provided the limiter keys by user identity; otherwise the limiter falls back to IP address. Exceeding the limit returns `429 Too Many Requests` with a `Retry-After` header.
 
 Responses
-- `200 OK` - Successful response with an array of stations ordered by proximity.
+- `200 OK` - Successful response with station(s) ordered by proximity.
 - `400 Bad Request` - Invalid or missing query parameters.
-- `422 Unprocessable Entity` - No stations found within the requested radius.
+- `404 Not Found` - No stations found within the requested radius (the endpoint returns a `200` with `station: null` in some fallback cases; check message in response).
 - `429 Too Many Requests` - Rate limit exceeded.
 - `500 Internal Server Error` - Unexpected server error.
 
 Success response shape (example):
 ```
 {
-	"stations": [
-		{
-			"station_id": "13668",
-			"name": "Station Name",
-			"location": { "type": "Point", "coordinates": [106.8272, 10.8231] },
-			"distance_km": 1.23,
-			"latest_reading": {
-				"aqi": 42,
-				"pm25": 12.3,
-				"pm10": 20.1,
-				"o3": 0.01,
-				"no2": 0.002,
-				"so2": 0.0,
-				"co": 0.1,
-				"timestamp": "2025-09-24T12:00:00Z"
-			}
-		},
-		...
-	],
-	"query": { "lat": 10.8231, "lng": 106.8272, "radius_km": 5, "limit": 3 }
+ 	"stations": [
+ 		{
+ 			"station_id": "1583",
+ 			"name": "Hanoi, Vietnam (Hà Nội)",
+ 			"location": { "type": "Point", "coordinates": [105.8831, 21.0491] },
+ 			"_distance_km": 0.0,
+ 			"latest_reading": {
+ 				"aqi": 9,
+ 				"iaqi": { "pm25": {"v": 9}, "pm10": {"v": 6}, ... },
+ 				"time": { "iso": "2025-09-24T21:00:00+07:00", "s": "2025-09-24 21:00:00", "v": 1758747600 }
+ 			}
+ 		}
+ 	],
+ 	"query": { "lat": 21.0491, "lng": 105.8831, "radius_km": 25, "limit": 1 }
 }
 ```
 
-Example cURL (default radius 25 km, default limit 5):
-```
-curl "http://localhost:5000/api/stations/nearest?lat=10.8231&lng=106.6297"
-```
-
-Example cURL (custom radius and limit):
-```
-curl "http://localhost:5000/api/stations/nearest?lat=10.8231&lng=106.6297&radius=5&limit=3"
-```
-
-PowerShell (Windows) example:
-```
-Invoke-RestMethod -Method Get -Uri "http://localhost:5000/api/stations/nearest?lat=10.8231&lng=106.6297&radius=5&limit=3"
-```
-
 Notes for integrators & operators:
-- The caching TTL is 5 minutes to balance freshness and load — adjust the TTL and index settings in `backend/app/db.py` if you need a different policy.
-- The endpoint expects the `waqi_station_readings` collection to include a timestamped reading per station; if no reading exists the `latest_reading` field will be `null`.
+- The aggregation `$lookup` matches readings by `station_id` (string) or `meta.station_idx` (integer) and sorts on `ts` (UTC datetime) to find the most recent reading; ensure your ingest writes `ts` and (when applicable) `meta.station_idx` for reliable lookups.
+- The public response is sanitized: debug/internal fields like `dist` and `city_geo` are removed, the nested `city.geo` object is dropped if a top-level `location` is present (to avoid duplicated coordinate blobs), and `station_id` is preferred as the client-facing identifier (the internal `_id` is removed when `station_id` exists).
+- Cache: cached entries are pruned of debug/internal fields before persistence so cache contents are safe to serve. Cache entries are refreshed automatically when a newer `ts`-based reading is detected.
 - For consistent rate-limiting behavior across a cluster, ensure your deployment provides a shared limiter storage (Redis) as configured in `backend/app/extensions.py` for `Flask-Limiter`.
 - Tests: unit and integration tests for this endpoint live under `scripts_test/test_nearest_integration.py` (mocked DB). For full end-to-end testing consider running tests against a dedicated test MongoDB instance or `mongomock`.
 
