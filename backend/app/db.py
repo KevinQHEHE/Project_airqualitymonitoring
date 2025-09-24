@@ -188,6 +188,7 @@ def ensure_indexes() -> bool:
         users_collection = db.users
         users_collection.create_index([('email', 1)], unique=True)
         users_collection.create_index([('username', 1)], unique=True)
+        users_collection.create_index([('location', '2dsphere')])
 
         # Password reset tokens indexes (TTL on expiresAt)
         resets_collection = db.password_resets
@@ -209,6 +210,8 @@ def ensure_indexes() -> bool:
             # Ignore index errors to avoid blocking startup
             pass
         
+        # No separate favorite_locations collection: user location is stored
+        # on the `users.location` field (GeoJSON Point). Index created above.
         logger.info("Database indexes created/verified successfully")
         return True
         

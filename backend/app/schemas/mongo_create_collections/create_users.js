@@ -30,6 +30,7 @@ db.createCollection("users", {
         },
         "location": {
           "bsonType": "object",
+          "required": ["type", "coordinates"],
           "properties": {
             "type": {
               "enum": [
@@ -44,7 +45,8 @@ db.createCollection("users", {
                 "bsonType": "double"
               }
             }
-          }
+          },
+          "additionalProperties": false
         },
         "preferences": {
           "bsonType": "object",
