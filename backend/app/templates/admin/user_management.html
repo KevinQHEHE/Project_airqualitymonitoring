@@ -495,10 +495,10 @@
       if (savedTheme === 'light') {
         document.querySelector('.admin-wrapper').classList.add('light-mode');
         themeToggle.checked = false;
-        themeIcon.className = 'fas fa-sun';
+        themeIcon.className = 'fas fa-moon'; // Show moon in light mode (to switch to dark)
       } else {
         themeToggle.checked = true;
-        themeIcon.className = 'fas fa-moon';
+        themeIcon.className = 'fas fa-sun'; // Show sun in dark mode (to switch to light)
       }
 
       // Add event listener for theme toggle
@@ -513,13 +513,13 @@
       if (themeToggle.checked) {
         // Dark mode
         adminWrapper.classList.remove('light-mode');
-        themeIcon.className = 'fas fa-moon';
+        themeIcon.className = 'fas fa-sun'; // Show sun in dark mode (to switch to light)
         localStorage.setItem('adminTheme', 'dark');
         showToast('Đã chuyển sang chế độ tối', 'info');
       } else {
         // Light mode
         adminWrapper.classList.add('light-mode');
-        themeIcon.className = 'fas fa-sun';
+        themeIcon.className = 'fas fa-moon'; // Show moon in light mode (to switch to dark)
         localStorage.setItem('adminTheme', 'light');
         showToast('Đã chuyển sang chế độ sáng', 'info');
       }

@@ -156,6 +156,71 @@ body:not(.white-content) .card .small.text-muted {
     color: #7dd3fc !important;
 }
 
+/* Navbar input-group dark mode - theme toggle button */
+body:not(.white-content) .navbar .input-group {
+    color: #f8fafc !important;
+}
+
+body:not(.white-content) .navbar .input-group .theme-toggle {
+    color: #f8fafc !important;
+}
+
+body:not(.white-content) .navbar .input-group .theme-toggle:hover {
+    color: #667eea !important;
+}
+
+body:not(.white-content) .navbar .input-group .theme-toggle .fa-moon,
+body:not(.white-content) .navbar .input-group .theme-toggle .fa-sun {
+    color: #f8fafc !important;
+}
+
+/* Light mode theme toggle */
+body.white-content .navbar .input-group .theme-toggle {
+    color: #333 !important;
+}
+
+body.white-content .navbar .input-group .theme-toggle:hover {
+    color: #667eea !important;
+}
+
+body.white-content .navbar .input-group .theme-toggle .fa-moon,
+body.white-content .navbar .input-group .theme-toggle .fa-sun {
+    color: #333 !important;
+    font-weight: bold !important;
+    font-size: 1.1em !important;
+    text-shadow: none !important;
+}
+
+body.white-content .navbar .input-group .theme-toggle:hover .fa-moon,
+body.white-content .navbar .input-group .theme-toggle:hover .fa-sun {
+    color: #667eea !important;
+}
+
+/* Additional style for better visibility */
+.theme-toggle {
+    background: transparent !important;
+    border: none !important;
+    padding: 8px 12px !important;
+    border-radius: 6px !important;
+    transition: all 0.2s ease !important;
+}
+
+body.white-content .theme-toggle {
+    background: rgba(51, 51, 51, 0.05) !important;
+}
+
+body.white-content .theme-toggle:hover {
+    background: rgba(102, 126, 234, 0.1) !important;
+}
+
+body:not(.white-content) .theme-toggle {
+    background: rgba(248, 250, 252, 0.05) !important;
+}
+
+body:not(.white-content) .theme-toggle:hover {
+    background: rgba(102, 126, 234, 0.2) !important;
+}
+
 /* Modal dark mode */
 body:not(.white-content) .modal-content {
     background-color: #23263a !important;

@@ -16,6 +16,7 @@
   <!-- CSS Files -->
   <link href="{{ url_for('static', filename='js/assets/css/black-dashboard.min.css') }}" rel="stylesheet" />
   <link href="{{ url_for('static', filename='js/assets/css/theme-switcher.css') }}" rel="stylesheet" />
+  <link href="{{ url_for('static', filename='js/assets/css/favorite_buttons.css') }}" rel="stylesheet" />
   <!-- Demo CSS removed for clean structure -->
   <style>
     /* Minor overrides for static preview */
@@ -766,6 +767,7 @@
   <script src="{{ url_for('static', filename='js/assets/js/plugins/bootstrap-notify.js') }}"></script>
   <script src="{{ url_for('static', filename='js/assets/js/black-dashboard.min.js') }}"></script>
   <script src="{{ url_for('static', filename='js/assets/js/themeSettings.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/favorite_locations.js') }}"></script>
 {% endblock %}
 
   <!-- AQI Color Classes -->
@@ -907,6 +909,25 @@
     const headerThemeToggle = document.getElementById('themeToggle');
     if (headerThemeToggle) {
       headerThemeToggle.addEventListener('click', function() {
+        // Toggle between light and dark mode using white-content class (compatible with existing system)
+        const isCurrentlyLight = document.body.classList.contains('white-content');
+        
+        if (isCurrentlyLight) {
+          // Switch to dark mode
+          document.body.classList.remove('white-content');
+          localStorage.setItem('light_color', 'false');
+          this.querySelector('.fa-moon').style.display = 'none';
+          this.querySelector('.fa-sun').style.display = 'inline-block';
+          this.setAttribute('aria-pressed', 'false');
+        } else {
+          // Switch to light mode  
+          document.body.classList.add('white-content');
+          localStorage.setItem('light_color', 'true');
+          this.querySelector('.fa-moon').style.display = 'inline-block';
+          this.querySelector('.fa-sun').style.display = 'none';
+          this.setAttribute('aria-pressed', 'true');
+        }
+        
         // Wait briefly for theme application then refresh dashboard pieces that depend on theme
         setTimeout(() => {
           if (currentForecastData) {
@@ -919,29 +940,78 @@
 
     // Initialize theme from localStorage to ensure dashboard matches auth pages
     (function initThemeFromStorage() {
-      const savedTheme = localStorage.getItem('theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', savedTheme);
-
-      function syncLegacyClasses(theme) {
-        const isDark = theme === 'dark';
-        if (isDark) document.body.classList.add('dark-mode'); else document.body.classList.remove('dark-mode');
-        document.querySelectorAll('.dark-bg').forEach(el => {
-          if (isDark) { el.classList.add('bg-dark'); el.classList.remove('bg-white'); } else { el.classList.add('bg-white'); el.classList.remove('bg-dark'); }
-        });
+      // Use the same localStorage key as themeSettings.js for consistency
+      const savedLightColor = localStorage.getItem('light_color') || 'false';
+      const isLight = savedLightColor === 'true';
+      
+      if (isLight) {
+        document.body.classList.add('white-content');
+      } else {
+        document.body.classList.remove('white-content');
       }
 
-      syncLegacyClasses(savedTheme);
-
+      // Update theme toggle button appearance
       if (headerThemeToggle) {
         const moon = headerThemeToggle.querySelector('.fa-moon');
         const sun = headerThemeToggle.querySelector('.fa-sun');
-        const isLight = savedTheme === 'light';
+        
         headerThemeToggle.classList.toggle('active', isLight);
         headerThemeToggle.setAttribute('aria-pressed', isLight ? 'true' : 'false');
-  // Icon visibility is handled by CSS via .theme-toggle.active; avoid inline styles
-  // (kept here for backward compatibility if needed)
+        
+        if (isLight) {
+          moon.style.display = 'inline-block';
+          sun.style.display = 'none';
+        } else {
+          moon.style.display = 'none';
+          sun.style.display = 'inline-block';
+        }
       }
     })();
+
+    // Sync header theme toggle with fixed-plugin switcher
+    $(document).ready(function() {
+      // Override the fixed-plugin switch behavior to sync with header button
+      $('.switch input').off('change').on('change', function() {
+        const headerThemeToggle = document.getElementById('themeToggle');
+        const isChecked = $(this).prop('checked');
+        const isLight = !isChecked; // switch input checked = dark mode, unchecked = light mode
+        
+        if (isLight) {
+          document.body.classList.add('white-content');
+          localStorage.setItem('light_color', 'true');
+        } else {
+          document.body.classList.remove('white-content');
+          localStorage.setItem('light_color', 'false');
+        }
+        
+        // Update header button icons
+        if (headerThemeToggle) {
+          const moon = headerThemeToggle.querySelector('.fa-moon');
+          const sun = headerThemeToggle.querySelector('.fa-sun');
+          
+          if (isLight) {
+            moon.style.display = 'inline-block';
+            sun.style.display = 'none';
+          } else {
+            moon.style.display = 'none';
+            sun.style.display = 'inline-block';
+          }
+          headerThemeToggle.setAttribute('aria-pressed', isLight ? 'true' : 'false');
+        }
+        
+        // Refresh forecast if available
+        setTimeout(() => {
+          if (currentForecastData) {
+            renderForecastGrid(currentForecastData);
+          }
+        }, 300);
+      });
+      
+      // Initialize fixed-plugin switch state
+      const savedLightColor = localStorage.getItem('light_color') || 'false';
+      const isLight = savedLightColor === 'true';
+      $('.switch input').prop('checked', !isLight); // reversed: checked = dark, unchecked = light
+    });
 
     // Close suggestions when clicking outside
     document.addEventListener('click', function(e) {

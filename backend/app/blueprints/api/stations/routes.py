@@ -346,11 +346,76 @@ def _build_station_item(doc: dict, database, lat: float, lng: float) -> dict:
             station['station_id'] = str(station['station_id'])
         except Exception:
             pass
-    # fallback: use city name if station name missing
-    if not station.get('name') and isinstance(station.get('city'), dict):
+    # If station name missing or appears to be placeholder/test data, try to
+    # enrich from latest_reading.meta.station_idx by looking up the real
+    # station document in the database. This handles cases where readings
+    # reference the original WAQI station index but the station doc is a
+    # test placeholder (e.g. 'Test City').
+    try:
+        name_val = station.get('name')
+        is_placeholder = False
+        if not name_val:
+            is_placeholder = True
+        else:
+            try:
+                lname = str(name_val).lower()
+                if 'test' in lname or '__test' in lname:
+                    is_placeholder = True
+            except Exception:
+                pass
+
+        if is_placeholder:
+            lr = station.get('latest_reading')
+            meta_idx = None
+            if isinstance(lr, dict):
+                meta = lr.get('meta') if isinstance(lr.get('meta'), dict) else None
+                if meta is not None:
+                    meta_idx = meta.get('station_idx')
+
+            if meta_idx is not None:
+                # Try to find a corresponding station document by station_id
+                # or by numeric/_id match using the meta index.
+                cand = None
+                try:
+                    cand = database.waqi_stations.find_one({'station_id': str(meta_idx)})
+                except Exception:
+                    cand = None
+                if not cand:
+                    try:
+                        # try numeric _id match
+                        cand = database.waqi_stations.find_one({'_id': int(meta_idx)})
+                    except Exception:
+                        cand = None
+
+                if cand:
+                    # prefer explicit name from candidate, else city.name
+                    cand_name = cand.get('name') or (cand.get('city') or {}).get('name')
+                    if cand_name:
+                        station['name'] = cand_name
+                    # update station_id if we can
+                    if not station.get('station_id') and cand.get('station_id'):
+                        try:
+                            station['station_id'] = str(cand.get('station_id'))
+                        except Exception:
+                            station['station_id'] = cand.get('station_id')
+                    # copy location/city if missing
+                    if not station.get('location') and cand.get('location'):
+                        station['location'] = cand.get('location')
+                    if not station.get('city') and cand.get('city'):
+                        station['city'] = cand.get('city')
+    except Exception:
+        # don't fail the whole response if enrichment fails
+        pass
+    # ALWAYS use city name as station name (since stations don't have explicit names)
+    if isinstance(station.get('city'), dict):
         cname = station['city'].get('name')
         if cname:
             station['name'] = cname
+            # Clear any test city artifacts
+            if 'city' in station and isinstance(station['city'], dict):
+                # If the original city had 'Test City', update it to the real name
+                if station['city'].get('name') == 'Test City':
+                    station['city']['name'] = cname
     # ensure location from city.geo if absent
     if not station.get('location') and isinstance(station.get('city'), dict):
         city_geo = station['city'].get('geo')
@@ -885,6 +950,46 @@ def health():
     except Exception as e:
         logger.exception("Health check failed: %s", e)
         return jsonify({"status": "unhealthy", "error": "Health check failed"}), 503
+
+
+@stations_bp.route('/by_meta_idx/<int:meta_idx>', methods=['GET'])
+def get_station_by_meta_idx(meta_idx: int):
+    """Lookup a station document by numeric meta index (either station_id or _id).
+
+    This endpoint helps clients recover a human-friendly station name when the
+    nearest aggregation returned a placeholder/test document. Optional query
+    params `lat` and `lng` may be provided so distance can be computed.
+    """
+    try:
+        try:
+            lat = float(request.args.get('lat')) if request.args.get('lat') is not None else None
+            lng = float(request.args.get('lng')) if request.args.get('lng') is not None else None
+        except Exception:
+            lat = lng = None
+
+        database = db.get_db()
+    except DatabaseError:
+        return jsonify({'error': 'Database unavailable'}), 503
+
+    # Try station_id (string) then numeric _id
+    doc = None
+    try:
+        doc = database.waqi_stations.find_one({'station_id': str(meta_idx)})
+    except Exception:
+        doc = None
+
+    if not doc:
+        try:
+            doc = database.waqi_stations.find_one({'_id': meta_idx})
+        except Exception:
+            doc = None
+
+    if not doc:
+        return jsonify({'error': 'Station not found'}), 404
+
+    station_item = _build_station_item(doc, database, lat if lat is not None else 0.0, lng if lng is not None else 0.0)
+    response = {'station': station_item}
+    return jsonify(prepare_response(response)), 200
 
 
 @stations_bp.route('/<station_id>', methods=['GET'])

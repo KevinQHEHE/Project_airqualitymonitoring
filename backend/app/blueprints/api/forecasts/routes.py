@@ -152,10 +152,24 @@ def get_weekly_forecast():
 
 			db_coll = db.waqi_daily_forecasts
 
-			# Build forecast match: prefer numeric station_idx when available
+			# Build forecast match: try to resolve incoming station_id to the
+			# internal `station_idx` (waqi_stations._id) when possible. Some
+			# clients pass the WAQI `station_id` string while forecast docs use
+			# `station_idx` as the station _id. Attempt a lookup and fall back
+			# to sensible OR conditions if resolution fails.
 			forecast_match = None
 			if station_id.isdigit():
-				forecast_match = {'station_idx': int(station_id), 'day': {'$in': date_strs}}
+				# try lookup by station_id field in waqi_stations to get its _id
+				try:
+					st_doc = db.waqi_stations.find_one({'station_id': str(station_id)})
+				except Exception:
+					st_doc = None
+
+				if st_doc and '_id' in st_doc:
+					forecast_match = {'station_idx': st_doc['_id'], 'day': {'$in': date_strs}}
+				else:
+					# fallback: accept either a numeric station_idx or a station_id string
+					forecast_match = {'$or': [{'station_idx': int(station_id)}, {'station_id': station_id}], 'day': {'$in': date_strs}}
 			else:
 				# fallback to stored station_id if forecasts use it
 				forecast_match = {'station_id': station_id, 'day': {'$in': date_strs}}
