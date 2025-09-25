@@ -134,8 +134,16 @@ def update_user_favorites(user_id: str):
 	if not user:
 		return jsonify({"error": "user not found"}), 404
 
+	# Normalize favoriteStations: convert numeric-like entries to ints when possible
+	normalized = []
+	for s in favs:
+		try:
+			normalized.append(int(s))
+		except Exception:
+			normalized.append(s)
+
 	preferences = user.get('preferences') or {}
-	preferences['favoriteStations'] = favs
+	preferences['favoriteStations'] = normalized
 	now = datetime.now(timezone.utc)
 	try:
 		users_repo.update_user_by_id(ObjectId(user.get('_id')), {'$set': {'preferences': preferences, 'updatedAt': now}})
@@ -154,9 +162,9 @@ def update_user_favorites(user_id: str):
 def list_subscriptions():
 	"""List alert subscriptions.
 
-	Optional query params:
-	  - user_id: filter by user ObjectId string
-	  - station_id: filter by station id string
+		Optional query params:
+			- user_id: filter by user ObjectId string
+			- station_id: filter by station id (integer)
 	"""
 	try:
 		db = __import__('backend.app.db', fromlist=['get_db']).get_db()
@@ -169,7 +177,10 @@ def list_subscriptions():
 				return jsonify({"error": "invalid user_id"}), 400
 		station_id = request.args.get('station_id')
 		if station_id:
-			q['station_id'] = str(station_id)
+			try:
+				q['station_id'] = int(station_id)
+			except Exception:
+				return jsonify({"error": "invalid station_id"}), 400
 		docs = list(db.alert_subscriptions.find(q).sort('createdAt', -1).limit(200))
 		# Convert ObjectId to string for JSON
 		for d in docs:
@@ -186,23 +197,28 @@ def list_subscriptions():
 def create_subscription():
 	"""Create a new alert subscription.
 
-	Body JSON expected: { "user_id": "<oid>", "station_id": "<id>", "alert_threshold": 100 }
+	Body JSON expected: { "user_id": "<oid>", "station_id": <id>, "alert_threshold": 100 }
 	"""
 	data = request.get_json() or {}
 	user_id = data.get('user_id')
-	station_id = data.get('station_id')
-	if not user_id or not station_id:
+	station_raw = data.get('station_id')
+	if not user_id or station_raw is None:
 		return jsonify({"error": "user_id and station_id required"}), 400
 	try:
 		uid = ObjectId(user_id)
 	except Exception:
 		return jsonify({"error": "invalid user_id"}), 400
 	try:
+		try:
+			station_id = int(station_raw)
+		except Exception:
+			return jsonify({"error": "invalid station_id"}), 400
+
 		db = __import__('backend.app.db', fromlist=['get_db']).get_db()
 		now = __import__('datetime').datetime.now(__import__('datetime').timezone.utc)
 		doc = {
 			'user_id': uid,
-			'station_id': str(station_id),
+			'station_id': station_id,
 			'alert_threshold': int(data.get('alert_threshold', 100)),
 			'status': data.get('status', 'active'),
 			'createdAt': now,
@@ -301,7 +317,10 @@ def list_notification_logs():
 				return jsonify({"error": "invalid user_id"}), 400
 		station_id = request.args.get('station_id')
 		if station_id:
-			q['station_id'] = str(station_id)
+			try:
+				q['station_id'] = int(station_id)
+			except Exception:
+				return jsonify({"error": "invalid station_id"}), 400
 		status = request.args.get('status')
 		if status:
 			q['status'] = status

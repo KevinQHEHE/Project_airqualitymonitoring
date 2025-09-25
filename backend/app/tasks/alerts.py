@@ -41,25 +41,43 @@ def _get_users_with_notifications() -> List[Dict[str, Any]]:
     return list(cursor)
 
 
-def _latest_aqi_for_station(station_id: str) -> Optional[int]:
+def _latest_aqi_for_station(station_id: any) -> Optional[int]:
     try:
-        readings = readings_repo.find_latest_by_station(station_id, limit=1)
-        if not readings:
-            return None
-        return readings[0].get('aqi')
+        # Try numeric lookup first when possible (readings may store station_id as int)
+        query_ids = []
+        try:
+            query_ids.append(int(station_id))
+        except Exception:
+            pass
+        # Always include string form as fallback
+        query_ids.append(str(station_id))
+
+        # Try each form until we find readings
+        for sid in query_ids:
+            readings = readings_repo.find_latest_by_station(sid, limit=1)
+            if readings:
+                return readings[0].get('aqi')
+        return None
     except Exception as exc:
         logger.exception('Failed to load latest reading for station %s: %s', station_id, exc)
         return None
 
 
-def _sent_recently(user_id: ObjectId, station_id: str, days: int = 1) -> bool:
+def _sent_recently(user_id: ObjectId, station_id: any, days: int = 1) -> bool:
     db = db_module.get_db()
     window = datetime.now(timezone.utc) - timedelta(days=days)
+    # Normalize station_id to int when possible to match newer schema
+    q_station = None
+    try:
+        q_station = int(station_id)
+    except Exception:
+        q_station = str(station_id)
+
     # Use notification_logs as the single source of truth for delivery history.
     # Map 'sent' -> notification_logs.status 'delivered'
     count = db.notification_logs.count_documents({
         'user_id': user_id,
-        'station_id': station_id,
+        'station_id': q_station,
         'sentAt': {'$gte': window},
         'status': 'delivered'
     })
@@ -105,7 +123,7 @@ def _send_alert_email(user: Dict[str, Any], station: Dict[str, Any], aqi: int) -
         return False, None, {'error': 'send_exception'}
 
 
-def _log_notification_entry(*, subscription_id: Optional[Any], user_id: Any, station_id: str, status: str, details: Optional[Dict[str, Any]] = None, message_id: Optional[str] = None, attempts: int = 1) -> None:
+def _log_notification_entry(*, subscription_id: Optional[Any], user_id: Any, station_id: any, status: str, details: Optional[Dict[str, Any]] = None, message_id: Optional[str] = None, attempts: int = 1) -> None:
     """Write a delivery log to `notification_logs` collection.
 
     Maps internal monitor `status` values to the validator enum values.
@@ -120,10 +138,16 @@ def _log_notification_entry(*, subscription_id: Optional[Any], user_id: Any, sta
     mapped_status = mapping.get(status, 'failed')
     now = datetime.now(timezone.utc)
     db = db_module.get_db()
+    # Normalize station_id to int when possible to match collection validator
+    try:
+        stored_station_id = int(station_id)
+    except Exception:
+        stored_station_id = station_id
+
     doc = {
         'subscription_id': subscription_id if subscription_id is not None else None,
         'user_id': user_id,
-        'station_id': str(station_id),
+        'station_id': stored_station_id,
         'sentAt': now,
         'status': mapped_status,
         'attempts': int(attempts),
