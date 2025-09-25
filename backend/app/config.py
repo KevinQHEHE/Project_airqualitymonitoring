@@ -45,6 +45,17 @@ class Config:
     STATION_SCRIPT_TIMEOUT_SECONDS = int(os.environ.get('STATION_SCRIPT_TIMEOUT_SECONDS') or 300)
     ENABLE_STATION_SCHEDULER = os.environ.get('ENABLE_STATION_SCHEDULER', 'true').lower() in ['true', '1', 'on', 'yes']
 
+    # Celery settings (optional) - keep defaults safe for local development
+    CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL')
+    CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND')
+    # Beat schedule: run favorite station monitor every 15 minutes by default
+    CELERY_BEAT_SCHEDULE = {
+        'monitor-favorite-stations-every-15-minutes': {
+            'task': 'backend.app.tasks.alerts.monitor_favorite_stations',
+            'schedule': 15 * 60,
+        }
+    }
+
     # Registration behavior: whether to write a top-level `status` field
     # to new user documents. Some deployments prefer to omit this field and
     # treat missing status as 'active'. Set environment variable

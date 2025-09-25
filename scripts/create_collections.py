@@ -10,7 +10,15 @@ If --mongo-uri / --db are omitted the app Config defaults will be used.
 import argparse
 import json
 import os
+import sys
+from pathlib import Path
 from pymongo import MongoClient, errors
+
+# Ensure the repository root is on sys.path so `backend` package imports work
+# when this script is executed directly (e.g., inside a venv).
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from backend.app.config import Config
 
@@ -24,6 +32,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('--mongo-uri')
     p.add_argument('--db')
+    p.add_argument('--recreate', action='store_true', help='Drop existing collections before creating them (use with caution)')
     args = p.parse_args()
 
     mongo_uri = args.mongo_uri or os.environ.get('MONGO_URI') or Config.MONGO_URI
@@ -45,6 +54,11 @@ def main():
     # Create or update collections with validators
     for name, validator in (('alert_subscriptions', subs_validator), ('notification_logs', logs_validator)):
         try:
+            if args.recreate:
+                # Drop the collection first if requested
+                if name in db.list_collection_names():
+                    print(f"Dropping existing collection: {name}")
+                    db.drop_collection(name)
             # If collection exists, use collMod to apply validator
             if name in db.list_collection_names():
                 print(f"Updating validator for existing collection: {name}")

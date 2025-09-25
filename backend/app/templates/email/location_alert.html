@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Air Quality Alert</title>
+    <style>
+      body { font-family: Arial, sans-serif; color: #222; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+      .header { background: #f4f4f4; padding: 10px; border-radius: 4px; }
+      .aqi { font-size: 24px; font-weight: bold; }
+      .actions { margin-top: 12px; }
+      .footer { margin-top: 20px; font-size: 12px; color: #666; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h2>Air Quality Alert</h2>
+      </div>
+
+      <p>Hi {{ user.get('username') or user.get('email') }},</p>
+
+      <p>We detected that the air quality at <strong>{{ station.get('city', {}).get('name') or station.get('station_id') }}</strong> has reached an AQI of <span class="aqi">{{ aqi }}</span>.</p>
+
+      <p>Recommended actions:</p>
+      <ul>
+        <li>Limit outdoor exertion, especially if you belong to sensitive groups (children, elderly, pregnant, respiratory conditions).</li>
+        <li>Use an air purifier indoors if available.</li>
+        <li>Consider wearing an N95/FFP2 mask when outside.</li>
+      </ul>
+
+      <div class="actions">
+        <p>If you want to change your alert settings, visit your account preferences.</p>
+      </div>
+
+      <div class="footer">
+        <p>Sent by Air Quality Monitoring System.</p>
+      </div>
+    </div>
+  </body>
+</html>

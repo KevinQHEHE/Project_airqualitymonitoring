@@ -3,9 +3,9 @@
     "bsonType": "object",
     "title": "alert_subscriptions",
     "required": ["user_id", "station_id", "alert_threshold", "status", "createdAt"],
-    "properties": {
-      "user_id": { "bsonType": "objectId", "description": "Reference to users._id" },
-      "station_id": { "bsonType": "string", "description": "Station identifier (waqi station_id)" },
+  "properties": {
+  "user_id": { "bsonType": "objectId", "description": "Reference to users._id" },
+  "station_id": { "bsonType": "int", "description": "Station identifier (waqi station _id, integer)" },
       "alert_threshold": { "bsonType": "int", "minimum": 0, "maximum": 500, "description": "AQI threshold to trigger an alert" },
       "status": { "enum": ["active", "paused", "expired"], "description": "Subscription status" },
       "createdAt": { "bsonType": "date" },

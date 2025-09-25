@@ -3,10 +3,10 @@
     "bsonType": "object",
     "title": "notification_logs",
     "required": ["subscription_id", "user_id", "station_id", "sentAt", "status"],
-    "properties": {
-      "subscription_id": { "bsonType": ["objectId", "null"], "description": "Reference to alert_subscriptions._id (nullable for ad-hoc notifications)" },
-      "user_id": { "bsonType": "objectId", "description": "User who was notified" },
-      "station_id": { "bsonType": "string", "description": "Station identifier" },
+  "properties": {
+  "subscription_id": { "bsonType": ["objectId", "null"], "description": "Reference to alert_subscriptions._id (nullable for ad-hoc notifications)" },
+  "user_id": { "bsonType": "objectId", "description": "User who was notified" },
+  "station_id": { "bsonType": "int", "description": "Station identifier (waqi station _id, integer)" },
       "sentAt": { "bsonType": "date" },
       "status": { "enum": ["delivered", "failed", "bounced", "deferred"], "description": "Delivery result" },
       "attempts": { "bsonType": "int", "minimum": 0, "description": "Number of delivery attempts" },

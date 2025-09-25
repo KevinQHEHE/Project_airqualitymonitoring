@@ -1,81 +1,90 @@
 # API Documentation
+### Nearest Station Finder
 
-## Authentication Endpoints
-- `POST /api/auth/register` - User registration
-- `POST /api/auth/login` - User login
-- `POST /api/auth/logout` - Revoke current access token
-- `POST /api/auth/logout_refresh` - Revoke current refresh token
+GET `/api/stations/nearest` - Find monitoring stations nearest to a geographic point.
 
-### Auth: Register & Login
+Query parameters
+- `lat` (required, number) - Latitude in decimal degrees. Range: `-90` to `90`.
+- `lng` (required, number) - Longitude in decimal degrees. Range: `-180` to `180`.
+- `radius` (optional, number) - Search radius in kilometers. Default: `25`. Maximum allowed: `50` (requests with a larger radius will be rejected).
+- `limit` (optional, integer) - Maximum number of stations to return. Default: `1`. Maximum: `25`.
+- `units` (optional) - Not currently used; distances are returned in kilometers.
 
-Tokens
-- Access token: JWT, expires in 1 hour
-- Refresh token: JWT, expires in 7 days
-- For protected endpoints, send `Authorization: Bearer <access_token>`
+Validation & errors
+- Missing or out-of-range `lat`/`lng` → `400 Bad Request` with JSON `{ "error": "<short message>" }`.
+- Non-numeric `radius` or `limit` or values outside allowed bounds → `400 Bad Request`.
 
-POST `/api/auth/register`
-- Body (JSON):
+Behavior and implementation notes
+- The endpoint prefers MongoDB's geospatial capability: it uses a `2dsphere` index and a `$geoNear` aggregation stage to return stations ordered by distance. If the `location` index is not present, the server falls back to an in-process Haversine scan over legacy coordinate fields (this is slower and only used as a fallback).
+- The aggregation performs a `$lookup` into `waqi_station_readings` to attach the latest reading. The lookup matches readings by either `station_id` (string) or `meta.station_idx` (integer) and sorts by the normalized `ts` (UTC datetime) to select the newest reading.
+- Distances are returned in kilometers and rounded to two decimal places (for example `1.23`).
+- Responses are cached for 5 minutes in the `api_response_cache` collection to reduce repeated work. Cache entries use an `expiresAt` TTL index created at startup (see `backend/app/db.py`). When serving a cached entry the server will still attempt to enrich `latest_reading` by checking for a newer `ts` and refresh the cache when appropriate.
+- Rate limiting: the route is limited (by default) to `100` requests per hour per user. When a valid JWT access token is supplied the limiter keys by user identity; otherwise it falls back to IP address. Exceeding the limit returns `429 Too Many Requests` with a `Retry-After` header.
+
+Responses
+- `200 OK` - Successful response with an array `stations` ordered by proximity. If no stations are found within the radius the response contains an empty `stations` array (older implementations sometimes returned `station: null`).
+- `400 Bad Request` - Invalid or missing query parameters.
+- `429 Too Many Requests` - Rate limit exceeded.
+- `500 Internal Server Error` - Unexpected server error.
+
+Success response shape (example)
 ```
 {
-  "username": "alice",
-  "email": "alice@example.com",
-  "password": "P@ssword123"
+	"stations": [
+		{
+			"station_id": "1583",
+			"name": "Hanoi, Vietnam (Hà Nội)",
+			"location": { "type": "Point", "coordinates": [105.8831, 21.0491] },
+			"_distance_km": 0.00,
+			"latest_reading": {
+				"aqi": 9,
+				"iaqi": { "pm25": { "v": 9 }, "pm10": { "v": 6 } },
+				"time": { "iso": "2025-09-24T21:00:00+07:00", "s": "2025-09-24 21:00:00", "v": 1758747600 }
+			}
+		}
+	],
+	"query": { "lat": 21.0491, "lng": 105.8831, "radius_km": 25, "limit": 1 }
 }
 ```
-- Validation:
-  - `username` required
-  - `email` required and valid format
-  - `password` policy: at least 8 chars, includes uppercase, lowercase, digit, and special character
-- Errors: `400` invalid input; `409` duplicate email/username
-- Response `201` (example):
+
+Examples
+
+CURL
 ```
-{
-  "message": "Registration successful",
-  "user": {
-    "id": "66fb9c...",
-    "username": "alice",
-    "email": "alice@example.com",
-    "role": "user",
-    "createdAt": "2025-09-15T10:00:00+00:00"
-  },
-  "access_token": "<jwt>",
-  "refresh_token": "<jwt>"
-}
-```
-- cURL:
-```
-curl -X POST "{{base_url}}/api/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{"username":"alice","email":"alice@example.com","password":"P@ssword123"}'
+curl "{{base_url}}/api/stations/nearest?lat=21.0491&lng=105.8831&radius=25&limit=1"
 ```
 
-POST `/api/auth/login`
-- Body (JSON) using email or username:
+PowerShell
 ```
-{ "email": "alice@example.com", "password": "P@ssword123" }
-```
-or
-```
-{ "username": "alice", "password": "P@ssword123" }
-```
-- Errors: `400` missing fields; `401` invalid credentials
-- Response `200`: same token/user shape as register
-- cURL:
-```
-curl -X POST "{{base_url}}/api/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"alice@example.com","password":"P@ssword123"}'
+Invoke-RestMethod -Method Get -Uri "http://localhost:5000/api/stations/nearest?lat=21.0491&lng=105.8831&radius=25&limit=1"
 ```
 
-PowerShell (Windows)
-```
-# Register
-$reg = @{ username = "alice"; email = "alice@example.com"; password = "P@ssword123" } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri http://localhost:5000/api/auth/register -ContentType "application/json" -Body $reg
+Notes for integrators & operators
+- Ensure station documents include a GeoJSON `location` field with coordinates in `[longitude, latitude]` order. Example:
+	```json
+	"location": { "type": "Point", "coordinates": [106.6297, 10.8231] }
+	```
+- The lookup for `latest_reading` depends on ingest writing `ts` (UTC datetime) and, when available, `meta.station_idx` for integer-indexed matching. If your ingest omits these fields the returned `latest_reading` may be empty or stale.
+- The public response is sanitized: internal debug fields are removed and `station_id` is the preferred client-facing identifier.
+- For consistent rate-limiting in a clustered deployment, configure shared limiter storage (Redis) as described in `backend/app/extensions.py`.
+- Tests for this endpoint live under `scripts_test/test_nearest_integration.py` (mocked DB). For end-to-end testing run against a dedicated test MongoDB instance or use `mongomock`.
 
-# Login
-$login = @{ email = "alice@example.com"; password = "P@ssword123" } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri http://localhost:5000/api/auth/login -ContentType "application/json" -Body $login
+Health & troubleshooting
+- `GET /api/stations/health` - Lightweight health endpoint returning database connectivity and basic server info. Useful for monitoring and quick troubleshooting.
+
+If the health endpoint reports `status: "unhealthy"` or the `nearest` endpoint returns `{"error":"Database unavailable"}` the server cannot reach MongoDB (check `MONGO_URI`, network access, credentials, and the mongod process).
+
+Cache clearing (development only): cached nearest responses are stored in `api_response_cache` and expire after 5 minutes. To clear cache immediately (development use only):
+```
+mongosh "mongodb://localhost:27017/air_quality_db" --eval 'db.api_response_cache.deleteMany({})'
+```
+
+Why `nearest` might return no stations
+- Confirm station documents have a GeoJSON `location` field and coordinates are stored as `[longitude, latitude]`.
+- You can inspect a station via the API:
+```
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:5000/api/stations?limit=1" | ConvertTo-Json -Depth 10
+```
 
 # Or send raw JSON directly
 Invoke-RestMethod -Method Post -Uri http://localhost:5000/api/auth/login -ContentType "application/json" -Body '{"email":"alice@example.com","password":"P@ssword123"}'
@@ -124,10 +133,99 @@ Invoke-RestMethod -Method Post -Uri http://localhost:5000/api/auth/logout_refres
 - `GET /api/aggregates/trends` - Pollution trends
 
 ## Alerts Management
-- `GET /api/alerts` - List user alerts
-- `POST /api/alerts` - Create new alert
-- `PUT /api/alerts/{id}` - Update alert settings
-- `DELETE /api/alerts/{id}` - Delete alert
+The Alerts API exposes user notification preferences, subscription management, and an admin/test trigger for the monitoring job.
+
+Base prefix: `/api/alerts`
+
+Authentication & notes
+- Many endpoints are admin/test or user-scoped. Where applicable the documentation notes whether a valid JWT is required. The `favorites` endpoint requires a JWT and enforces that the caller is the target user or an admin. The `notifications` update endpoint in the current implementation does not require a JWT (it merges the provided object into the user's preferences) — consider protecting this in production.
+
+Endpoints
+
+- `GET /api/alerts/health`
+	- Returns: `{ "status": "ok" }` (200)
+
+- `POST /api/alerts/trigger` (admin/test)
+	- Purpose: trigger the favorite-stations monitor over HTTP (useful for QA/dev).
+	- Protection: requires `ALERT_TEST_KEY` env var on the server. Client must send the same key either in header `X-ALERT-TEST-KEY` or as query param `?key=<key>`.
+	- Responses:
+		- `200` { "message": "monitor invoked" }
+		- `403` forbidden when key is missing or wrong
+		- `503` when server not configured with `ALERT_TEST_KEY`
+		- `500` when monitor invocation failed
+
+- `PUT /api/alerts/user/<user_id>/favorites` (requires JWT)
+	- Purpose: set a user's `preferences.favoriteStations` list (array of station ids).
+	- Auth: `Authorization: Bearer <access_token>` required. Only the owning user or admins may update.
+	- Body JSON: `{ "favoriteStations": [123, 456] }` (array of numbers or strings)
+	- Responses:
+		- `200` { "message": "favorites updated", "favoriteStations": [...] }
+		- `400` if payload missing or invalid
+		- `401` authorization required (if no/invalid JWT)
+		- `403` forbidden if caller not owner/admin
+		- `404` user not found
+		- `500` on DB error
+	- Notes: Monitor discovers users to evaluate by checking `preferences.notifications.enabled == true` and that `preferences.favoriteStations` exists and is not empty.
+
+- `GET /api/alerts/user/<user_id>/notifications`
+	- Returns the `preferences.notifications` object for the user. `200` or `404` if user not found.
+
+- `PUT /api/alerts/user/<user_id>/notifications`
+	- Body: JSON object to set/replace the `preferences.notifications` object (e.g. `{ "enabled": true, "threshold": 80 }`).
+	- Response: `200` { "message": "notifications updated", "notifications": <object> } or `400` on invalid body.
+	- Note: current implementation does not require a JWT; consider protecting.
+
+- Subscriptions CRUD (`/api/alerts/subscriptions`)
+	- `GET /api/alerts/subscriptions?user_id=<oid>&station_id=<id>`
+		- List subscriptions filtered by optional `user_id` (ObjectId string) and/or `station_id` (string).
+		- Response: `200` { "subscriptions": [ ... ] }
+
+	- `POST /api/alerts/subscriptions`
+		- Body JSON: `{ "user_id": "<oid>", "station_id": "<id>", "alert_threshold": 100, "metadata": {...} }`
+		- Creates a subscription document and returns `201` { "subscription_id": "<id>" }.
+		- Errors: `400` missing/invalid fields, `500` internal error (DB failure). The endpoint currently inserts a new record; creating uniqueness constraints (user+station active) is recommended to avoid duplicates.
+
+	- `GET /api/alerts/subscriptions/<sub_id>`
+		- Returns subscription document or `404`.
+
+	- `PUT /api/alerts/subscriptions/<sub_id>`
+		- Body fields allowed to update: `alert_threshold`, `status`, `metadata`.
+		- Returns `200` on success or `400`/`404`/`500` on error.
+
+	- `DELETE /api/alerts/subscriptions/<sub_id>`
+		- Soft-delete: sets `status` to `expired` and updates `updatedAt`. Returns `200` on success.
+
+- `GET /api/alerts/logs` — list `notification_logs`
+	- Query params: `user_id` (ObjectId), `station_id` (string), `status` (delivered|failed|bounced|deferred), `page`, `page_size`.
+	- Response: `200` { "logs": [ ... ], "page": 1, "page_size": 50 }
+	- Notes: Each log contains fields: `_id`, `subscription_id` (nullable), `user_id`, `station_id`, `sentAt`, `status` (delivered/failed/deferred), `attempts`, `response`, `message_id`.
+
+Examples
+
+CURL (update favorites):
+```
+curl -X PUT "{{base_url}}/api/alerts/user/<user_id>/favorites" \
+	-H "Authorization: Bearer <access_token>" \
+	-H "Content-Type: application/json" \
+	-d '{"favoriteStations":[5506,8688]}'
+```
+
+CURL (create subscription):
+```
+curl -X POST "{{base_url}}/api/alerts/subscriptions" \
+	-H "Content-Type: application/json" \
+	-d '{"user_id":"<oid>","station_id":"8688","alert_threshold":200}'
+```
+
+CURL (list logs):
+```
+curl "{{base_url}}/api/alerts/logs?user_id=<oid>&station_id=8688"
+```
+
+Notes & recommendations
+- Monitor discovery: the scheduled monitor reads users where `preferences.notifications.enabled` is true and `preferences.favoriteStations` is present and not empty. Creating a subscription alone will not cause the monitor to evaluate the user unless the station is listed in the user's favorites.
+- Rate-limiting: monitor enforces 1 alert per user-station per 24 hours. Re-running tests may require removing recent `notification_logs` entries or using a test-only `force_send` flag.
+- Idempotency: consider adding a unique index on `(user_id, station_id, status='active')` and returning existing subscription id when a duplicate is attempted.
 
 ## Forecasts
 - `GET /api/forecasts/{station_id}` - Get pollution forecasts
