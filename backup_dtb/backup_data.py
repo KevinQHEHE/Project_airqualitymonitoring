@@ -115,7 +115,30 @@ def backup_database(mongo_uri: str, db_name: str, out_root: Path, pretty: bool =
             logger.exception("Failed to backup collection %s: %s", cname, exc)
             # Continue with remaining collections
 
-    client.close()
+    # Write collection metadata (options) so restore can recreate special collections
+    try:
+        metadata = {}
+        # db.list_collections() yields info including 'options' which may contain
+        # timeseries and validator definitions. Store these options per-collection.
+        for info in db.list_collections():
+            name = info.get("name")
+            options = info.get("options", {}) or {}
+            if options:
+                metadata[name] = options
+
+        if metadata:
+            meta_file = backup_dir / "collections_metadata.json"
+            logger.info("Writing collection metadata to %s", meta_file)
+            # Use bson.json_util for any BSON types in options
+            with meta_file.open("w", encoding="utf-8") as fh:
+                fh.write(json_util.dumps(metadata))
+    except Exception:
+        logger.exception("Failed to write collection metadata; continuing without it")
+    finally:
+        try:
+            client.close()
+        except Exception:
+            logger.debug("Client close failed or already closed")
 
     # Create archive directory under out_root/backup_data and write a .tar archive
     archive_dir = out_root / "backup_data"
