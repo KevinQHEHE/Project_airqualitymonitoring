@@ -1516,5 +1516,19 @@ body {
 #themeIcon {
     font-size: 1.1rem;
     transition: all 0.3s ease;
+    color: #fff;
+    font-weight: bold;
+}
+
+/* Ensure icon visibility in light mode */
+.admin-wrapper.light-mode #themeIcon {
+    color: #333;
+    font-weight: bold;
+}
+
+/* Hover effects for theme icon */
+#themeIcon:hover {
+    transform: scale(1.1);
+    color: #667eea;
 }
 }

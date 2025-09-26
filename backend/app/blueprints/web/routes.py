@@ -45,6 +45,8 @@ def verify_code_page():
     email = request.args.get('email', '')
     return render_template('auth/verifycode.html', email=email)
 
+
+
 # Short aliases
 @web_bp.route('/forgot')
 def forgot_alias():

@@ -90,6 +90,15 @@ def create_app(config_class=Config):
     
     # Register blueprints
     register_blueprints(app)
+    
+    # Add CORS headers for development
+    @app.after_request
+    def after_request(response):
+        """Add CORS headers to all responses for development."""
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response
 
     # Note: Background catchup disabled in favor of periodic streaming scheduler
     # The streaming scheduler uses get_station_reading.py for real-time data with deduplication
@@ -115,12 +124,11 @@ def register_blueprints(app):
     from backend.app.blueprints.api.forecasts.routes import forecasts_bp
     # from backend.app.blueprints.api.measurements.routes import measurements_bp
     # from backend.app.blueprints.api.aggregates.routes import aggregates_bp
-    from backend.app.blueprints.api.alerts.routes import alerts_bp
+    # from backend.app.blueprints.api.alerts.routes import alerts_bp
     # from backend.app.blueprints.api.forecasts.routes import forecasts_bp
     # from backend.app.blueprints.api.exports.routes import exports_bp
     # from backend.app.blueprints.api.realtime.routes import realtime_bp
     from backend.app.blueprints.api.scheduler.routes import scheduler_bp
-    from backend.app.blueprints.api.admin.users import admin_users_bp
     
     # Import Web blueprint
     from backend.app.blueprints.web.routes import web_bp
@@ -152,11 +160,10 @@ def register_blueprints(app):
         logging.getLogger(__name__).debug('Could not add alias /api/aq/history for air quality history route')
     # app.register_blueprint(measurements_bp, url_prefix='/api/measurements')
     # app.register_blueprint(aggregates_bp, url_prefix='/api/aggregates')
-    app.register_blueprint(alerts_bp, url_prefix='/api/alerts')
+    # app.register_blueprint(alerts_bp, url_prefix='/api/alerts')
     # app.register_blueprint(forecasts_bp, url_prefix='/api/forecasts')
     # app.register_blueprint(exports_bp, url_prefix='/api/exports')
     # app.register_blueprint(realtime_bp, url_prefix='/api/realtime')
-    app.register_blueprint(admin_users_bp, url_prefix='/api/admin/users')
     app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
     
     # Register Web blueprint (no prefix for main web routes)

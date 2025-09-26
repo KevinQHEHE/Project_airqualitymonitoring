@@ -1,0 +1,390 @@
+/**
+ * Favorite Locations & Save Location Functionality
+ * CSS for location permission modal, station selection, and favorite location buttons
+ */
+
+/* Location Permission Modal */
+.location-permission-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(30, 30, 46, 0.95);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.location-permission-modal.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.location-modal-content {
+    background: #23263a;
+    border-radius: 20px;
+    padding: 2.5rem;
+    max-width: 480px;
+    width: 90%;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(102, 126, 234, 0.2);
+    transform: translateY(30px) scale(0.95);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.location-permission-modal.show .location-modal-content {
+    transform: translateY(0) scale(1);
+}
+
+.location-modal-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.location-modal-icon {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem;
+    font-size: 2.5rem;
+    color: #fff;
+    animation: locationPulse 2s infinite;
+}
+
+@keyframes locationPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.location-modal-title {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 0.5rem;
+}
+
+.location-modal-text {
+    color: #b0b3c7;
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+}
+
+.location-modal-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.location-btn {
+    flex: 1;
+    padding: 0.875rem 1.5rem;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    min-width: 120px;
+}
+
+.location-btn-primary {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.location-btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+}
+
+.location-btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #b0b3c7;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.location-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    transform: translateY(-2px);
+}
+
+.location-btn-danger {
+    background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+}
+
+.location-btn-danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(255, 107, 107, 0.6);
+}
+
+/* Loading State */
+.location-btn.loading {
+    pointer-events: none;
+    position: relative;
+}
+
+.location-btn.loading::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    top: 50%;
+    left: 50%;
+    margin: -10px 0 0 -10px;
+    border: 2px solid transparent;
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* Nearest Stations Display */
+.nearest-stations-container {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.nearest-stations-title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.nearest-station-item {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.nearest-station-item:hover {
+    background: rgba(102, 126, 234, 0.2);
+    border-color: rgba(102, 126, 234, 0.4);
+    transform: translateY(-2px);
+}
+
+.nearest-station-item:last-child {
+    margin-bottom: 0;
+}
+
+.station-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.station-details h4 {
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.station-details p {
+    color: #b0b3c7;
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.station-distance {
+    background: rgba(102, 126, 234, 0.2);
+    color: #667eea;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+/* Favorite Location Button */
+.favorite-location-btn {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border: none;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 1.5rem;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    transition: all 0.3s ease;
+    z-index: 1000;
+}
+
+.favorite-location-btn:hover {
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+}
+
+.favorite-location-btn.saved {
+    background: linear-gradient(135deg, #00e676, #00c853);
+    box-shadow: 0 4px 15px rgba(0, 230, 118, 0.4);
+}
+
+.favorite-location-btn.saved:hover {
+    box-shadow: 0 8px 25px rgba(0, 230, 118, 0.6);
+}
+
+/* Light Mode Support */
+body.white-content .location-permission-modal {
+    background: rgba(248, 249, 250, 0.95);
+}
+
+body.white-content .location-modal-content {
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+body.white-content .location-modal-title {
+    color: #333;
+}
+
+body.white-content .location-modal-text {
+    color: #666;
+}
+
+body.white-content .location-btn-secondary {
+    background: rgba(0, 0, 0, 0.05);
+    color: #666;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+body.white-content .location-btn-secondary:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: #333;
+}
+
+body.white-content .nearest-stations-container {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+body.white-content .nearest-stations-title {
+    color: #333;
+}
+
+body.white-content .nearest-station-item {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+body.white-content .nearest-station-item:hover {
+    background: rgba(102, 126, 234, 0.1);
+}
+
+body.white-content .station-details h4 {
+    color: #333;
+}
+
+body.white-content .station-details p {
+    color: #666;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .location-modal-content {
+        margin: 1rem;
+        padding: 2rem;
+        max-width: none;
+        width: calc(100% - 2rem);
+    }
+    
+    .location-modal-actions {
+        flex-direction: column;
+    }
+    
+    .favorite-location-btn {
+        bottom: 1rem;
+        right: 1rem;
+        width: 50px;
+        height: 50px;
+        font-size: 1.2rem;
+    }
+    
+    .nearest-stations-container {
+        max-height: 300px;
+    }
+}
+
+@media (max-width: 480px) {
+    .location-modal-content {
+        padding: 1.5rem;
+    }
+    
+    .location-modal-title {
+        font-size: 1.5rem;
+    }
+    
+    .location-modal-icon {
+        width: 60px;
+        height: 60px;
+        font-size: 2rem;
+    }
+}
+
+/* Animation utilities */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Custom scrollbar for stations list */
+.nearest-stations-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.nearest-stations-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.nearest-stations-container::-webkit-scrollbar-thumb {
+    background: rgba(102, 126, 234, 0.6);
+    border-radius: 3px;
+}
+
+.nearest-stations-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(102, 126, 234, 0.8);
+}
