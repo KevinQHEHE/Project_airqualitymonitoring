@@ -8,7 +8,7 @@ Key endpoints:
 
 Security: Admin authentication required for trigger endpoint
 """
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from backend.app.extensions import limiter
 
 scheduler_bp = Blueprint('scheduler', __name__)
@@ -34,10 +34,22 @@ def get_scheduler_status():
             }), 503
         
         status = scheduler.get_status()
-        return jsonify({
+        backup_status = None
+        try:
+            from backup_dtb.scheduler import get_backup_scheduler
+            backup_scheduler = get_backup_scheduler()
+            if backup_scheduler:
+                backup_status = backup_scheduler.get_status()
+        except Exception:
+            backup_status = None
+
+        response = {
             'status': 'ok',
             'scheduler': status
-        })
+        }
+        if backup_status is not None:
+            response['backup_scheduler'] = backup_status
+        return jsonify(response)
         
     except Exception as e:
         return jsonify({
@@ -99,7 +111,7 @@ def trigger_station_reading():
 
 @scheduler_bp.route('/trigger/forecast', methods=['POST'])
 @limiter.limit("3 per minute")
-def trigger_forecast_ingestion():
+def trigger_forecast_ingestion():   
     """
     Manually trigger a forecast ingestion job.
     
@@ -146,3 +158,73 @@ def trigger_forecast_ingestion():
             'status': 'error',
             'message': f'Failed to trigger forecast ingestion: {str(e)}'
         }), 500
+
+@scheduler_bp.route('/trigger/backup', methods=['POST'])
+@limiter.limit("3 per minute")
+def trigger_backup_run():
+    """Manually trigger a database backup run."""
+    try:
+        from backup_dtb.scheduler import get_backup_scheduler, init_backup_scheduler
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({
+            'status': 'error',
+            'message': f'Backup scheduler module unavailable: {exc}'
+        }), 500
+
+    payload = request.get_json(silent=True) or {}
+    raw_async = payload.get('async', True)
+    if isinstance(raw_async, str):
+        run_async = raw_async.lower() not in ('false', '0', 'no')
+    else:
+        run_async = bool(raw_async)
+
+    reason = payload.get('reason') or 'manual_api'
+
+    scheduler = get_backup_scheduler()
+    if not scheduler:
+        try:
+            scheduler = init_backup_scheduler(logger=current_app.logger)
+        except Exception as exc:  # noqa: BLE001
+            current_app.logger.error('Failed to initialize backup scheduler: %s', exc)
+            return jsonify({
+                'status': 'error',
+                'message': f'Failed to initialize backup scheduler: {exc}'
+            }), 500
+
+    if not scheduler:
+        return jsonify({
+            'status': 'error',
+            'message': 'Backup scheduler not available'
+        }), 503
+
+    if not scheduler.is_running:
+        try:
+            scheduler.start()
+        except Exception as exc:  # noqa: BLE001
+            current_app.logger.error('Failed to start backup scheduler: %s', exc)
+            return jsonify({
+                'status': 'error',
+                'message': f'Failed to start backup scheduler: {exc}'
+            }), 500
+
+    started = scheduler.trigger_backup(reason=reason, run_async=run_async)
+    if not started:
+        return jsonify({
+            'status': 'error',
+            'message': 'Backup already in progress'
+        }), 409
+
+    status = scheduler.get_status()
+    response = {
+        'status': 'ok',
+        'message': 'Backup job started' if run_async else 'Backup job completed',
+        'async': run_async,
+        'backup_in_progress': scheduler.is_backup_in_progress(),
+    }
+    if not run_async:
+        response['result'] = status.get('last_result', {})
+    else:
+        response['last_result'] = status.get('last_result', {})
+
+    return jsonify(response), (202 if run_async else 200)
+
