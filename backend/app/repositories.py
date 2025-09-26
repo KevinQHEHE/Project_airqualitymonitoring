@@ -149,7 +149,36 @@ class ReadingsRepository(BaseRepository):
         super().__init__('waqi_station_readings')
 
     def find_latest_by_station(self, station_id: str, limit: int = 10) -> List[Dict[str, Any]]:
-        return self.find_many({'station_id': station_id}, limit=limit, sort=[('ts', -1)])
+        """Find latest readings for a station.
+        
+        The waqi_station_readings collection uses meta.station_idx field instead of station_id.
+        Try both field names to handle different data formats.
+        """
+        # Convert station_id to int if possible for meta.station_idx matching
+        try:
+            station_id_int = int(station_id)
+        except (ValueError, TypeError):
+            station_id_int = None
+        
+        # Try meta.station_idx first (current schema), then fall back to station_id
+        queries = []
+        if station_id_int is not None:
+            queries.append({'meta.station_idx': station_id_int})
+        queries.extend([
+            {'meta.station_idx': str(station_id)},
+            {'station_id': station_id},
+            {'station_id': station_id_int} if station_id_int is not None else None
+        ])
+        
+        # Remove None queries
+        queries = [q for q in queries if q is not None]
+        
+        for query in queries:
+            results = self.find_many(query, limit=limit, sort=[('ts', -1)])
+            if results:
+                return results
+        
+        return []
 
     def find_by_time_range(self, station_id: str, start_time: datetime, end_time: datetime) -> List[Dict[str, Any]]:
         return self.find_many({'station_id': station_id, 'ts': {'$gte': start_time, '$lte': end_time}}, sort=[('ts', 1)])

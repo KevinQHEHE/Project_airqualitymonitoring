@@ -101,3 +101,15 @@ def debug_headers():
         return jsonify({"headers": hdrs}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# Station Subscriptions page (UI)
+@web_bp.route('/subscriptions.html')
+@web_bp.route('/subscriptions')
+def subscriptions_page():
+    """Render the Station Subscriptions management UI.
+
+    Both `/subscriptions` and `/subscriptions.html` are supported because
+    the frontend links sometimes point to the `.html` path.
+    """
+    return render_template('dashboard/subscriptions.html')

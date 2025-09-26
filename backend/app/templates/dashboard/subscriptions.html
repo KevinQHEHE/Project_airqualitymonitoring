@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+		<title>Station Subscriptions</title>
+		<link href="https://fonts.googleapis.com/css?family=Poppins:200,300,400,600,700,800" rel="stylesheet" />
+		<link href="{{ url_for('static', filename='js/assets/css/black-dashboard.min.css') }}" rel="stylesheet" />
+		<link href="{{ url_for('static', filename='js/assets/css/subscriptions_page.css') }}" rel="stylesheet" />
+	</head>
+	<body>
+		<div class="container subscriptions-container">
+			<div class="subscriptions-header">
+				<h1>Station Subscriptions</h1>
+				<p>Manage your subscribed stations, configure alert thresholds and notification preferences.</p>
+			</div>
+
+			<div class="subscriptions-controls">
+				<div class="view-toggle" role="tablist" aria-label="View toggle">
+					<button id="gridViewBtn" class="active" onclick="setView('grid')">Grid</button>
+					<button id="listViewBtn" onclick="setView('list')">List</button>
+				</div>
+
+				<div class="sort-controls">
+					<div class="subscription-count">Subscriptions <span id="subscriptionCount" class="count-badge">0</span></div>
+				</div>
+			</div>
+
+			<div id="subscriptionsContainer">
+				<div id="emptyState" class="empty-state" style="display:none;">
+					<div class="empty-state-icon">💨</div>
+					<h3>No subscriptions yet</h3>
+					<p>Subscribe to stations from the dashboard search to receive alerts and quick access to station details.</p>
+					<a href="/" class="explore-btn">Explore stations</a>
+				</div>
+
+				<div id="subscriptionsGrid" class="subscriptions-grid" aria-live="polite"></div>
+				<div id="subscriptionsList" class="subscriptions-list" style="display:none;"></div>
+			</div>
+		</div>
+
+		<script src="{{ url_for('static', filename='js/assets/js/station_subscriptions.js') }}"></script>
+	</body>
+</html>
