@@ -11,12 +11,14 @@ Design notes:
 """
 from __future__ import annotations
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone, timedelta
 
-from backend.app.db import get_db
+from backend.app.db import get_db, DatabaseError
+from pymongo import MongoClient
+from pymongo.read_preferences import ReadPreference
 
 logger = logging.getLogger(__name__)
 
@@ -184,12 +186,59 @@ def get_latest_measurements():
         if limit > 500:
             return jsonify({'error': 'limit cannot exceed 500'}), 400
 
-        db = get_db()
-        pipeline = build_latest_per_station_pipeline(station_id, limit)
-        logger.debug(f"Aggregation pipeline: {pipeline}")
+        try:
+            db = get_db()
+            pipeline = build_latest_per_station_pipeline(station_id, limit)
+            logger.debug(f"Aggregation pipeline: {pipeline}")
 
-        cursor = db.waqi_station_readings.aggregate(pipeline, allowDiskUse=False)
-        results = list(cursor)
+            cursor = db.waqi_station_readings.aggregate(pipeline, allowDiskUse=False)
+            results = list(cursor)
+        except DatabaseError as e:
+            # First attempt: try to read from secondaries (read-only) if primary missing
+            try:
+                mongo_uri = current_app.config.get('MONGO_URI')
+                mongo_db_name = current_app.config.get('MONGO_DB')
+                if mongo_uri and mongo_db_name:
+                    tmp_client = MongoClient(mongo_uri, serverSelectionTimeoutMS=3000, socketTimeoutMS=5000, read_preference=ReadPreference.SECONDARY_PREFERRED)
+                    try:
+                        tmp_db = tmp_client[mongo_db_name]
+                        cursor = tmp_db.waqi_station_readings.aggregate(pipeline, allowDiskUse=False)
+                        results = list(cursor)
+                        logger.warning("Read from secondary succeeded for latest (SecondaryPreferred) after primary error: %s", e)
+                    finally:
+                        try:
+                            tmp_client.close()
+                        except Exception:
+                            pass
+                    # If we got results, continue to normal response flow
+                    if results:
+                        for doc in results:
+                            if 'timestamp' in doc:
+                                doc['timestamp'] = _timestamp_to_vn_iso(doc.get('timestamp'))
+                        return jsonify({'measurements': results}), 200
+            except Exception:
+                # ignore secondary read errors and fall back to cache
+                pass
+
+            # Second attempt: return a cached response if available to tolerate transient DB failures
+            try:
+                cache_coll = get_db().api_response_cache
+                cache_key = f"latest:{station_id or 'all'}:{limit}"
+                cached = cache_coll.find_one({'_id': cache_key})
+                if cached and 'response' in cached:
+                    logger.warning(f"Database error in get_latest_measurements, returning cached response: {e}")
+                    cached_resp = cached['response']
+                    # Ensure timestamps are normalized
+                    for doc in cached_resp.get('measurements', []):
+                        if 'timestamp' in doc:
+                            doc['timestamp'] = _timestamp_to_vn_iso(doc.get('timestamp'))
+                    return jsonify(cached_resp), 200
+            except Exception:
+                # ignore cache read errors
+                pass
+
+            logger.error(f"get_latest_measurements DB unavailable: {e}")
+            return jsonify({'error': 'Database unavailable'}), 503
 
         # Ensure timestamps are converted to Vietnam local time ISO strings
         for doc in results:
@@ -273,11 +322,49 @@ def get_history():
             {'$sort': {'timestamp': 1, 'ts': 1, 'time.iso': 1}},
         ]
 
-        db = get_db()
-        logger.debug(f"History pipeline: {pipeline}")
+        try:
+            db = get_db()
+            logger.debug(f"History pipeline: {pipeline}")
 
-        cursor = db.waqi_station_readings.aggregate(pipeline, allowDiskUse=False)
-        results = list(cursor)
+            cursor = db.waqi_station_readings.aggregate(pipeline, allowDiskUse=False)
+            results = list(cursor)
+        except DatabaseError as e:
+            # Try reading from secondaries first (read-only) to tolerate primary outage
+            try:
+                mongo_uri = current_app.config.get('MONGO_URI')
+                mongo_db_name = current_app.config.get('MONGO_DB')
+                if mongo_uri and mongo_db_name:
+                    tmp_client = MongoClient(mongo_uri, serverSelectionTimeoutMS=3000, socketTimeoutMS=5000, read_preference=ReadPreference.SECONDARY_PREFERRED)
+                    try:
+                        tmp_db = tmp_client[mongo_db_name]
+                        cursor = tmp_db.waqi_station_readings.aggregate(pipeline, allowDiskUse=False)
+                        results = list(cursor)
+                        logger.warning("Read from secondary succeeded for history (SecondaryPreferred) after primary error: %s", e)
+                    finally:
+                        try:
+                            tmp_client.close()
+                        except Exception:
+                            pass
+                    if results:
+                        for doc in results:
+                            if 'timestamp' in doc and doc['timestamp'] is not None:
+                                doc['timestamp'] = _timestamp_to_vn_iso(doc.get('timestamp'))
+                        return jsonify({'station_id': station_id, 'measurements': results}), 200
+            except Exception:
+                pass
+
+            # Fallback to cache for history queries (best-effort)
+            try:
+                cache_coll = get_db().api_response_cache
+                cache_key = f"history:{station_id}:{hours}"
+                cached = cache_coll.find_one({'_id': cache_key})
+                if cached and 'response' in cached:
+                    logger.warning(f"Database error in get_history, returning cached response: {e}")
+                    return jsonify(cached['response']), 200
+            except Exception:
+                pass
+            logger.error(f"get_history DB unavailable: {e}")
+            return jsonify({'error': 'Database unavailable'}), 503
 
         # Convert timestamps to Vietnam local time ISO strings
         for doc in results:

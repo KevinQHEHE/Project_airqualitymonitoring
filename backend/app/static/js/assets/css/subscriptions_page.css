@@ -1,0 +1,1177 @@
+/* Subscriptions Page Styles - Vietnamese Air Quality Monitor */
+
+/* Main container */
+.subscriptions-container {
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Header section */
+.subscriptions-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 20px;
+    padding: 2.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 15px 35px rgba(102, 126, 234, 0.2);
+    color: white;
+    text-align: center;
+}
+
+.subscriptions-header h1 {
+    margin: 0 0 0.5rem 0;
+    font-size: 2.2rem;
+    font-weight: 700;
+}
+
+.subscriptions-header p {
+    margin: 0;
+    opacity: 0.9;
+    font-size: 1.1rem;
+}
+
+/* Controls bar */
+.subscriptions-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.view-toggle {
+    display: flex;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 12px;
+    padding: 4px;
+    border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+.view-toggle button {
+    padding: 10px 20px;
+    border: none;
+    background: transparent;
+    color: #667eea;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.view-toggle button.active {
+    background: #667eea;
+    color: white;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.sort-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.sort-select {
+    padding: 10px 15px;
+    border: 2px solid rgba(102, 126, 234, 0.2);
+    border-radius: 10px;
+    background: white;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 160px;
+}
+
+.sort-select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Subscription count */
+.subscription-count {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #666;
+    font-weight: 500;
+    padding: 12px 20px;
+    background: rgba(102, 126, 234, 0.05);
+    border-radius: 12px;
+}
+
+.count-badge {
+    background: #667eea;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.limit-warning {
+    color: #e74c3c;
+    font-size: 0.85rem;
+    margin-left: 0.5rem;
+}
+
+/* Grid and List layouts */
+.subscriptions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.subscriptions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+/* Station cards */
+.station-card {
+    background: white;
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+    border: 2px solid transparent;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Dark mode: when body does NOT have the light-mode class `white-content` */
+body:not(.white-content) .station-card {
+    background: linear-gradient(180deg, #14151a, #1b1d23);
+    color: #e6eef8;
+    box-shadow: 0 8px 48px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+body:not(.white-content) .station-name {
+    color: #e6eef8;
+}
+
+body:not(.white-content) .station-location,
+body:not(.white-content) .aqi-description,
+body:not(.white-content) .added-date,
+body:not(.white-content) .subscription-count,
+body:not(.white-content) .alert-label {
+    color: #b8c4d6;
+}
+
+.station-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--station-color, #667eea);
+    transition: all 0.3s ease;
+}
+
+.station-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12);
+    border-color: rgba(102, 126, 234, 0.2);
+}
+
+/* Dark-mode hover: prevent white flash and keep dark background */
+/* Use high-specificity selectors and !important to override other theme styles */
+body:not(.white-content) .subscriptions-grid .station-card:hover,
+body:not(.white-content) .subscriptions-list .station-card:hover,
+body:not(.white-content) .station-card:hover {
+    background: linear-gradient(180deg, #14151a, #1b1d23) !important;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.7) !important;
+    border-color: rgba(102, 126, 234, 0.06) !important;
+    transform: translateY(-4px) !important;
+}
+
+/* Ensure nested text/icons don't flash to white on hover */
+body:not(.white-content) .station-card:hover,
+body:not(.white-content) .subscriptions-grid .station-card:hover,
+body:not(.white-content) .subscriptions-list .station-card:hover {
+    color: #e6eef8 !important;
+}
+
+body:not(.white-content) .station-card:hover .station-name,
+body:not(.white-content) .station-card:hover .station-location,
+body:not(.white-content) .station-card:hover .aqi-description,
+body:not(.white-content) .station-card:hover .added-date,
+body:not(.white-content) .station-card:hover .threshold-value,
+body:not(.white-content) .station-card:hover .alert-label {
+    color: #e6eef8 !important;
+}
+
+/* List view specific styling */
+.subscriptions-list .station-card {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 1.25rem 1.5rem;
+    /* allow wrapping so long texts don't overlap */
+    flex-wrap: wrap;
+}
+
+/* More robust layout for list-item variant (used by createStationCard list) */
+.subscriptions-list .station-card.list-item {
+    align-items: flex-start;
+    display: flex;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    justify-content: space-between; /* push controls to the right */
+}
+
+.subscriptions-list .station-card.list-item .station-header {
+    flex: 1 1 auto; /* grow and shrink */
+    min-width: 0; /* allow ellipsis/clamp */
+}
+
+.subscriptions-list .station-card.list-item .aqi-compact {
+    flex: 0 0 84px; /* fixed width for AQI */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.subscriptions-list .station-card.list-item .station-controls {
+    flex: 0 0 150px; /* fixed width for controls */
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+}
+
+/* New layout for controls column in list view */
+.subscriptions-list .station-card.list-item .controls-column {
+    flex: 0 0 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.75rem;
+    margin-left: auto; /* ensure controls column stays at the far right */
+}
+
+.subscriptions-list .station-card.list-item .control-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-end;
+}
+
+.alert-toggle-small {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.toggle-switch-small {
+    width: 44px;
+    height: 22px;
+    border-radius: 16px;
+    background: #bdc3c7;
+    position: relative;
+    cursor: pointer;
+}
+.toggle-switch-small.active { background: #667eea; }
+.toggle-switch-small::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 18px; height: 18px; border-radius: 50%; background: white; transition: transform .2s;
+}
+.toggle-switch-small.active::after { transform: translateX(22px); }
+
+.threshold-inline { text-align: right; }
+.threshold-label-small { font-weight: 600; color: #667eea; }
+
+.unsubscribe-btn {
+    background: transparent;
+    border: 1px solid rgba(0,0,0,0.08);
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #333;
+}
+.unsubscribe-btn:hover { background: rgba(0,0,0,0.03); }
+
+/* Mobile adjustments: make controls stack below content on small screens */
+@media (max-width: 720px) {
+    .subscriptions-list .station-card.list-item { flex-direction: column; }
+    .subscriptions-list .station-card.list-item .controls-column { align-items: flex-start; width: 100%; }
+    .subscriptions-list .station-card.list-item .control-stack { align-items: flex-start; }
+}
+
+/* Allow station name to use up to 2 lines on list view to avoid truncation overlap */
+.subscriptions-list .station-card.list-item .station-name {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: normal;
+}
+
+.subscriptions-list .station-card.list-item .station-location {
+    font-size: 0.95rem;
+    color: #7f8c8d;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.subscriptions-list .station-header {
+    flex: 1;
+    min-width: 0;
+}
+
+.subscriptions-list .aqi-display {
+    flex-shrink: 0;
+}
+
+.subscriptions-list .station-controls {
+    flex-shrink: 0;
+    margin-top: 0;
+}
+
+/* Station header */
+.station-header {
+    margin-bottom: 1.5rem;
+}
+
+.station-name-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Added date styling: small, muted, placed under station name in list view */
+.added-date {
+    font-size: 0.85rem;
+    color: #8a98a6;
+    margin-top: 0.1rem;
+}
+
+.subscriptions-list .station-card.list-item .added-date {
+    /* ensure adequate spacing in list items */
+    margin-top: 0.25rem;
+}
+
+.station-name {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #2c3e50;
+    margin: 0;
+    flex: 1;
+}
+
+/* Prevent long station names/locations from overflowing and stacking */
+.station-name, .station-location {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+/* List view: ensure station name is on its own line and location/details sit below it.
+   Override the global nowrap and horizontal layout used elsewhere. */
+.subscriptions-list .station-card.list-item .station-name-container {
+    /* stack name and location vertically on list items */
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.subscriptions-list .station-card.list-item .station-name,
+.subscriptions-list .station-card.list-item .station-location {
+    /* allow wrapping and multiple lines for list view items */
+    white-space: normal;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.subscriptions-list .station-card.list-item .station-name {
+    /* keep the name slightly larger and allow up to 2 lines */
+    font-size: 1.25rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.subscriptions-list .aqi-display {
+    min-width: 90px;
+}
+
+.subscriptions-list .station-controls {
+    min-width: 140px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.station-name.editable {
+    border: 2px dashed transparent;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.station-name.editable:hover {
+    border-color: #667eea;
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.station-name.editing {
+    border: 2px solid #667eea;
+    background: white;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.edit-icon {
+    color: #667eea;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.3s ease;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.edit-icon:hover {
+    opacity: 1;
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.station-location {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #7f8c8d;
+    font-size: 0.95rem;
+}
+
+.station-id {
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+/* AQI Display */
+.aqi-display {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.aqi-circle {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: white;
+    position: relative;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.aqi-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.aqi-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.aqi-status {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+}
+
+.aqi-details {
+    flex: 1;
+}
+
+.aqi-description {
+    color: #666;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin-bottom: 0.75rem;
+}
+
+.last-updated {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #95a5a6;
+    font-size: 0.85rem;
+}
+
+
+/* Alert Controls */
+.alert-controls {
+    background: rgba(102, 126, 234, 0.03);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.alert-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.alert-label {
+    font-weight: 600;
+    color: #2c3e50;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.toggle-switch {
+    position: relative;
+    width: 60px;
+    height: 30px;
+    background: #bdc3c7;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.toggle-switch.active {
+    background: #667eea;
+}
+
+.toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 24px;
+    height: 24px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.3s ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch.active::after {
+    transform: translateX(30px);
+}
+
+.threshold-control {
+    margin-top: 1rem;
+}
+
+.threshold-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.threshold-value {
+    font-weight: 600;
+    color: #667eea;
+    font-size: 1rem;
+}
+
+.threshold-slider {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(to right, #27ae60 0%, #f39c12 25%, #e67e22 50%, #e74c3c 75%, #8e44ad 100%);
+    outline: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.threshold-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid #667eea;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+}
+
+.threshold-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.threshold-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid #667eea;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+}
+
+/* Station Controls */
+.station-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(102, 126, 234, 0.1);
+}
+
+.added-date {
+    color: #95a5a6;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.unsubscribe-btn {
+    background: transparent;
+    border: 2px solid #e74c3c;
+    color: #e74c3c;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.unsubscribe-btn:hover {
+    background: #e74c3c;
+    color: white;
+    transform: scale(1.05);
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: #7f8c8d;
+}
+
+.empty-state-icon {
+    font-size: 4rem;
+    margin-bottom: 1.5rem;
+    opacity: 0.5;
+}
+
+.empty-state h3 {
+    margin-bottom: 1rem;
+    color: #2c3e50;
+    font-size: 1.5rem;
+}
+
+.empty-state p {
+    margin-bottom: 2rem;
+    font-size: 1.1rem;
+    line-height: 1.6;
+}
+
+.explore-btn {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border: none;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 25px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.explore-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+    color: white;
+    text-decoration: none;
+}
+
+/* Loading States */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    z-index: 10;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(102, 126, 234, 0.2);
+    border-top: 3px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.refreshing {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+/* Confirmation Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 2rem;
+}
+
+.confirmation-modal {
+    background: white;
+    border-radius: 16px;
+    padding: 2rem;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.modal-icon {
+    font-size: 3rem;
+    color: #e74c3c;
+    margin-bottom: 1rem;
+}
+
+.modal-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 0.5rem;
+}
+
+.modal-message {
+    color: #666;
+    line-height: 1.5;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.modal-btn {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.modal-btn-cancel {
+    background: #ecf0f1;
+    color: #7f8c8d;
+}
+
+.modal-btn-cancel:hover {
+    background: #d5dbdb;
+    color: #2c3e50;
+}
+
+.modal-btn-confirm {
+    background: #e74c3c;
+    color: white;
+}
+
+.modal-btn-confirm:hover {
+    background: #c0392b;
+    transform: translateY(-1px);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .subscriptions-container {
+        padding: 1rem;
+    }
+    
+    .subscriptions-header {
+        padding: 2rem 1.5rem;
+    }
+    
+    .subscriptions-header h1 {
+        font-size: 1.8rem;
+    }
+    
+    .subscriptions-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .subscriptions-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .subscriptions-list .station-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+    
+    .station-controls {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+    
+    .confirmation-modal {
+        margin: 1rem;
+        padding: 1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .aqi-display {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .view-toggle {
+        width: 100%;
+    }
+    
+    .view-toggle button {
+        flex: 1;
+    }
+    
+    .modal-actions {
+        flex-direction: column;
+    }
+}
+
+/* Animation for new cards */
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.station-card.new {
+    animation: slideInUp 0.5s ease;
+}
+
+/* Success/Error notifications */
+.notification {
+    position: fixed;
+    top: 2rem;
+    right: 2rem;
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    z-index: 1001;
+    animation: slideInRight 0.3s ease;
+    max-width: 350px;
+}
+
+.notification.success {
+    background: #27ae60;
+}
+
+.notification.error {
+    background: #e74c3c;
+}
+
+.notification.warning {
+    background: #f39c12;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Heart icon for subscription button */
+.subscribe-btn {
+    background: transparent;
+    border: 2px solid #e74c3c;
+    color: #e74c3c;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.subscribe-btn:hover {
+    background: #e74c3c;
+    color: white;
+    transform: scale(1.1);
+}
+
+.subscribe-btn.subscribed {
+    background: #e74c3c;
+    color: white;
+    border-color: #e74c3c;
+}
+
+.subscribe-btn.subscribed:hover {
+    background: #c0392b;
+    border-color: #c0392b;
+}
+
+.heart-icon {
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+}
+
+.subscribe-btn:hover .heart-icon {
+    animation: heartBeat 0.6s ease-in-out;
+}
+
+@keyframes heartBeat {
+    0% { transform: scale(1); }
+    14% { transform: scale(1.3); }
+    28% { transform: scale(1); }
+    42% { transform: scale(1.3); }
+    70% { transform: scale(1); }
+}
+
+/* List view specific styles */
+.station-card.list-item {
+    margin-bottom: 1rem;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.station-card.list-item .station-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    flex-wrap: wrap;
+}
+
+.aqi-compact {
+    display: flex;
+    align-items: center;
+    min-width: 60px;
+}
+
+.aqi-circle-small {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+    font-size: 0.9rem;
+    border: 2px solid currentColor;
+}
+
+.alert-controls-inline {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex: 1;
+    min-width: 200px;
+}
+
+.alert-toggle-small {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.alert-label-small {
+    font-size: 0.85rem;
+    color: #64748b;
+    white-space: nowrap;
+}
+
+.toggle-switch-small {
+    width: 36px;
+    height: 20px;
+    border-radius: 12px;
+    border: none;
+    background: #cbd5e1;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.toggle-switch-small.active {
+    background: #10b981;
+}
+
+.toggle-switch-small::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: white;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch-small.active::after {
+    transform: translateX(16px);
+}
+
+.threshold-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.threshold-label-small {
+    font-size: 0.85rem;
+    color: #64748b;
+    white-space: nowrap;
+    min-width: 80px;
+}
+
+.threshold-slider-small {
+    flex: 1;
+    max-width: 120px;
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+}
+
+.threshold-slider-small::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #667eea;
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.threshold-slider-small::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #667eea;
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Responsive adjustments for list view */
+@media (max-width: 768px) {
+    .station-card.list-item .station-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+    
+    .alert-controls-inline {
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: stretch;
+    }
+    
+    .threshold-inline {
+        justify-content: space-between;
+    }
+    
+    .threshold-slider-small {
+        max-width: none;
+        flex: 1;
+    }
+}

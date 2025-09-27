@@ -19,6 +19,7 @@ import os
 
 from backend.app.repositories import users_repo
 from flask_jwt_extended import verify_jwt_in_request, get_jwt
+from flask import current_app
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,93 @@ def trigger_monitor():
 	except Exception as exc:
 		current_app.logger.exception('Trigger monitor failed: %s', exc)
 		return jsonify({"error": "monitor_failed", "details": str(exc)}), 500
+
+
+# --- DEBUG helpers (only in DEBUG mode) -------------------------------------
+@alerts_bp.route('/debug/logs', methods=['GET'])
+def debug_notification_logs():
+	"""Return recent notification_logs for debugging (only when DEBUG=True).
+
+	Query params: user_id (ObjectId string) and/or station_id (int or string).
+	"""
+	if not current_app.config.get('DEBUG'):
+		return jsonify({"error": "not_allowed"}), 403
+
+	db = __import__('backend.app.db', fromlist=['get_db']).get_db()
+	q = {}
+	user_id = request.args.get('user_id')
+	station_id = request.args.get('station_id')
+	if user_id:
+		try:
+			q['user_id'] = ObjectId(user_id)
+		except Exception:
+			return jsonify({"error": "invalid user_id"}), 400
+	if station_id:
+		try:
+			q['station_id'] = int(station_id)
+		except Exception:
+			q['station_id'] = station_id
+
+	docs = list(db.notification_logs.find(q).sort('sentAt', -1).limit(50))
+
+	def _serialize(doc: dict) -> dict:
+		out = {}
+		for k, v in doc.items():
+			try:
+				if isinstance(v, ObjectId):
+					out[k] = str(v)
+				elif hasattr(v, 'isoformat'):
+					out[k] = v.isoformat()
+				else:
+					out[k] = v
+			except Exception:
+				out[k] = str(v)
+		return out
+
+	return jsonify({"count": len(docs), "logs": [_serialize(d) for d in docs]}), 200
+
+
+@alerts_bp.route('/debug/send_test', methods=['POST'])
+def debug_send_test():
+	"""Attempt a single alert send to a user/station for testing (DEBUG only).
+
+	Body JSON: { "user_id": "..." } or { "email": "..." }, optional "station_id".
+	Returns send result for quick verification.
+	"""
+	if not current_app.config.get('DEBUG'):
+		return jsonify({"error": "not_allowed"}), 403
+
+	data = request.get_json(silent=True) or {}
+	user = None
+	if 'user_id' in data:
+		user = users_repo.find_by_id(data.get('user_id'))
+	elif 'email' in data:
+		user = users_repo.find_by_email(data.get('email'))
+	if not user:
+		return jsonify({"error": "user_not_found"}), 404
+
+	station_id = data.get('station_id') or data.get('station')
+	db = __import__('backend.app.db', fromlist=['get_db']).get_db()
+	station = None
+	if station_id is not None:
+		try:
+			station_doc = db.waqi_stations.find_one({'station_id': int(station_id)})
+		except Exception:
+			station_doc = db.waqi_stations.find_one({'station_id': str(station_id)})
+		if station_doc:
+			station = station_doc
+	if not station:
+		station = {'station_id': station_id or 'unknown', 'name': f'Station {station_id or "unknown"}'}
+
+	# Import the send helper from tasks to reuse mail sending logic
+	try:
+		from backend.app.tasks.alerts import _send_alert_email
+	except Exception as exc:
+		current_app.logger.exception('Could not import _send_alert_email: %s', exc)
+		return jsonify({"error": "internal_error", "details": str(exc)}), 500
+
+	sent, message_id, response = _send_alert_email(user, station, int(data.get('aqi', 150)))
+	return jsonify({"sent": sent, "message_id": message_id, "response": response}), 200
 
 
 

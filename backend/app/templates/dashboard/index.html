@@ -11,12 +11,14 @@
   <!-- Fonts and icons -->
   <link href="https://fonts.googleapis.com/css?family=Poppins:200,300,400,600,700,800" rel="stylesheet" />
   <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
   <!-- Nucleo Icons -->
   <link href="{{ url_for('static', filename='js/assets/css/nucleo-icons.css') }}" rel="stylesheet" />
   <!-- CSS Files -->
   <link href="{{ url_for('static', filename='js/assets/css/black-dashboard.min.css') }}" rel="stylesheet" />
   <link href="{{ url_for('static', filename='js/assets/css/theme-switcher.css') }}" rel="stylesheet" />
   <link href="{{ url_for('static', filename='js/assets/css/favorite_buttons.css') }}" rel="stylesheet" />
+  <link href="{{ url_for('static', filename='js/assets/css/subscriptions_page.css') }}" rel="stylesheet" />
   <!-- Demo CSS removed for clean structure -->
   <style>
     /* Minor overrides for static preview */
@@ -195,16 +197,16 @@
           <a href="#" class="simple-text logo-normal">Air Quality Monitor</a>
         </div>
         <ul class="nav">
-          <li class="active">
-            <a href="index.html">
+          <li class="active" id="dashboard-nav">
+            <a href="#" onclick="showDashboard(); return false;">
               <i class="tim-icons icon-chart-pie-36"></i>
               <p>Dashboard</p>
             </a>
           </li>
-          <li>
-            <a href="#">
-              <i class="tim-icons icon-cloud-upload-94"></i>
-              <p>Air Quality</p>
+          <li id="subscriptions-nav">
+            <a href="#" onclick="showSubscriptions(); return false;">
+              <i class="tim-icons icon-heart-2"></i>
+              <p>Station Subscriptions</p>
             </a>
           </li>
           <li>
@@ -214,7 +216,7 @@
             </a>
           </li>
           <li>
-            <a href="#">
+            <a href="#" onclick="handleLogout(); return false;">
               <i class="tim-icons icon-button-power"></i>
               <p>Logout</p>
             </a>
@@ -260,7 +262,6 @@
               </li>
               <li class="dropdown nav-item">
                 <a href="#" class="dropdown-toggle nav-link" data-toggle="dropdown">
-                  <div class="notification d-none d-lg-block d-xl-block"></div>
                   <i class="tim-icons icon-sound-wave"></i>
                   <p class="d-lg-none">Notifications</p>
                 </a>
@@ -292,6 +293,8 @@
 
       <!-- Content (Air Quality Search & Dashboard) -->
       <div class="content">
+        <!-- Dashboard Content -->
+        <div id="dashboard-content">
         <!-- Search Header -->
         <div class="search-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 2rem 0; margin-bottom: 2rem; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
           <div class="container">
@@ -339,6 +342,10 @@
                   <i class="tim-icons icon-time-alarm" style="color:#94a3b8;"></i>
                   <span id="timestampValue">Updated: —</span>
                 </span>
+                <!-- Subscribe Button -->
+                <button id="subscribeBtn" class="subscribe-btn" onclick="toggleStationSubscription()" style="margin-left: auto;">
+                  <i class="fas fa-heart heart-icon"></i>
+                </button>
               </div>
 
               <div class="aqi-panel" style="display: flex; gap: 1rem; align-items: center;">
@@ -537,8 +544,7 @@
       
       return `<div class="forecast-zigzag-card shadow-sm d-flex flex-column align-items-center justify-content-between p-3" style="border-radius: 1.2rem; background: ${bgGradient} !important; border: none; cursor:pointer; transition:box-shadow .2s,transform .2s; min-width:170px; max-width:200px; min-height:220px; position:relative; margin:0 15px 25px 15px;" onclick="showForecastDetail(${idx})">
         <div class="d-flex flex-column align-items-center mt-4 mb-2">
-          <div style="width: 54px; height: 54px; border-radius: 50%; background: ${color}; display:flex;align-items:center;justify-content:center; color:#fff; box-shadow:0 2px 8px #0001;">${aqiIcon}</div>
-          <div class="fw-bold mt-2" style="font-size: 1.08rem;">${day.date}</div>
+          <div class="fw-bold mb-1" style="font-size: 1.08rem; margin-bottom:0.35rem;">${day.date}</div>
         </div>
         <div class="w-100 px-1 pb-2">
           <div class="mb-1">
@@ -722,6 +728,42 @@
     patchForecastHook('showCityStationsFromApi');
   })();
   </script>
+        </div>
+        <!-- End Dashboard Content -->
+
+        <!-- Station Subscriptions Content -->
+        <div id="subscriptions-content" style="display: none;">
+          <div class="subscriptions-container">
+            <div class="subscriptions-header">
+              <h1>Station Subscriptions</h1>
+              <p>Manage your subscribed stations, configure alert thresholds and notification preferences.</p>
+            </div>
+
+            <div class="subscriptions-controls">
+              <div class="view-toggle" role="tablist" aria-label="View toggle">
+                <button id="gridViewBtn" class="active" onclick="setView('grid')">Grid</button>
+                <button id="listViewBtn" onclick="setView('list')">List</button>
+              </div>
+
+              <div class="sort-controls">
+                <div class="subscription-count">Subscriptions <span id="subscriptionCount" class="count-badge">0</span></div>
+              </div>
+            </div>
+
+            <div id="subscriptionsContainer">
+              <div id="emptyState" class="empty-state" style="display:none;">
+                <div class="empty-state-icon">💨</div>
+                <h3>No subscriptions yet</h3>
+                <p>Subscribe to stations from the dashboard search to receive alerts and quick access to station details.</p>
+                <button onclick="showDashboard()" class="explore-btn">Explore stations</button>
+              </div>
+
+              <div id="subscriptionsGrid" class="subscriptions-grid" aria-live="polite"></div>
+              <div id="subscriptionsList" class="subscriptions-list" style="display:none;"></div>
+            </div>
+          </div>
+        </div>
+        <!-- End Station Subscriptions Content -->
       </div>
 
       <!-- Footer -->
@@ -768,7 +810,65 @@
   <script src="{{ url_for('static', filename='js/assets/js/black-dashboard.min.js') }}"></script>
   <script src="{{ url_for('static', filename='js/assets/js/themeSettings.js') }}"></script>
   <script src="{{ url_for('static', filename='js/assets/js/favorite_locations.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assets/js/station_subscriptions.js') }}"></script>
 {% endblock %}
+
+  <!-- Navigation Functions -->
+  <script>
+    let currentNavSection = 'dashboard';
+
+    function showDashboard() {
+      // Hide subscriptions content
+      document.getElementById('subscriptions-content').style.display = 'none';
+      // Show dashboard content  
+      document.getElementById('dashboard-content').style.display = 'block';
+      
+      // Update navigation active states
+      document.getElementById('dashboard-nav').classList.add('active');
+      document.getElementById('subscriptions-nav').classList.remove('active');
+      
+      // Update navbar title
+      document.querySelector('.navbar-brand').textContent = 'Dashboard';
+      
+      currentNavSection = 'dashboard';
+    }
+
+    function showSubscriptions() {
+      // Hide dashboard content
+      document.getElementById('dashboard-content').style.display = 'none';
+      // Show subscriptions content
+      document.getElementById('subscriptions-content').style.display = 'block';
+      
+      // Update navigation active states
+      document.getElementById('dashboard-nav').classList.remove('active');
+      document.getElementById('subscriptions-nav').classList.add('active');
+      
+      // Update navbar title
+      document.querySelector('.navbar-brand').textContent = 'Station Subscriptions';
+      
+      // Initialize subscriptions if not already done, or refresh if already initialized
+      if (typeof initializeSubscriptions === 'function') {
+        initializeSubscriptions();
+      } else if (typeof refreshSubscriptions === 'function') {
+        refreshSubscriptions();
+      }
+      
+      currentNavSection = 'subscriptions';
+    }
+
+    function handleLogout() {
+      if (confirm('Are you sure you want to logout?')) {
+        localStorage.removeItem('access_token');
+        window.location.href = '/login';
+      }
+    }
+
+    // Initialize navigation on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      // Ensure dashboard is shown by default
+      showDashboard();
+    });
+  </script>
 
   <!-- AQI Color Classes -->
   <style>
@@ -1408,6 +1508,14 @@
       // Update trend chart using 12-hour history API for this station
       const trendCanvas = document.getElementById('aqiSearchTrendChart');
       if (trendCanvas && window.Chart) updateSearchTrendChartFromApi(String(latest.station_id || stationId), 12);
+      
+      // Update subscription button state
+      const stationData = {
+        station_id: latest.station_id || stationId,
+        station_name: displayName,
+        location: displayName
+      };
+      updateSubscriptionButton(stationData);
     } catch (e) {
       alert('Có lỗi khi tải dữ liệu trạm.');
     }
@@ -1639,6 +1747,141 @@
         }
       }
     });
+  }
+  
+  // Station Subscription Management
+  let currentStationData = null; // Store current selected station info
+  
+  // Check if station is already subscribed
+  async function isStationSubscribed(stationId) {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch('/api/subscriptions', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (!response.ok) return false;
+      
+      const data = await response.json();
+      return data.subscriptions.some(sub => sub.station_id === stationId);
+    } catch (error) {
+      console.error('Error checking subscription:', error);
+      return false;
+    }
+  }
+  
+  // Toggle station subscription
+  async function toggleStationSubscription() {
+    if (!currentStationData) {
+      alert('Please select a station first');
+      return;
+    }
+    
+    const subscribeBtn = document.getElementById('subscribeBtn');
+    const heartIcon = subscribeBtn.querySelector('.heart-icon');
+    const isCurrentlySubscribed = subscribeBtn.classList.contains('subscribed');
+    
+    try {
+      const token = localStorage.getItem('access_token');
+      
+      if (isCurrentlySubscribed) {
+        // Unsubscribe
+        const response = await fetch('/api/subscriptions/unsubscribe', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            station_id: currentStationData.station_id
+          })
+        });
+        
+        if (response.ok) {
+          subscribeBtn.classList.remove('subscribed');
+          subscribeBtn.title = 'Subscribe to station alerts';
+          showNotification('Station unsubscribed successfully', 'success');
+        } else {
+          const errorData = await response.json();
+          showNotification(errorData.error || 'Failed to unsubscribe', 'error');
+        }
+      } else {
+        // Subscribe
+        const response = await fetch('/api/subscriptions/subscribe', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            station_id: currentStationData.station_id,
+            station_name: currentStationData.station_name || currentStationData.location,
+            nickname: currentStationData.station_name || currentStationData.location,
+            threshold: 100, // Default threshold
+            alert_enabled: true
+          })
+        });
+        
+        if (response.ok) {
+          subscribeBtn.classList.add('subscribed');
+          subscribeBtn.title = 'Unsubscribe from station alerts';
+          showNotification('Station subscribed successfully', 'success');
+        } else {
+          const errorData = await response.json();
+          if (errorData.error && errorData.error.includes('limit')) {
+            showNotification('You can only subscribe to 10 stations maximum', 'warning');
+          } else {
+            showNotification(errorData.error || 'Failed to subscribe', 'error');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling subscription:', error);
+      showNotification('Network error occurred', 'error');
+    }
+  }
+  
+  // Update subscription button state
+  async function updateSubscriptionButton(stationData) {
+    currentStationData = stationData;
+    const subscribeBtn = document.getElementById('subscribeBtn');
+    
+    if (!subscribeBtn) return;
+    
+    // Check if already subscribed
+    const isSubscribed = await isStationSubscribed(stationData.station_id);
+    
+    if (isSubscribed) {
+      subscribeBtn.classList.add('subscribed');
+      subscribeBtn.title = 'Unsubscribe from station alerts';
+    } else {
+      subscribeBtn.classList.remove('subscribed');
+      subscribeBtn.title = 'Subscribe to station alerts';
+    }
+  }
+  
+  // Show notification
+  function showNotification(message, type = 'info') {
+    // Remove existing notifications
+    const existingNotifications = document.querySelectorAll('.notification');
+    existingNotifications.forEach(notification => notification.remove());
+    
+    // Create new notification
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+      if (notification && notification.parentNode) {
+        notification.remove();
+      }
+    }, 5000);
   }
   
   </script>

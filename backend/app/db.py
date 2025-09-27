@@ -10,6 +10,7 @@ import logging
 from typing import Optional
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from pymongo.read_preferences import ReadPreference
 from flask import current_app, g
 
 logger = logging.getLogger(__name__)
@@ -44,8 +45,33 @@ def get_mongo_client() -> MongoClient:
             logger.info("MongoDB connection established successfully")
             
         except (ConnectionFailure, ServerSelectionTimeoutError) as e:
-            logger.error(f"Failed to connect to MongoDB: {e}")
-            raise DatabaseError(f"Database connection failed: {e}")
+            # If the cluster has no primary (ReplicaSetNoPrimary) we can still
+            # operate in read-only mode by preferring secondaries. Create a
+            # secondary-preferred client as a fallback so read-only endpoints
+            # continue to work instead of failing hard at startup.
+            msg = str(e)
+            if 'Primary()' in msg or 'ReplicaSetNoPrimary' in msg:
+                logger.warning('Primary not available; creating secondary-preferred MongoDB client for read-only operations: %s', e)
+                try:
+                    g.mongo_client = MongoClient(
+                        mongo_uri,
+                        serverSelectionTimeoutMS=5000,
+                        connectTimeoutMS=10000,
+                        socketTimeoutMS=20000,
+                        maxPoolSize=50,
+                        retryWrites=False,
+                        read_preference=ReadPreference.SECONDARY_PREFERRED,
+                    )
+                    # Avoid a blocking ping here; assume secondaries available and
+                    # let operations surface errors when they run. Log info so
+                    # operators know we've fallen back.
+                    logger.info('Secondary-preferred MongoDB client created (read-only fallback)')
+                except Exception as e2:
+                    logger.error('Failed to create secondary-preferred MongoDB client: %s', e2)
+                    raise DatabaseError(f'Database connection failed and fallback failed: {e2}')
+            else:
+                logger.error(f"Failed to connect to MongoDB: {e}")
+                raise DatabaseError(f"Database connection failed: {e}")
         except Exception as e:
             logger.error(f"Unexpected error connecting to MongoDB: {e}")
             raise DatabaseError(f"Unexpected database error: {e}")
@@ -163,6 +189,16 @@ def ensure_indexes() -> bool:
         bool: True if all indexes were created/verified successfully
     """
     try:
+        # If there's no primary available for writes, skip index creation.
+        # get_mongo_client() may return a secondary-preferred client when primary
+        # is not available; in that case client.primary will be None and attempting
+        # to create indexes would raise NoPrimary errors. Skip early to avoid
+        # noisy startup failures.
+        client = get_mongo_client()
+        if not getattr(client, 'primary', None):
+            logger.warning('No primary available - skipping index creation')
+            return False
+
         db = get_db()
 
         # Station readings indexes

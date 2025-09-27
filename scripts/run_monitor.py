@@ -1,8 +1,21 @@
 """Run the favorite-stations monitor in-process and print a short summary.
 
-This imports the monitor function and runs it inside the Flask app context.
-Use this in local/dev to perform a one-off run.
+This helper is intended for local development. When executed directly from
+the repository root Python may not be able to import the `backend` package
+unless the repo root is on PYTHONPATH. To make this script easy to run we
+add the repo root to sys.path when needed.
+
+Usage:
+    python scripts/run_monitor.py
 """
+import os
+import sys
+
+# Ensure repo root is on sys.path so `backend` package can be imported
+repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
 from backend.app import create_app
 
 app = create_app()

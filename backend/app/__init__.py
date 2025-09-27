@@ -16,42 +16,9 @@ def create_app(config_class=Config):
     """
     app = Flask(__name__)
     app.config.from_object(config_class)
-    # --- Auto-configure EMAIL_VALIDATION from environment (safe, no secrets committed) ---
-    # If an Abstract API key is present in the environment, populate a minimal
-    # EMAIL_VALIDATION dict so services can call the provider without requiring
-    # additional manual config. Keys remain in environment; we don't write them
-    # to disk or commit them.
-    import os
-    abstract_key = os.environ.get('ABSTRACT_API_KEY')
-    if abstract_key and not app.config.get('EMAIL_VALIDATION'):
-        app.config['EMAIL_VALIDATION'] = {
-            'provider': 'abstract',
-            'api_key': abstract_key,
-            'url': os.environ.get('EMAIL_VALIDATION_URL') or 'https://emailvalidation.abstractapi.com/v1/'
-        }
-        # Quick validation of the provider key to avoid noisy runtime failures.
-        # Make a lightweight call to the provider; if it returns 401 (invalid key)
-        # disable EMAIL_VALIDATION so the app falls back to MX-only checks and fail-open behavior.
-        try:
-            import requests
-            cfg = app.config['EMAIL_VALIDATION']
-            test_url = cfg.get('url')
-            api_key = cfg.get('api_key')
-            if test_url and api_key:
-                try:
-                    resp = requests.get(test_url, params={'api_key': api_key, 'email': 'verify@example.com'}, timeout=3)
-                    if resp.status_code == 401:
-                        # Invalid API key — disable provider use and log clear message
-                        app.logger.error('Email validation provider returned 401 (invalid API key). Disabling external provider checks. Please verify ABSTRACT_API_KEY in your environment.')
-                        app.config.pop('EMAIL_VALIDATION', None)
-                        # Ensure fail-open is enabled to avoid blocking registrations
-                        app.config['EMAIL_VALIDATION_FAIL_OPEN'] = True
-                except requests.RequestException as e:
-                    # Network issues — leave provider configured but warn
-                    app.logger.warning(f'Could not validate email provider at startup: {e} (will attempt at runtime)')
-        except Exception:
-            # If requests not available or other error, do not block startup
-            pass
+    # Email validation must be configured explicitly via `app.config['EMAIL_VALIDATION']`.
+    # We intentionally do not auto-populate or validate provider keys from environment
+    # variables at startup to avoid outbound network calls and noisy logs.
     
     # Initialize Flask extensions
     init_extensions(app)
@@ -122,10 +89,10 @@ def register_blueprints(app):
     from backend.app.blueprints.api.stations.routes import stations_bp
     from backend.app.blueprints.api.air_quality.routes import air_quality_bp
     from backend.app.blueprints.api.forecasts.routes import forecasts_bp
+    from backend.app.blueprints.api.alerts.routes import alerts_bp
+    from backend.app.blueprints.api.subscriptions.routes import subscriptions_bp
     # from backend.app.blueprints.api.measurements.routes import measurements_bp
     # from backend.app.blueprints.api.aggregates.routes import aggregates_bp
-    # from backend.app.blueprints.api.alerts.routes import alerts_bp
-    # from backend.app.blueprints.api.forecasts.routes import forecasts_bp
     # from backend.app.blueprints.api.exports.routes import exports_bp
     # from backend.app.blueprints.api.realtime.routes import realtime_bp
     from backend.app.blueprints.api.scheduler.routes import scheduler_bp
@@ -140,6 +107,12 @@ def register_blueprints(app):
     app.register_blueprint(air_quality_bp, url_prefix='/api/air_quality')
     # Register forecast blueprint
     app.register_blueprint(forecasts_bp, url_prefix='/api/forecast')
+    # Register alerts blueprint
+    app.register_blueprint(alerts_bp, url_prefix='/api/alerts')
+    # Register subscriptions blueprint
+    app.register_blueprint(subscriptions_bp)
+    app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
+    
     # Provide a hyphenated alias for a small set of routes (avoid registering blueprint twice)
     try:
         # Import view function and create a lightweight alias route to avoid blueprint name collision
@@ -158,13 +131,6 @@ def register_blueprints(app):
     except Exception:
         import logging
         logging.getLogger(__name__).debug('Could not add alias /api/aq/history for air quality history route')
-    # app.register_blueprint(measurements_bp, url_prefix='/api/measurements')
-    # app.register_blueprint(aggregates_bp, url_prefix='/api/aggregates')
-    # app.register_blueprint(alerts_bp, url_prefix='/api/alerts')
-    # app.register_blueprint(forecasts_bp, url_prefix='/api/forecasts')
-    # app.register_blueprint(exports_bp, url_prefix='/api/exports')
-    # app.register_blueprint(realtime_bp, url_prefix='/api/realtime')
-    app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
     
     # Register Web blueprint (no prefix for main web routes)
     app.register_blueprint(web_bp)
