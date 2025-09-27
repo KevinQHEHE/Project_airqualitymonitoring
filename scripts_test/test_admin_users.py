@@ -15,7 +15,7 @@ try:
 except ModuleNotFoundError:
     pytest.skip("flask_jwt_extended is required for admin endpoint tests", allow_module_level=True)
 
-import backend.app.blueprints.api.admin.users as admin_users_module
+import backend.app.blueprints.api.admin.routes as admin_users_module
 from backend.app.services.admin import user_management_service as svc
 
 
@@ -108,3 +108,28 @@ def test_get_user_locations_not_found(app: Flask, client, monkeypatch) -> None:
     body = response.get_json()
     assert response.status_code == 404
     assert body["error"] == "not_found"
+
+
+def test_get_user_locations_with_subscriptions(app: Flask, client, monkeypatch) -> None:
+    # Prepare fake response from service to include subscriptions
+    fake_result = {
+        "userId": "507f1f77bcf86cd799439011",
+        "favoriteLocations": [{"id": "1", "station_id": 123, "name": "Hanoi"}],
+        "alertSettings": {"daily": True},
+        "subscriptions": [
+            {"id": "sub1", "station_id": 123, "nickname": "Home", "threshold": 150, "status": "active", "station_name": "Hanoi", "is_favorite": True}
+        ],
+    }
+
+    def fake_locations(user_id: str, **_kwargs):
+        assert user_id == "507f1f77bcf86cd799439011"
+        return fake_result
+
+    monkeypatch.setattr(admin_users_module.svc, "get_user_locations", fake_locations)
+
+    response = client.get(
+        "/api/admin/users/507f1f77bcf86cd799439011/locations",
+        headers=_auth_header(app),
+    )
+    assert response.status_code == 200
+    assert response.get_json() == fake_result
