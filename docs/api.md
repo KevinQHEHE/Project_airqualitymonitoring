@@ -519,6 +519,41 @@ All endpoints require a valid admin access token (`Authorization: Bearer <jwt>`)
 - `DELETE /api/admin/users/{id}` � Soft delete (marks `status=inactive` and records `deletedAt`).
 - `GET /api/admin/users/{id}/locations` � Return favorite stations and notification settings for the user.
 
+	Description: Returns a merged view of the user's alert locations. This includes:
+		- `favoriteLocations`: legacy favorites from `users.preferences.favoriteStations` (array of station documents).
+		- `subscriptions`: active entries from `alert_subscriptions` for the user, enriched with station metadata and an `is_favorite` flag when the subscription's station appears in the user's favorites.
+
+	Auth: Requires a valid admin JWT (`Authorization: Bearer <jwt>`).
+
+	Query params (optional):
+		- `include_inactive` (boolean) - when true include subscriptions with `status` not equal to `active` (default: false).
+		- `station_id` (string|int) - filter returned locations to this station only.
+
+	Success (200) response shape example:
+
+	{
+		"userId": "650f3d2a5b7c4d1f8a2e3b4c",
+		"favoriteLocations": [
+			{ "station_id": 8688, "name": "Hanoi - Old Quarter", "location": { "type": "Point", "coordinates": [105.85, 21.03] } }
+		],
+		"subscriptions": [
+			{
+				"_id": "654a1b2c3d4e5f6789012345",
+				"station_id": 8688,
+				"alert_threshold": 150,
+				"status": "active",
+				"metadata": { "nickname": "Home sensor" },
+				"is_favorite": true,
+				"station": { "station_id": 8688, "name": "Hanoi - Old Quarter", "location": { "type": "Point", "coordinates": [105.85, 21.03] } }
+			}
+		]
+	}
+
+	Notes:
+		- `subscriptions` entries are enriched server-side with the latest station document when available under the `station` key. The `is_favorite` boolean is computed by matching `station_id` against the user's favorites.
+		- This endpoint is intended for admin tooling and auditing. It returns both legacy favorites and the newer `alert_subscriptions` so admins can understand configured alerts across both systems.
+		- The endpoint will not expose user-sensitive fields (passwordHash, email verification tokens, etc.).
+
 Sample curl:
 ```
 curl "http://localhost:5000/api/admin/users?page=1&page_size=20" \

@@ -17,6 +17,7 @@ from bson import ObjectId
 from pymongo.errors import DuplicateKeyError, PyMongoError
 
 from backend.app.repositories import stations_repo, users_repo
+from backend.app import db as db_module
 
 logger = logging.getLogger(__name__)
 audit_logger = logging.getLogger("backend.app.audit.admin_users")
@@ -283,11 +284,60 @@ def get_user_locations(user_id: str, *, initiator_id: Optional[str] = None) -> D
     favorites = _build_favorite_locations(user)
     alert_settings = (user.get("preferences") or {}).get("notifications")
 
+    # Load active subscriptions for this user and merge with favorites
+    try:
+        database = db_module.get_db()
+        subs_cursor = database.alert_subscriptions.find({
+            'user_id': ObjectId(user_id),
+            'status': {'$ne': 'expired'}
+        }).sort('createdAt', -1)
+        subscriptions = list(subs_cursor)
+    except PyMongoError as exc:
+        logger.error("Failed to load subscriptions for user %s: %s", user.get("_id"), exc)
+        raise UserServiceError("Failed to load subscriptions", status=500) from exc
+
+    # Resolve station documents for subscriptions to include station name/country
+    station_ids = []
+    for s in subscriptions:
+        station_ids.append(s.get('station_id'))
+    try:
+        station_docs = stations_repo.find_by_station_ids(station_ids)
+    except PyMongoError as exc:
+        logger.error("Failed to load station docs for subscriptions user %s: %s", user.get("_id"), exc)
+        raise UserServiceError("Failed to load subscriptions stations", status=500) from exc
+
+    # Build map by station_id for quick lookup (station_id can be int or str)
+    station_map = {}
+    for st in station_docs:
+        station_map[st.get('station_id')] = st
+
+    serialized_subs: List[Dict[str, Any]] = []
+    # favorite ids for quick check
+    fav_ids = [(f.get('station_id')) for f in favorites]
+    for sub in subscriptions:
+        sid = sub.get('station_id')
+        st = station_map.get(sid) or station_map.get(str(sid))
+        nickname = (sub.get('metadata') or {}).get('nickname') or (st and (st.get('city') or {}).get('name'))
+        serialized_subs.append(
+            {
+                'id': str(sub.get('_id')),
+                'station_id': sid,
+                'nickname': nickname,
+                'threshold': sub.get('alert_threshold'),
+                'status': sub.get('status'),
+                'alert_enabled': sub.get('status') == 'active',
+                'station_name': (st and ((st.get('city') or {}).get('name'))) if st else None,
+                'is_favorite': sid in fav_ids,
+                'createdAt': _serialize_datetime(sub.get('createdAt')),
+            }
+        )
+
     _log_action("get_user_locations", initiator_id, target_id=str(user.get("_id")))
     return {
         "userId": str(user.get("_id")),
         "favoriteLocations": favorites,
         "alertSettings": alert_settings,
+        "subscriptions": serialized_subs,
     }
 
 
