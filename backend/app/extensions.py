@@ -83,3 +83,18 @@ def init_extensions(app):
     except Exception as e:
         print(f"=== FLASK: Error initializing data ingestion scheduler: {e} ===")
         app.logger.error(f"Error initializing data ingestion scheduler: {e}")
+
+    # Initialize backup scheduler for MongoDB backups
+    try:
+        from backup_dtb.scheduler import init_backup_scheduler
+        backup_scheduler = init_backup_scheduler(logger=app.logger)
+        if backup_scheduler:
+            app.extensions["backup_scheduler"] = backup_scheduler
+            app.logger.info(
+                "Backup scheduler started (interval=%.2fh, retention=%.4fd)",
+                backup_scheduler.interval_seconds / 3600.0,
+                backup_scheduler.retention_days,
+            )
+    except Exception as e:
+        app.logger.error("Error initializing backup scheduler: %s", e)
+

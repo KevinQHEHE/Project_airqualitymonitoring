@@ -14,6 +14,23 @@ This consolidated document describes both the backup flow (`backup_dtb/backup_da
 
 Both scripts support reading configuration from a `.env` file via `python-dotenv` and accept command-line overrides.
 
+## Automated Backup Scheduler
+
+- The Flask API starts a lightweight background scheduler when the process launches. It calls `backup_dtb/backup_data.py` on the configured cadence and writes `.tar` archives under `backup_dtb/backup_data/`.
+- Configure cadence and retention with environment variables:
+  - `BACKUP_INTERVAL_HOURS` (default 24) defines how many hours to wait between runs.
+  - `RETENTION_DAYS` (default 14) controls how long completed archives are kept before cleanup.
+- Logs are emitted through the `backup_scheduler` logger and include start/end markers, archive paths, and errors. Failures are logged but do not stop the web server.
+- Manual trigger: send `POST /api/scheduler/trigger/backup` (e.g. `curl -X POST http://localhost:5000/api/scheduler/trigger/backup`). Optional JSON body supports `{"async": false}` to wait for completion and `{"reason": "manual_run"}` to label the run.
+
+### Monitoring and Operations
+
+- Check scheduler status with `GET /api/scheduler/status` to view ingestion and backup scheduler metadata (last run timestamps, in-progress flag, retention settings).
+- Trigger an on-demand backup with `curl -X POST http://localhost:5000/api/scheduler/trigger/backup -H "Content-Type: application/json" -d '{\"reason\": \"manual_cli\", \"async\": false}'` to run synchronously and return the result payload.
+- Scheduled runs write archives to `backup_dtb/backup_data/`. Each file follows `backup_{YYYYmmdd_HHMMSS}.tar`; archives older than `RETENTION_DAYS` are removed automatically after successful runs.
+- Logs are emitted on the `backup_scheduler` logger. Tail application logs or raise the logger level if additional detail is required during investigations.
+- The first run executes shortly after the server process starts; subsequent runs wait `BACKUP_INTERVAL_HOURS` between completions.
+
 ## Quick start — Backup
 
 1. Ensure `MONGO_URI` and `MONGO_DB` are configured via environment or `.env`.
