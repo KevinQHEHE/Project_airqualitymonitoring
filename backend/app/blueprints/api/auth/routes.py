@@ -17,6 +17,7 @@ from flask import make_response
 
 from backend.app.repositories import users_repo
 from backend.app import db as db_module
+import threading
 from backend.app.services.auth.reset_password import (
     create_password_reset_request,
     send_password_reset_email,
@@ -362,6 +363,28 @@ def login():
         }
         access_token = create_access_token(identity=identity, additional_claims=claims)
         refresh_token = create_refresh_token(identity=identity, additional_claims={"role": user.get("role", "user")})
+
+        # Trigger a background check for alerts for this user so they receive
+        # any immediate notifications after login. Run in a daemon thread so it
+        # won't block the HTTP response.
+        try:
+            def _fire_user_monitor(u):
+                try:
+                    # Import locally to avoid circular imports at module import time
+                    from backend.app.tasks.alerts import monitor_user_notifications
+                    # Ensure a Flask application context is active so render_template
+                    # and current_app inside the monitor work correctly.
+                    from flask import current_app as _current_app
+                    app_obj = _current_app._get_current_object()
+                    with app_obj.app_context():
+                        monitor_user_notifications(u)
+                except Exception:
+                    logging.getLogger(__name__).exception('Failed to run monitor_user_notifications for user %s', u.get('_id'))
+
+            t = threading.Thread(target=_fire_user_monitor, args=(user,), daemon=True)
+            t.start()
+        except Exception:
+            logging.getLogger(__name__).exception('Failed to spawn user alert monitor thread')
 
         return jsonify({
             "message": "Login successful",

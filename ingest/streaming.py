@@ -30,6 +30,11 @@ from typing import Optional
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
+try:
+    # Import monitoring function lazily to avoid circular import when running scripts
+    from backend.app.tasks.alerts import monitor_favorite_stations
+except Exception:
+    monitor_favorite_stations = None
 
 logger = logging.getLogger(__name__)
 
@@ -319,6 +324,35 @@ class DataIngestionScheduler:
                     replace_existing=True
                 )
                 logger.info(f"Forecast ingestion job scheduled with {self.forecast_polling_interval_minutes}-minute interval")
+
+            # Add alerts monitor job if available and enabled
+            try:
+                alert_enabled = os.environ.get('ALERT_MONITOR_ENABLED', 'true').lower() in ['true', '1', 'on', 'yes']
+                alert_interval = int(os.environ.get('ALERT_MONITOR_INTERVAL_MINUTES', '15'))
+            except Exception:
+                alert_enabled = True
+                alert_interval = 15
+
+            if alert_enabled and monitor_favorite_stations is not None:
+                # Ensure the monitor runs inside the Flask application context
+                def _alerts_job_wrapper():
+                    try:
+                        if self.app:
+                            with self.app.app_context():
+                                monitor_favorite_stations()
+                        else:
+                            monitor_favorite_stations()
+                    except Exception:
+                        logger.exception('Alerts monitor job failed')
+
+                self.scheduler.add_job(
+                    func=_alerts_job_wrapper,
+                    trigger=IntervalTrigger(minutes=alert_interval),
+                    id='alerts_monitor_job',
+                    name='Alerts Monitor',
+                    replace_existing=True
+                )
+                logger.info(f"Alerts monitor job scheduled with {alert_interval}-minute interval")
             
             # Start scheduler FIRST
             self.scheduler.start()
@@ -343,6 +377,28 @@ class DataIngestionScheduler:
                 forecast_thread = threading.Thread(target=self._run_forecast_ingestion_script, name="InitialForecastIngestion")
                 forecast_thread.daemon = True
                 forecast_thread.start()
+
+            # Run alerts monitor immediately if enabled and available
+            try:
+                alert_enabled = os.environ.get('ALERT_MONITOR_ENABLED', 'true').lower() in ['true', '1', 'on', 'yes']
+            except Exception:
+                alert_enabled = True
+
+            if alert_enabled and monitor_favorite_stations is not None:
+                print("=== Running initial ALERTS MONITOR job ===")
+                def _initial_alerts_target():
+                    try:
+                        if self.app:
+                            with self.app.app_context():
+                                monitor_favorite_stations()
+                        else:
+                            monitor_favorite_stations()
+                    except Exception:
+                        logger.exception('Initial alerts monitor failed')
+
+                alert_thread = threading.Thread(target=_initial_alerts_target, name="InitialAlertsMonitor")
+                alert_thread.daemon = True
+                alert_thread.start()
             
             print("=== SCHEDULER STARTUP: Both initial jobs started ===")
             return True

@@ -6,8 +6,9 @@ from bson import ObjectId
 from datetime import datetime, timezone
 import logging
 
-from backend.app.repositories import users_repo
+from backend.app.repositories import users_repo, readings_repo
 from backend.app import db as db_module
+from datetime import timezone, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -40,53 +41,81 @@ def get_user_subscriptions():
         result = []
         for sub in subscriptions:
             station_id = sub['station_id']
-            logger.info(f"Processing subscription for station_id: {station_id}")
-            
-            # Try to get latest AQI for this station using same API as dashboard
+            # Normalize to int when possible to keep API surface consistent
             try:
-                # Use air-quality API endpoint that dashboard uses
-                import requests
-                api_url = f"http://127.0.0.1:5001/api/air-quality/latest?station_id={station_id}&limit=1"
-                
-                logger.info(f"Fetching AQI from internal API: {api_url}")
-                response = requests.get(api_url, headers={'Accept': 'application/json'}, timeout=5)
-                
+                station_id_int = int(station_id)
+            except Exception:
+                station_id_int = station_id
+            logger.info(f"Processing subscription for station_id: {station_id_int}")
+            
+            # Try to get latest AQI for this station using direct DB lookup
+            try:
+                # Prefer direct DB lookup for latest reading to avoid network dependency
                 current_aqi = None
                 last_updated = None
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    measurements = data.get('measurements', [])
-                    if measurements:
-                        latest_measurement = measurements[0]
-                        current_aqi = latest_measurement.get('aqi')
-                        last_updated = latest_measurement.get('timestamp')
-                        logger.info(f"Station {station_id} - API AQI: {current_aqi}, timestamp: {last_updated}")
-                    else:
-                        logger.warning(f"No measurements found for station {station_id} in API response")
+                readings = readings_repo.find_latest_by_station(station_id_int, limit=1)
+                if readings:
+                    latest_measurement = readings[0]
+                    current_aqi = latest_measurement.get('aqi')
+                    # try common timestamp fields
+                    ts = latest_measurement.get('ts') or latest_measurement.get('time') or latest_measurement.get('timestamp')
+                    try:
+                        # Convert timestamp to Vietnam timezone (UTC+7) when possible
+                        if hasattr(ts, 'isoformat'):
+                            dt = ts
+                            if dt.tzinfo is None:
+                                dt = dt.replace(tzinfo=timezone.utc)
+                            vn = dt.astimezone(timezone(timedelta(hours=7)))
+                            last_updated = vn.isoformat()
+                        else:
+                            last_updated = str(ts) if ts is not None else None
+                    except Exception:
+                        last_updated = str(ts) if ts is not None else None
+                    logger.info(f"Station {station_id_int} - DB AQI: {current_aqi}, timestamp: {last_updated}")
                 else:
-                    logger.warning(f"API request failed for station {station_id}: HTTP {response.status_code}")
-                    
+                    logger.info(f"No readings found in DB for station {station_id_int}")
             except Exception as e:
-                logger.error(f"Error fetching AQI for station {station_id}: {e}")
+                logger.error(f"Error fetching AQI for station {station_id_int}: {e}")
                 current_aqi = None
                 last_updated = None
             
-            # Get station info
-            station = db.waqi_stations.find_one({'station_id': station_id})
-            logger.info(f"Station info for {station_id}: {station is not None}")
+            # Get station info: try integer form first, then string (legacy)
+            station = None
+            try:
+                station = db.waqi_stations.find_one({'station_id': station_id_int})
+            except Exception:
+                station = None
+            if not station:
+                try:
+                    station = db.waqi_stations.find_one({'station_id': str(station_id_int)})
+                except Exception:
+                    station = None
+            logger.info(f"Station info for {station_id_int}: {station is not None}")
             
+            # Format createdAt to VN timezone if available
+            created_at_raw = sub.get('createdAt')
+            try:
+                if created_at_raw and hasattr(created_at_raw, 'isoformat'):
+                    dtc = created_at_raw
+                    if dtc.tzinfo is None:
+                        dtc = dtc.replace(tzinfo=timezone.utc)
+                    created_at = dtc.astimezone(timezone(timedelta(hours=7))).isoformat()
+                else:
+                    created_at = created_at_raw.isoformat() if created_at_raw else ''
+            except Exception:
+                created_at = str(created_at_raw) if created_at_raw else ''
+
             result.append({
                 'id': str(sub['_id']),
-                'station_id': str(station_id),
-                'station_name': station.get('name') if station else f"Station {station_id}",
+                'station_id': station_id_int,
+                'station_name': station.get('name') if station else f"Station {station_id_int}",
                 'location': station.get('location') if station else '',
-                'nickname': sub.get('metadata', {}).get('nickname') or (station.get('name') if station else f"Station {station_id}"),
+                'nickname': sub.get('metadata', {}).get('nickname') or (station.get('name') if station else f"Station {station_id_int}"),
                 'threshold': sub.get('alert_threshold', 100),
                 'alert_enabled': sub.get('status') == 'active',
-                'created_at': sub['createdAt'].isoformat() if sub.get('createdAt') else '',
+                'created_at': created_at,
                 'current_aqi': current_aqi,  # Real AQI from air-quality API
-                'last_updated': last_updated  # Keep original timestamp format
+                'last_updated': last_updated  # Already VN-formatted above when present
             })
             
         return jsonify({"subscriptions": result}), 200

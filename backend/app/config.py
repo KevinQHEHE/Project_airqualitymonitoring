@@ -45,6 +45,10 @@ class Config:
     STATION_SCRIPT_TIMEOUT_SECONDS = int(os.environ.get('STATION_SCRIPT_TIMEOUT_SECONDS') or 300)
     ENABLE_STATION_SCHEDULER = os.environ.get('ENABLE_STATION_SCHEDULER', 'true').lower() in ['true', '1', 'on', 'yes']
 
+    # Alerts monitor scheduler (in-process APScheduler)
+    ALERT_MONITOR_ENABLED = os.environ.get('ALERT_MONITOR_ENABLED', 'true').lower() in ['true', '1', 'on', 'yes']
+    ALERT_MONITOR_INTERVAL_MINUTES = int(os.environ.get('ALERT_MONITOR_INTERVAL_MINUTES') or 15)
+
     # Celery settings (optional) - keep defaults safe for local development
     CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL')
     CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND')

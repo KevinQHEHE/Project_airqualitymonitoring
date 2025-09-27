@@ -20,7 +20,7 @@
 
       <p>Hi {{ user.get('username') or user.get('email') }},</p>
 
-      <p>We detected that the air quality at <strong>{{ station.get('city', {}).get('name') or station.get('station_id') }}</strong> has reached an AQI of <span class="aqi">{{ aqi }}</span>.</p>
+  <p>We detected that the air quality at <strong>{{ station.get('name') or station.get('city', {}).get('name') or station.get('station_id') }}</strong> has reached an AQI of <span class="aqi">{{ aqi }}</span>.</p>
 
       <p>Recommended actions:</p>
       <ul>
