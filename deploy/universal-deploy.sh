@@ -18,6 +18,33 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+log() {
+    echo -e "${GREEN}[$(date +'%H:%M:%S')]${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[$(date +'%H:%M:%S')] WARNING:${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[$(date +'%H:%M:%S')] ERROR:${NC} $1"
+}
+
+log_info() {
+    echo -e "${BLUE}[$(date +'%H:%M:%S')] INFO:${NC} $1"
+}
+
+log_success() {
+    echo -e "${CYAN}[$(date +'%H:%M:%S')] SUCCESS:${NC} $1"
+}
+
+header() {
+    echo -e "\n${PURPLE}================================${NC}"
+    echo -e "${PURPLE}$1${NC}"
+    echo -e "${PURPLE}================================${NC}\n"
+}
+
+
 # Configuration
 PROJECT_NAME="air-quality-monitoring"
 # Load per-server overrides from deploy/env (copy deploy/env.sample -> deploy/env and edit)
@@ -49,32 +76,6 @@ if [ -n "${MONGO_URI:-}" ]; then
             ;;
     esac
 fi
-
-log() {
-    echo -e "${GREEN}[$(date +'%H:%M:%S')]${NC} $1"
-}
-
-log_warn() {
-    echo -e "${YELLOW}[$(date +'%H:%M:%S')] WARNING:${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[$(date +'%H:%M:%S')] ERROR:${NC} $1"
-}
-
-log_info() {
-    echo -e "${BLUE}[$(date +'%H:%M:%S')] INFO:${NC} $1"
-}
-
-log_success() {
-    echo -e "${CYAN}[$(date +'%H:%M:%S')] SUCCESS:${NC} $1"
-}
-
-header() {
-    echo -e "\n${PURPLE}================================${NC}"
-    echo -e "${PURPLE}$1${NC}"
-    echo -e "${PURPLE}================================${NC}\n"
-}
 
 # Check if running as root
 check_root() {
@@ -288,6 +289,9 @@ setup_project() {
     
     # Set proper permissions
     sudo chown -R "$SERVICE_USER:$SERVICE_USER" "$PROJECT_DIR"
+    # Allow nginx (www-data) to traverse project and read static assets
+    sudo chmod o+rx "$(dirname "$PROJECT_DIR")" "$PROJECT_DIR"
+    sudo chmod -R o+rX "$PROJECT_DIR/backend/app/static"
     chmod +x "$PROJECT_DIR"/scripts/*.sh 2>/dev/null || true
     chmod +x "$PROJECT_DIR"/deploy/*.sh 2>/dev/null || true
     
@@ -448,9 +452,6 @@ server {
     access_log $PROJECT_DIR/logs/nginx_access.log;
     error_log $PROJECT_DIR/logs/nginx_error.log;
     
-    # Rate limiting (protect against abuse)
-    limit_req_zone \$binary_remote_addr zone=api:10m rate=10r/s;
-    limit_req_zone \$binary_remote_addr zone=general:10m rate=2r/s;
     
     # Static files
     location /static/ {
@@ -466,9 +467,8 @@ server {
         access_log off;
     }
     
-    # API endpoints with rate limiting
+    # API endpoints
     location /api/ {
-        limit_req zone=api burst=20 nodelay;
         
         proxy_pass http://127.0.0.1:$SERVICE_PORT;
         proxy_set_header Host \$host;
@@ -488,7 +488,7 @@ server {
         proxy_busy_buffers_size 256k;
     }
     
-    # Health check endpoint (no rate limiting)
+    # Health check endpoint
     location /api/health {
         proxy_pass http://127.0.0.1:$SERVICE_PORT;
         proxy_set_header Host \$host;
@@ -498,9 +498,8 @@ server {
         access_log off;
     }
     
-    # Main application with light rate limiting
+    # Main application
     location / {
-        limit_req zone=general burst=10 nodelay;
         
         proxy_pass http://127.0.0.1:$SERVICE_PORT;
         proxy_set_header Host \$host;
@@ -544,11 +543,18 @@ EOF
 create_systemd_service() {
     header "CREATING SYSTEMD SERVICE"
     
+    local after_line="After=network.target nginx.service"
+    local wants_line=""
+    if [ "${INSTALL_MONGODB:-true}" = true ]; then
+        after_line="After=network.target mongod.service nginx.service"
+        wants_line="Wants=mongod.service"
+    fi
+
     sudo tee /etc/systemd/system/air-quality-monitoring.service << EOF
 [Unit]
 Description=Air Quality Monitoring System
-After=network.target mongodb.service nginx.service
-Wants=mongodb.service
+$after_line
+$wants_line
 Requires=network.target
 
 [Service]
@@ -599,8 +605,10 @@ configure_firewall() {
     sudo ufw allow 80/tcp
     sudo ufw allow 443/tcp
     
-    # Allow MongoDB (only locally)
-    sudo ufw allow from 127.0.0.1 to any port 27017
+    if [ "${INSTALL_MONGODB:-true}" = true ]; then
+        # Allow MongoDB (only locally)
+        sudo ufw allow from 127.0.0.1 to any port 27017
+    fi
     
     # Reload UFW
     sudo ufw reload
@@ -634,9 +642,14 @@ start_services() {
     header "STARTING ALL SERVICES"
     
     # Ensure MongoDB is running
-    sudo systemctl start mongod
-    sleep 3
-    
+    if [ "${INSTALL_MONGODB:-true}" = true ]; then
+        log "Ensuring MongoDB service is running..."
+        sudo systemctl start mongod
+        sleep 3
+    else
+        log_info "Skipping MongoDB service start (INSTALL_MONGODB=false)"
+    fi
+
     # Start the application service
     sudo systemctl start air-quality-monitoring.service
     sleep 5
@@ -688,17 +701,21 @@ verify_deployment() {
         return 1
     fi
     
-    # Test MongoDB connection
-    if mongosh --quiet --eval "db.runCommand('ping')" > /dev/null 2>&1; then
-        log_success "✓ MongoDB responding"
-    else
-        if mongo --quiet --eval "db.runCommand('ping')" > /dev/null 2>&1; then
-            log_success "✓ MongoDB responding (legacy client)"
+    if [ "${INSTALL_MONGODB:-true}" = true ]; then
+        # Test MongoDB connection
+        if mongosh --quiet --eval "db.runCommand('ping')" > /dev/null 2>&1; then
+            log_success "✓ MongoDB responding"
         else
-            log_warn "Could not verify MongoDB (but service may still work)"
+            if mongo --quiet --eval "db.runCommand('ping')" > /dev/null 2>&1; then
+                log_success "✓ MongoDB responding (legacy client)"
+            else
+                log_warn "Could not verify MongoDB (but service may still work)"
+            fi
         fi
+        
+    else
+        log_info "Skipping MongoDB health check (INSTALL_MONGODB=false)"
     fi
-    
     # Get public IP for external testing
     PUBLIC_IP=$(curl -s https://api.ipify.org || curl -s http://checkip.amazonaws.com/ || echo "")
     
@@ -729,14 +746,39 @@ create_management_scripts() {
 echo "=== Air Quality Monitoring System Status ==="
 echo
 
+HAS_MONGOD=0
+if systemctl list-unit-files --type=service --no-legend --no-pager | grep -q '^mongod.service'; then
+    HAS_MONGOD=1
+fi
+
 echo "Service Status:"
-sudo systemctl is-active air-quality-monitoring.service && echo "✓ Application: RUNNING" || echo "✗ Application: STOPPED"
-sudo systemctl is-active nginx && echo "✓ Nginx: RUNNING" || echo "✗ Nginx: STOPPED"
-sudo systemctl is-active mongod && echo "✓ MongoDB: RUNNING" || echo "✗ MongoDB: STOPPED"
+if sudo systemctl is-active --quiet air-quality-monitoring.service; then
+    echo "[OK] Application: RUNNING"
+else
+    echo "[ERR] Application: STOPPED"
+fi
+if sudo systemctl is-active --quiet nginx; then
+    echo "[OK] Nginx: RUNNING"
+else
+    echo "[ERR] Nginx: STOPPED"
+fi
+if [ "$HAS_MONGOD" -eq 1 ]; then
+    if sudo systemctl is-active --quiet mongod; then
+        echo "[OK] MongoDB: RUNNING"
+    else
+        echo "[ERR] MongoDB: STOPPED"
+    fi
+else
+    echo "[--] MongoDB: not managed locally"
+fi
 
 echo
 echo "Port Status:"
-ss -tlnp | grep -E ':(80|8000|27017)\b' || echo "No services listening on expected ports"
+PORT_REGEX=':(80|8000)'
+if [ "$HAS_MONGOD" -eq 1 ]; then
+    PORT_REGEX=':(80|8000|27017)'
+fi
+ss -tlnp | grep -E "$PORT_REGEX" || echo "No services listening on expected ports"
 
 echo
 echo "Recent Logs:"
@@ -750,11 +792,30 @@ EOF
     cat > "$PROJECT_DIR/restart.sh" << 'EOF'
 #!/bin/bash
 echo "Restarting Air Quality Monitoring System..."
+
+HAS_MONGOD=0
+if systemctl list-unit-files --type=service --no-legend --no-pager | grep -q '^mongod.service'; then
+    HAS_MONGOD=1
+fi
+
+if [ "$HAS_MONGOD" -eq 1 ]; then
+    sudo systemctl restart mongod
+fi
 sudo systemctl restart air-quality-monitoring.service
 sudo systemctl restart nginx
 sleep 3
 echo "Services restarted. Checking status:"
-sudo systemctl is-active air-quality-monitoring.service nginx mongod
+SERVICES="air-quality-monitoring.service nginx"
+if [ "$HAS_MONGOD" -eq 1 ]; then
+    SERVICES="$SERVICES mongod"
+fi
+for svc in $SERVICES; do
+    if sudo systemctl is-active --quiet "$svc"; then
+        echo "[OK] $svc is active"
+    else
+        echo "[ERR] $svc is not active"
+    fi
+done
 EOF
 
     # Create logs script
@@ -819,47 +880,54 @@ main() {
     create_management_scripts
     
     # Final status report
-    header "DEPLOYMENT COMPLETE"
-    
-    echo -e "${GREEN}🎉 Air Quality Monitoring System has been successfully deployed!${NC}\n"
-    
-    echo "📊 System Information:"
-    echo "  • User: $SERVICE_USER"
-    echo "  • Project Path: $PROJECT_DIR"
-    echo "  • Python Workers: $WORKERS"
-    echo "  • Memory Optimization: $([ "$LOW_RESOURCE" = true ] && echo "Enabled" || echo "Disabled")"
-    
-    echo -e "\n🌐 Access Information:"
-    echo "  • Local: http://localhost"
-    echo "  • Direct: http://127.0.0.1:$SERVICE_PORT"
-    if [ -n "$PUBLIC_IP" ]; then
-        echo "  • Public: http://$PUBLIC_IP"
-        if [ "$EXTERNAL_ACCESS" = false ]; then
-            echo -e "    ${YELLOW}⚠️  May require cloud firewall/security group configuration${NC}"
-        fi
+header "DEPLOYMENT COMPLETE"
+
+log_success "Air Quality Monitoring System deployment completed!"
+
+echo
+echo "System Information:"
+echo "  User: $SERVICE_USER"
+echo "  Project Path: $PROJECT_DIR"
+echo "  Python Workers: $WORKERS"
+if [ "$LOW_RESOURCE" = true ]; then
+    echo "  Memory Optimization: Enabled"
+else
+    echo "  Memory Optimization: Disabled"
+fi
+
+echo
+echo "Access Information:"
+echo "  Local: http://localhost"
+echo "  Direct: http://127.0.0.1:$SERVICE_PORT"
+if [ -n "$PUBLIC_IP" ]; then
+    echo "  Public: http://$PUBLIC_IP"
+    if [ "$EXTERNAL_ACCESS" = false ]; then
+        echo "    Cloud firewall or security group may require port 80 access"
     fi
-    
-    echo -e "\n🛠️  Management Commands:"
-    echo "  • Check status: ./status.sh"
-    echo "  • Restart services: ./restart.sh"
-    echo "  • View logs: ./logs.sh"
-    echo "  • System service: sudo systemctl {start|stop|restart|status} air-quality-monitoring"
-    
-    echo -e "\n📁 Important Files:"
-    echo "  • Configuration: .env"
-    echo "  • Logs: logs/"
-    echo "  • Nginx config: /etc/nginx/sites-available/air-quality-monitoring"
-    echo "  • Service config: /etc/systemd/system/air-quality-monitoring.service"
-    
-    echo -e "\n⚡ Next Steps:"
-    echo "  1. Edit .env file with your API keys and configuration"
-    echo "  2. If on cloud provider, open port 80 in security groups"
-    echo "  3. Consider setting up SSL certificate for HTTPS"
-    echo "  4. Configure email settings for alerts (optional)"
-    
-    echo -e "\n${GREEN}✅ Deployment completed successfully!${NC}"
-    echo "The system is now running and should be accessible from the Internet."
-    echo "Check the status with: ./status.sh"
+fi
+
+echo
+echo "Management Commands:"
+echo "  ./status.sh"
+echo "  ./restart.sh"
+echo "  ./logs.sh"
+echo "  sudo systemctl {start|stop|restart|status} air-quality-monitoring"
+
+echo
+echo "Important Files:"
+echo "  .env"
+echo "  logs/"
+echo "  /etc/nginx/sites-available/air-quality-monitoring"
+echo "  /etc/systemd/system/air-quality-monitoring.service"
+
+echo
+echo "Next Steps:"
+echo "  1. Update .env with required configuration"
+echo "  2. Open port 80/443 in your cloud firewall if needed"
+echo "  3. Configure SSL for HTTPS (recommended)"
+echo "  4. Review email/alert settings (optional)"
+
+log_success "Deployment completed. Services should now be accessible."
 }
 
 ## Run main function with error handling

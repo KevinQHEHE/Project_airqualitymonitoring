@@ -1,0 +1,11 @@
+# Server-specific deploy overrides (do NOT commit)
+SERVICE_USER=azureuser
+PROJECT_DIR=/home/azureuser/air-quality-monitoring
+SERVICE_PORT=8000
+NGINX_PORT=80
+# If your DB is external (Atlas), set MONGO_URI accordingly and skip local install
+MONGO_URI="mongodb+srv://<user>:<pass>@cluster0.example.mongodb.net/air_quality_db?retryWrites=true&w=majority"
+INSTALL_MONGODB=false
+INSTALL_NGINX=true
+GIT_BRANCH=dev
+export SERVICE_USER PROJECT_DIR SERVICE_PORT NGINX_PORT MONGO_URI INSTALL_MONGODB INSTALL_NGINX GIT_BRANCH
