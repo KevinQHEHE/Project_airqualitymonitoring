@@ -89,30 +89,64 @@ The following components are structured but need implementation:
 - **Database Scripts**: Index creation and data seeding
 - **Test Suite**: Comprehensive testing for all components
 
-## Quick Start
+## Quick Start - Production Deployment ✅
 
-1. **Clone and Setup Environment**
+### 1. **Clone and Setup Environment**
    ```bash
    git clone <repository-url>
    cd air-quality-monitoring
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
    cp .env.sample .env
    # Edit .env with your configuration
    ```
 
-2. **Install Dependencies**
+### 2. **Deploy with Gunicorn + Nginx**
    ```bash
-   pip install -e .[dev]
+   # Full production deployment
+   ./deploy.sh deploy
+   
+   # Or step by step:
+   ./deploy.sh test     # Test application
+   ./deploy.sh start    # Start Gunicorn
+   sudo apt install nginx  # Install Nginx if needed
+   ./deploy.sh deploy   # Configure Nginx proxy
    ```
 
-3. **Run Development Server**
+### 3. **Access Application**
+   - **Main Application**: http://localhost
+   - **API Health Check**: http://localhost/api/health
+   - **Direct Backend**: http://127.0.0.1:8000
+
+### 4. **Management Commands**
    ```bash
+   ./deploy.sh status   # Check system status
+   ./deploy.sh restart  # Restart services
+   ./deploy.sh logs     # View application logs
+   ./deploy.sh stop     # Stop all services
+   ```
+
+## Quick Start - Development
+
+### 1. **Development Server**
+   ```bash
+   source venv/bin/activate
+   ./run.sh dev  # Start Flask development server
+   ```
+
+### 2. **Alternative Methods**
+   ```bash
+   # Test application only
+   ./run.sh test
+   
+   # Start with Gunicorn for testing
+   ./run.sh gunicorn
+   
+   # Manual Flask start
    cd backend
    python -m flask --app wsgi:app run --debug
    ```
-
-4. **Access Application**
-   - Dashboard: http://localhost:5000
-   - API Base: http://localhost:5000/api
 
 ## Technology Stack
 
