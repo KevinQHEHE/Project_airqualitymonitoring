@@ -71,3 +71,7 @@ yarn-error.log*
 
 # Backup data
 backup_data/
+
+# ssh keys
+*.pem
+*.key

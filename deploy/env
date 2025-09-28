@@ -1,0 +1,25 @@
+# Server-specific deploy overrides (do NOT commit)
+SERVICE_USER=azureuser
+PROJECT_DIR=/home/azureuser/air-quality-monitoring
+SERVICE_PORT=8000
+NGINX_PORT=80
+
+# Database
+MONGO_URI="mongodb+srv://<user>:<pass>@cluster0.example.mongodb.net/air_quality_db?retryWrites=true&w=majority"
+INSTALL_MONGODB=false
+INSTALL_NGINX=true
+
+# Git
+GIT_REMOTE=origin
+GIT_BRANCH=dev
+
+# Domains / HTTPS
+PRIMARY_DOMAIN=airqualitymonitor.page
+ADDITIONAL_DOMAINS=""
+ENABLE_CERTBOT=true
+CERTBOT_EMAIL=admin@airqualitymonitor.me
+PUBLIC_URL=https://airqualitymonitor.page
+
+export SERVICE_USER PROJECT_DIR SERVICE_PORT NGINX_PORT \
+       MONGO_URI INSTALL_MONGODB INSTALL_NGINX \
+       GIT_REMOTE GIT_BRANCH PRIMARY_DOMAIN ADDITIONAL_DOMAINS ENABLE_CERTBOT CERTBOT_EMAIL PUBLIC_URL
