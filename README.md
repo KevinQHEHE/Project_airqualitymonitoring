@@ -20,7 +20,7 @@ air-quality-monitoring/
 │  └─ app/
 │     ├─ config.py                     # Configuration management and environment variable loading
 │     ├─ extensions.py                 # Flask extensions initialization (PyMongo, Mail, Limiter, Login, Cache)
-│     ├─ wsgi.py                       # WSGI entrypoint for development and production deployment
+│     ├─ wsgi.py                       # WSGI entrypoint for development and production deployment (moved to backend/)
 │     ├─ blueprints/                   # Flask blueprints for modular route organization
 │     │  ├─ auth/
 │     │  │  └─ routes.py               # User authentication and authorization endpoints
@@ -107,7 +107,7 @@ The following components are structured but need implementation:
 3. **Run Development Server**
    ```bash
    cd backend
-   python -m flask --app app.wsgi:app run --debug
+   python -m flask --app wsgi:app run --debug
    ```
 
 4. **Access Application**
