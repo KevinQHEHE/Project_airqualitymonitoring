@@ -18,6 +18,10 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+SKIP_GIT_UPDATE=false
+SKIP_TESTS=false
+CERT_OBTAINED=false
+
 log() {
     echo -e "${GREEN}[$(date +'%H:%M:%S')]${NC} $1"
 }
@@ -44,6 +48,38 @@ header() {
     echo -e "${PURPLE}================================${NC}\n"
 }
 
+
+usage() {
+    cat <<EOF
+Usage: $0 [options]
+
+Options:
+  --skip-git      Skip pulling the latest Git changes (keep current working tree)
+  --skip-tests    Skip the Flask smoke test step
+  -h, --help      Show this help message
+EOF
+}
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --skip-git)
+                SKIP_GIT_UPDATE=true
+                ;;
+            --skip-tests)
+                SKIP_TESTS=true
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                log_warn "Unknown option: $1"
+                ;;
+        esac
+        shift
+    done
+}
 
 # Configuration
 PROJECT_NAME="air-quality-monitoring"
@@ -133,6 +169,67 @@ detect_system() {
     fi
 }
 
+update_repository() {
+    header "UPDATING APPLICATION SOURCE"
+
+    if [ "$SKIP_GIT_UPDATE" = true ]; then
+        log_info "Skipping git update (--skip-git flag set)"
+        return
+    fi
+
+    cd "$PROJECT_DIR"
+
+    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        log_info "$PROJECT_DIR is not a Git repository; skipping git operations"
+        return
+    fi
+
+    local remote=${GIT_REMOTE:-origin}
+    local current_branch
+    current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    local target_branch=${GIT_BRANCH:-$current_branch}
+    if [ -z "$target_branch" ] || [ "$target_branch" = "HEAD" ]; then
+        target_branch=main
+    fi
+
+    if git status --porcelain --untracked-files=no | grep -q .; then
+        log_warn "Local changes detected; skipping git pull to avoid overwriting work"
+        return
+    fi
+
+    log "Fetching $remote..."
+    if ! git fetch "$remote"; then
+        log_warn "Failed to fetch from $remote; continuing with existing sources"
+        return
+    fi
+
+    if ! git show-ref --verify --quiet "refs/heads/$target_branch"; then
+        if git show-ref --verify --quiet "refs/remotes/$remote/$target_branch"; then
+            log "Creating local branch $target_branch from $remote/$target_branch"
+            if ! git checkout -b "$target_branch" "$remote/$target_branch"; then
+                log_warn "Unable to checkout branch $target_branch; staying on $(git rev-parse --abbrev-ref HEAD)"
+            fi
+        fi
+    fi
+
+    log "Switching to branch $target_branch"
+    if ! git checkout "$target_branch"; then
+        log_warn "Could not checkout branch $target_branch; keeping $(git rev-parse --abbrev-ref HEAD)"
+    fi
+
+    log "Pulling latest changes..."
+    if git pull --ff-only "$remote" "$target_branch"; then
+        log_success "Repository updated to latest $target_branch"
+    else
+        log_warn "git pull failed (non-fast-forward). Resolve conflicts manually before rerunning."
+    fi
+
+    if [ -f .gitmodules ]; then
+        log "Updating git submodules..."
+        git submodule update --init --recursive || log_warn "Failed to update submodules"
+    fi
+}
+
 # Update system packages
 update_system() {
     header "UPDATING SYSTEM PACKAGES"
@@ -153,7 +250,8 @@ update_system() {
         lsb-release \
         build-essential \
         ufw \
-        supervisor
+        supervisor \
+        acl \
     
     log_success "System packages updated"
 }
@@ -272,9 +370,13 @@ setup_project() {
     
     cd "$PROJECT_DIR"
     
-    # Create Python virtual environment
-    log "Creating Python virtual environment..."
-    python3 -m venv venv
+    # Create or reuse the Python virtual environment
+    if [ ! -d "venv" ]; then
+        log "Creating Python virtual environment..."
+        python3 -m venv venv
+    else
+        log "Reusing existing Python virtual environment"
+    fi
     
     # Activate virtual environment and install dependencies
     log "Installing Python dependencies..."
@@ -289,9 +391,16 @@ setup_project() {
     
     # Set proper permissions
     sudo chown -R "$SERVICE_USER:$SERVICE_USER" "$PROJECT_DIR"
-    # Allow nginx (www-data) to traverse project and read static assets
-    sudo chmod o+rx "$(dirname "$PROJECT_DIR")" "$PROJECT_DIR"
-    sudo chmod -R o+rX "$PROJECT_DIR/backend/app/static"
+    
+    if ! command -v setfacl >/dev/null 2>&1; then
+        log "Installing ACL utilities (acl package) for static asset permissions..."
+        sudo apt-get install -y acl
+    fi
+    
+    sudo setfacl -m u:www-data:rx "$(dirname "$PROJECT_DIR")"
+    sudo setfacl -m u:www-data:rx "$PROJECT_DIR"
+    sudo setfacl -R -m u:www-data:rx "$PROJECT_DIR/backend/app/static"
+    sudo setfacl -R -d -m u:www-data:rx "$PROJECT_DIR/backend/app/static"
     chmod +x "$PROJECT_DIR"/scripts/*.sh 2>/dev/null || true
     chmod +x "$PROJECT_DIR"/deploy/*.sh 2>/dev/null || true
     
@@ -411,27 +520,55 @@ EOF
 # Configure Nginx
 configure_nginx() {
     header "CONFIGURING NGINX"
-    
-    # Get server's public IP
-    PUBLIC_IP=$(curl -s https://api.ipify.org || echo "")
-    if [ -z "$PUBLIC_IP" ]; then
-        PUBLIC_IP=$(curl -s http://checkip.amazonaws.com/ || echo "")
+
+    local host_name
+    host_name=$(hostname)
+    local external_ip="${PUBLIC_IP:-}"
+    if [ -z "$external_ip" ]; then
+        external_ip=$(curl -s https://api.ipify.org || curl -s http://checkip.amazonaws.com/ || echo "")
+        PUBLIC_IP=$external_ip
     fi
-    
-    # Create Nginx configuration
-    sudo tee /etc/nginx/sites-available/air-quality-monitoring << EOF
+
+    local domain_primary="${PRIMARY_DOMAIN:-}"
+    local extra_domains="${ADDITIONAL_DOMAINS:-}"
+    local server_names="$domain_primary $extra_domains"
+
+    if [ -n "$external_ip" ]; then
+        server_names="$server_names $external_ip"
+    fi
+    server_names="$server_names localhost $host_name _"
+    server_names=$(echo "$server_names" | xargs)
+
+    local cert_path="${SSL_CERT_PATH:-/etc/letsencrypt/live/${domain_primary}/fullchain.pem}"
+    local key_path="${SSL_KEY_PATH:-/etc/letsencrypt/live/${domain_primary}/privkey.pem}"
+    local https_ready=false
+    if [ -n "$domain_primary" ] && sudo test -f "$cert_path" && sudo test -f "$key_path"; then
+        https_ready=true
+    fi
+
+    if [ "$https_ready" = true ]; then
+        sudo tee /etc/nginx/sites-available/air-quality-monitoring > /dev/null <<EOF
 server {
     listen 80;
-    server_name $PUBLIC_IP localhost $(hostname) _;
-    
-    # Security headers
+    server_name $server_names;
+    return 301 https://$domain_primary\$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name $server_names;
+
+    ssl_certificate $cert_path;
+    ssl_certificate_key $key_path;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "no-referrer-when-downgrade" always;
     add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
-    
-    # Gzip compression
+
     gzip on;
     gzip_vary on;
     gzip_min_length 1024;
@@ -447,48 +584,37 @@ server {
         application/xml+rss
         application/atom+xml
         image/svg+xml;
-    
-    # Log files
+
     access_log $PROJECT_DIR/logs/nginx_access.log;
     error_log $PROJECT_DIR/logs/nginx_error.log;
-    
-    
-    # Static files
+
     location /static/ {
         alias $PROJECT_DIR/backend/app/static/;
         expires 1y;
         add_header Cache-Control "public, immutable";
         access_log off;
     }
-    
-    # Favicon
+
     location = /favicon.ico {
         alias $PROJECT_DIR/backend/app/static/favicon.ico;
         access_log off;
     }
-    
-    # API endpoints
+
     location /api/ {
-        
         proxy_pass http://127.0.0.1:$SERVICE_PORT;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        
-        # Timeouts
         proxy_connect_timeout 30s;
         proxy_send_timeout 30s;
         proxy_read_timeout 30s;
-        
-        # Buffer settings
         proxy_buffering on;
         proxy_buffer_size 128k;
         proxy_buffers 4 256k;
         proxy_busy_buffers_size 256k;
     }
-    
-    # Health check endpoint
+
     location /api/health {
         proxy_pass http://127.0.0.1:$SERVICE_PORT;
         proxy_set_header Host \$host;
@@ -497,22 +623,16 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
         access_log off;
     }
-    
-    # Main application
+
     location / {
-        
         proxy_pass http://127.0.0.1:$SERVICE_PORT;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        
-        # Timeouts
         proxy_connect_timeout 30s;
         proxy_send_timeout 30s;
         proxy_read_timeout 30s;
-        
-        # Buffer settings
         proxy_buffering on;
         proxy_buffer_size 128k;
         proxy_buffers 4 256k;
@@ -520,24 +640,167 @@ server {
     }
 }
 EOF
-    
-    # Enable the site
+    else
+        sudo tee /etc/nginx/sites-available/air-quality-monitoring > /dev/null <<EOF
+server {
+    listen 80;
+    server_name $server_names;
+
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types
+        text/plain
+        text/css
+        text/xml
+        text/javascript
+        application/json
+        application/javascript
+        application/xml+rss
+        application/atom+xml
+        image/svg+xml;
+
+    access_log $PROJECT_DIR/logs/nginx_access.log;
+    error_log $PROJECT_DIR/logs/nginx_error.log;
+
+    location /static/ {
+        alias $PROJECT_DIR/backend/app/static/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    location = /favicon.ico {
+        alias $PROJECT_DIR/backend/app/static/favicon.ico;
+        access_log off;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:$SERVICE_PORT;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+        proxy_buffering on;
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+    }
+
+    location /api/health {
+        proxy_pass http://127.0.0.1:$SERVICE_PORT;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        access_log off;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:$SERVICE_PORT;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+        proxy_buffering on;
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+    }
+}
+EOF
+    fi
+
     sudo ln -sf /etc/nginx/sites-available/air-quality-monitoring /etc/nginx/sites-enabled/
-    
-    # Remove default site
     sudo rm -f /etc/nginx/sites-enabled/default
-    
-    # Test nginx configuration
-    sudo nginx -t
-    
-    # Reload nginx
-    sudo systemctl reload nginx
-    
-    log_success "Nginx configured successfully"
-    if [ -n "$PUBLIC_IP" ]; then
-        log "Site will be available at: http://$PUBLIC_IP"
+
+    if sudo nginx -t; then
+        sudo systemctl reload nginx
+    else
+        log_error "Nginx configuration test failed"
+        exit 1
+    fi
+
+    if [ "$https_ready" = true ]; then
+        log_success "Nginx configured with HTTPS"
+        if [ -n "$domain_primary" ]; then
+            log "Site will be available at: https://$domain_primary"
+        fi
+    else
+        log_success "Nginx configured (HTTP only)"
+        if [ -n "$external_ip" ]; then
+            log "Site will be available at: http://$external_ip"
+        fi
+        if [ -n "$domain_primary" ]; then
+            log_warn "TLS certificate not yet detected for $domain_primary. Enable ENABLE_CERTBOT=true or run certbot manually once DNS is ready."
+        fi
     fi
 }
+
+
+obtain_certificate() {
+    header "REQUESTING TLS CERTIFICATE"
+
+    if [ "${ENABLE_CERTBOT:-false}" != true ]; then
+        log_info "ENABLE_CERTBOT is not true; skipping certificate request"
+        return
+    fi
+
+    if [ -z "${PRIMARY_DOMAIN:-}" ]; then
+        log_warn "PRIMARY_DOMAIN is not set; cannot request certificate"
+        return
+    fi
+
+    local domains=("$PRIMARY_DOMAIN")
+    if [ -n "${ADDITIONAL_DOMAINS:-}" ]; then
+        for entry in ${ADDITIONAL_DOMAINS}; do
+            domains+=("$entry")
+        done
+    fi
+
+    local domain_args=()
+    for d in "${domains[@]}"; do
+        domain_args+=("-d" "$d")
+    done
+
+    if [ ${#domain_args[@]} -eq 0 ]; then
+        log_warn "No domains provided to Certbot; skipping"
+        return
+    fi
+
+    local email_args=("--register-unsafely-without-email")
+    if [ -n "${CERTBOT_EMAIL:-}" ]; then
+        email_args=("--email" "$CERTBOT_EMAIL" "--agree-tos")
+    fi
+
+    local staging_args=()
+    if [ "${CERTBOT_USE_STAGING:-false}" = true ]; then
+        staging_args=("--staging")
+    fi
+
+    log "Running certbot for: ${domains[*]}"
+    if sudo certbot certonly --nginx --non-interactive --keep-until-expiring "${domain_args[@]}" "${email_args[@]}" "${staging_args[@]}" --deploy-hook "systemctl reload nginx"; then
+        log_success "Certificate is in place for ${domains[0]}"
+        CERT_OBTAINED=true
+    else
+        log_warn "Certbot failed to obtain certificate. Check DNS and rerun the script."
+    fi
+}
+
 
 # Create systemd service
 create_systemd_service() {
@@ -619,7 +882,12 @@ configure_firewall() {
 # Test application
 test_application() {
     header "TESTING APPLICATION"
-    
+
+    if [ "$SKIP_TESTS" = true ]; then
+        log_info "Skipping application test (--skip-tests flag set)"
+        return 0
+    fi
+
     cd "$PROJECT_DIR"
     
     # Test Flask app creation
@@ -677,62 +945,89 @@ start_services() {
 # Verify deployment
 verify_deployment() {
     header "VERIFYING DEPLOYMENT"
-    
-    # Wait for services to fully initialize
+
     log "Waiting for services to initialize..."
     sleep 10
-    
-    # Test local endpoints
+
     log "Testing local endpoints..."
-    
-    # Test direct Gunicorn
+
     if curl -sf http://127.0.0.1:$SERVICE_PORT/api/health > /dev/null; then
-        log_success "✓ Gunicorn responding"
+        log_success "? Gunicorn responding"
     else
-        log_error "✗ Gunicorn not responding"
+        log_error "? Gunicorn not responding"
         return 1
     fi
-    
-    # Test Nginx proxy
+
     if curl -sf http://localhost/api/health > /dev/null; then
-        log_success "✓ Nginx proxy working"
+        log_success "? Nginx proxy working"
     else
-        log_error "✗ Nginx proxy not working"
+        log_error "? Nginx proxy not working"
         return 1
     fi
-    
+
     if [ "${INSTALL_MONGODB:-true}" = true ]; then
-        # Test MongoDB connection
         if mongosh --quiet --eval "db.runCommand('ping')" > /dev/null 2>&1; then
-            log_success "✓ MongoDB responding"
+            log_success "? MongoDB responding"
+        elif mongo --quiet --eval "db.runCommand('ping')" > /dev/null 2>&1; then
+            log_success "? MongoDB responding (legacy client)"
         else
-            if mongo --quiet --eval "db.runCommand('ping')" > /dev/null 2>&1; then
-                log_success "✓ MongoDB responding (legacy client)"
-            else
-                log_warn "Could not verify MongoDB (but service may still work)"
-            fi
+            log_warn "Could not verify MongoDB (but service may still work)"
         fi
-        
     else
         log_info "Skipping MongoDB health check (INSTALL_MONGODB=false)"
     fi
-    # Get public IP for external testing
-    PUBLIC_IP=$(curl -s https://api.ipify.org || curl -s http://checkip.amazonaws.com/ || echo "")
-    
-    if [ -n "$PUBLIC_IP" ]; then
+
+    local targets=()
+    if [ -n "${PUBLIC_URL:-}" ]; then
+        targets+=("${PUBLIC_URL%/}/api/health")
+    fi
+    if [ -n "${PRIMARY_DOMAIN:-}" ]; then
+        targets+=("https://$PRIMARY_DOMAIN/api/health")
+        targets+=("http://$PRIMARY_DOMAIN/api/health")
+    fi
+    if [ -n "${PUBLIC_IP:-}" ]; then
+        targets+=("http://$PUBLIC_IP/api/health")
+    fi
+
+    local external_ok=false
+    local seen_urls=()
+
+    if [ ${#targets[@]} -gt 0 ]; then
         log "Testing external access..."
-        if timeout 10 curl -sf "http://$PUBLIC_IP/api/health" > /dev/null; then
-            log_success "✓ External access working"
+        for url in "${targets[@]}"; do
+            [ -z "$url" ] && continue
+            url=${url%/}
+            local skip=false
+            for seen in "${seen_urls[@]}"; do
+                if [ "$url" = "$seen" ]; then
+                    skip=true
+                    break
+                fi
+            done
+            if [ "$skip" = true ]; then
+                continue
+            fi
+            seen_urls+=("$url")
+            if timeout 10 curl -sf "$url" > /dev/null; then
+                log_success "? External access working via $url"
+                external_ok=true
+                break
+            else
+                log_warn "? External endpoint unreachable: $url"
+            fi
+        done
+
+        if [ "$external_ok" = true ]; then
             EXTERNAL_ACCESS=true
         else
-            log_warn "✗ External access may be blocked by cloud firewall/security groups"
+            log_warn "External reachability could not be confirmed"
             EXTERNAL_ACCESS=false
         fi
     else
-        log_warn "Could not determine public IP"
+        log_warn "No external targets configured for verification"
         EXTERNAL_ACCESS=false
     fi
-    
+
     log_success "Basic deployment verification completed"
 }
 
@@ -849,86 +1144,98 @@ main() {
     echo "#             Universal Air Quality Monitoring System Deployment              #"
     echo "#                         Automatic Ubuntu Installation                       #"
     echo "################################################################################"
-    echo -e "${NC}\n"
-    
+    echo -e "${NC}
+"
+
     log "Starting deployment at $(date)"
-    
-    # Pre-flight checks
+
     check_root
     detect_system
-    
-    # Core installation
+    update_repository
+
     update_system
     install_python
     install_mongodb
     install_nginx
-    
-    # Project setup
+
     setup_project
     setup_environment
     create_gunicorn_config
     configure_nginx
+    obtain_certificate
+    if [ "$CERT_OBTAINED" = true ]; then
+        configure_nginx
+    fi
     create_systemd_service
-    
-    # Security and system configuration
+
     configure_firewall
-    
-    # Testing and startup
+
     test_application
     start_services
     verify_deployment
     create_management_scripts
-    
-    # Final status report
-header "DEPLOYMENT COMPLETE"
 
-log_success "Air Quality Monitoring System deployment completed!"
+    header "DEPLOYMENT COMPLETE"
 
-echo
-echo "System Information:"
-echo "  User: $SERVICE_USER"
-echo "  Project Path: $PROJECT_DIR"
-echo "  Python Workers: $WORKERS"
-if [ "$LOW_RESOURCE" = true ]; then
-    echo "  Memory Optimization: Enabled"
-else
-    echo "  Memory Optimization: Disabled"
-fi
+    log_success "Air Quality Monitoring System deployment completed!"
 
-echo
-echo "Access Information:"
-echo "  Local: http://localhost"
-echo "  Direct: http://127.0.0.1:$SERVICE_PORT"
-if [ -n "$PUBLIC_IP" ]; then
-    echo "  Public: http://$PUBLIC_IP"
-    if [ "$EXTERNAL_ACCESS" = false ]; then
-        echo "    Cloud firewall or security group may require port 80 access"
+    echo
+    echo "System Information:"
+    echo "  User: $SERVICE_USER"
+    echo "  Project Path: $PROJECT_DIR"
+    echo "  Python Workers: $WORKERS"
+    if [ "$LOW_RESOURCE" = true ]; then
+        echo "  Memory Optimization: Enabled"
+    else
+        echo "  Memory Optimization: Disabled"
     fi
-fi
 
-echo
-echo "Management Commands:"
-echo "  ./status.sh"
-echo "  ./restart.sh"
-echo "  ./logs.sh"
-echo "  sudo systemctl {start|stop|restart|status} air-quality-monitoring"
+    echo
+    echo "Access Information:"
+    echo "  Local: http://localhost"
+    echo "  Direct: http://127.0.0.1:$SERVICE_PORT"
+    local primary_domain_display="${PRIMARY_DOMAIN:-}"
+    local active_cert=false
+    if [ -n "$primary_domain_display" ] && sudo test -f "/etc/letsencrypt/live/$primary_domain_display/fullchain.pem"; then
+        active_cert=true
+    fi
+    if [ -n "$primary_domain_display" ]; then
+        if [ "$active_cert" = true ]; then
+            echo "  Public: https://$primary_domain_display"
+        else
+            echo "  Public: http://$primary_domain_display"
+        fi
+    elif [ -n "$PUBLIC_IP" ]; then
+        echo "  Public: http://$PUBLIC_IP"
+        if [ "$EXTERNAL_ACCESS" = false ]; then
+            echo "    Cloud firewall or security group may require port 80 access"
+        fi
+    fi
 
-echo
-echo "Important Files:"
-echo "  .env"
-echo "  logs/"
-echo "  /etc/nginx/sites-available/air-quality-monitoring"
-echo "  /etc/systemd/system/air-quality-monitoring.service"
+    echo
+    echo "Management Commands:"
+    echo "  ./status.sh"
+    echo "  ./restart.sh"
+    echo "  ./logs.sh"
+    echo "  sudo systemctl {start|stop|restart|status} air-quality-monitoring"
 
-echo
-echo "Next Steps:"
-echo "  1. Update .env with required configuration"
-echo "  2. Open port 80/443 in your cloud firewall if needed"
-echo "  3. Configure SSL for HTTPS (recommended)"
-echo "  4. Review email/alert settings (optional)"
+    echo
+    echo "Important Files:"
+    echo "  .env"
+    echo "  logs/"
+    echo "  /etc/nginx/sites-available/air-quality-monitoring"
+    echo "  /etc/systemd/system/air-quality-monitoring.service"
 
-log_success "Deployment completed. Services should now be accessible."
+    echo
+    echo "Next Steps:"
+    echo "  1. Update .env with required configuration"
+    echo "  2. Open port 80/443 in your cloud firewall if needed"
+    echo "  3. Configure SSL for HTTPS (recommended)"
+    echo "  4. Review email/alert settings (optional)"
+
+    log_success "Deployment completed. Services should now be accessible."
 }
+
 
 ## Run main function with error handling
 # Write logs to a user-writable file to avoid permission denied when deploying as non-root
@@ -936,7 +1243,9 @@ LOGFILE="$PROJECT_DIR/deploy_run.log"
 touch "$LOGFILE" 2>/dev/null || LOGFILE="/tmp/air-quality-deploy-$(date +%s).log"
 chmod 644 "$LOGFILE" 2>/dev/null || true
 
-main "$@" 2>&1 | tee "$LOGFILE"
+parse_args "$@"
+
+main 2>&1 | tee "$LOGFILE"
 STATUS=${PIPESTATUS[0]}
 
 if [ "$STATUS" -eq 0 ]; then
