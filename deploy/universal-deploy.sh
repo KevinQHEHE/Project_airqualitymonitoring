@@ -20,10 +20,17 @@ NC='\033[0m'
 
 # Configuration
 PROJECT_NAME="air-quality-monitoring"
-SERVICE_USER="azureuser"  # Will be detected automatically
-SERVICE_PORT=8000
-NGINX_PORT=80
-DB_NAME="air_quality_db"
+# Load per-server overrides from deploy/env (copy deploy/env.sample -> deploy/env and edit)
+if [ -f "$(dirname "${BASH_SOURCE[0]}")/env" ]; then
+    # shellcheck source=/dev/null
+    source "$(dirname "${BASH_SOURCE[0]}")/env"
+    log_info "Loaded deploy/env overrides"
+else
+    SERVICE_USER="azureuser"  # Will be detected automatically
+    SERVICE_PORT=8000
+    NGINX_PORT=80
+    DB_NAME="air_quality_db"
+fi
 
 # Auto-detect current user and project directory
 CURRENT_USER=$(whoami)
@@ -266,47 +273,26 @@ setup_environment() {
     
     cd "$PROJECT_DIR"
     
-    # Create .env file if it doesn't exist
-    if [ ! -f .env ]; then
-        if [ -f .env.sample ]; then
-            cp .env.sample .env
-        else
-            # Create basic .env file
+    # Do NOT overwrite an existing .env. The server already has its own .env and should be kept.
+    if [ -f .env ]; then
+        log "Using existing .env file (will not overwrite)"
+    else
+        # If a per-server deploy/env file exists, use it to generate a minimal .env template
+        if [ -f "$SCRIPT_DIR/env" ]; then
+            log_warn "No project .env found; generating minimal .env from deploy/env"
+            # Merge a small set of required vars into .env
             cat > .env << EOF
-# Flask Configuration
+# Auto-generated minimal .env - please review and fill secrets
 FLASK_APP=wsgi:app
 FLASK_ENV=production
 SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
-
-# Database Configuration
-MONGO_URI=mongodb://localhost:27017/air_quality_db
-MONGO_DB_NAME=air_quality_db
-
-# API Configuration
-AQICN_API_KEY=your_aqicn_api_key_here
-AQICN_BASE_URL=https://api.waqi.info
-
-# Scheduler Configuration
-SCHEDULER_ENABLED=true
-BACKUP_ENABLED=true
-ALERT_ENABLED=true
-
-# Email Configuration (optional)
-MAIL_SERVER=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USE_TLS=true
-MAIL_USERNAME=your_email@gmail.com
-MAIL_PASSWORD=your_app_password
-MAIL_DEFAULT_SENDER=your_email@gmail.com
-
-# Logging
-LOG_LEVEL=INFO
+MONGO_URI=${MONGO_URI:-mongodb://localhost:27017/air_quality_db}
+MONGO_DB_NAME=${MONGO_DB_NAME:-air_quality_db}
 EOF
+            log_warn "Generated minimal .env. Edit .env with API keys and credentials before running the app."
+        else
+            log_warn "No .env found and no deploy/env provided. Continuing but application may fail due to missing config."
         fi
-        log "Created .env configuration file"
-        log_warn "Please edit .env file with your actual API keys and configuration"
-    else
-        log "Using existing .env file"
     fi
 }
 
