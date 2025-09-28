@@ -37,6 +37,19 @@ CURRENT_USER=$(whoami)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
+# If deploy/env provided a MONGO_URI that is not localhost, do not attempt to install MongoDB locally
+if [ -n "${MONGO_URI:-}" ]; then
+    case "$MONGO_URI" in
+        *localhost*|*127.0.0.1*|mongodb://localhost*|mongodb://127.0.0.1*)
+            # local DB - keep default behaviour
+            ;;
+        *)
+            INSTALL_MONGODB=false
+            log_info "MONGO_URI points to remote host; skipping local MongoDB installation"
+            ;;
+    esac
+fi
+
 log() {
     echo -e "${GREEN}[$(date +'%H:%M:%S')]${NC} $1"
 }
@@ -176,6 +189,10 @@ install_python() {
 # Install MongoDB
 install_mongodb() {
     header "INSTALLING MONGODB"
+    if [ "${INSTALL_MONGODB:-true}" = false ] || [ "${INSTALL_MONGODB:-true}" = "false" ]; then
+        log_info "INSTALL_MONGODB=false -> skipping MongoDB installation"
+        return 0
+    fi
     
     # Import MongoDB GPG key
     wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | sudo apt-key add -
@@ -201,7 +218,17 @@ install_mongodb() {
     echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu $MONGO_CODENAME/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
     
     sudo apt-get update -qq
-    sudo apt-get install -y mongodb-org
+    # Try to install mongodb-org; if unmet dependencies (libssl1.1) occur on Ubuntu 22.04,
+    # fail gracefully and instruct operator to use a managed DB or compatible package.
+    if ! sudo apt-get install -y mongodb-org; then
+        log_error "Failed to install mongodb-org using the upstream repo. This often happens on Ubuntu 22.04 because libssl1.1 is not available."
+        log_warn "Recommended options:
+  1) Use MongoDB Atlas or a remote MongoDB and set MONGO_URI in your .env (preferred).
+  2) Install distro-packaged mongodb (e.g., mongodb from apt) manually if you need local DB.
+  3) Install libssl1.1 from a trusted source (not recommended for production).
+Skipping local MongoDB installation."
+        return 0
+    fi
     
     # Start and enable MongoDB
     sudo systemctl start mongod
@@ -835,14 +862,19 @@ main() {
     echo "Check the status with: ./status.sh"
 }
 
-# Run main function with error handling
-main "$@" 2>&1 | tee "$PROJECT_DIR/deployment.log"
+## Run main function with error handling
+# Write logs to a user-writable file to avoid permission denied when deploying as non-root
+LOGFILE="$PROJECT_DIR/deploy_run.log"
+touch "$LOGFILE" 2>/dev/null || LOGFILE="/tmp/air-quality-deploy-$(date +%s).log"
+chmod 644 "$LOGFILE" 2>/dev/null || true
 
-# Check if deployment was successful
-if [ ${PIPESTATUS[0]} -eq 0 ]; then
-    echo -e "\n${GREEN}🎯 Deployment log saved to: $PROJECT_DIR/deployment.log${NC}"
+main "$@" 2>&1 | tee "$LOGFILE"
+STATUS=${PIPESTATUS[0]}
+
+if [ "$STATUS" -eq 0 ]; then
+    echo -e "\n${GREEN}🎯 Deployment log saved to: $LOGFILE${NC}"
     exit 0
 else
-    echo -e "\n${RED}💥 Deployment failed. Check the log above for details.${NC}"
-    exit 1
+    echo -e "\n${RED}💥 Deployment failed. Check the log above and $LOGFILE for details.${NC}"
+    exit $STATUS
 fi
