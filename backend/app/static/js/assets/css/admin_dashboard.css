@@ -686,6 +686,7 @@
         background-color: #2d2d2d;
         color: #e9ecef;
     }
+}
 /* ====== TOAST NOTIFICATIONS ====== */
 .toast-container {
     position: fixed;
@@ -835,6 +836,22 @@
     color: white;
 }
 
+/* Light-mode override: some components use .text-white by default (dark theme).
+    When the global light-mode class is present on body, force those to a readable dark color
+    for admin pages only to avoid changing global behavior elsewhere. */
+body.white-content .admin-wrapper .text-white,
+body.white-content .admin-wrapper .text-muted.text-white,
+body.white-content .admin-wrapper .badge.badge-white,
+body.white-content .admin-wrapper .table td .text-white {
+     color: #222a42 !important; /* dark slate for good contrast on light background */
+}
+
+/* Buttons and links that were white in dark mode should also switch to dark color in light mode */
+body.white-content .admin-wrapper .btn.text-white,
+body.white-content .admin-wrapper a.text-white {
+     color: #1d253b !important;
+}
+
 .admin-wrapper.light-mode .search-header,
 .admin-wrapper.light-mode .admin-card {
     background: white;
@@ -865,6 +882,21 @@
     background: white;
     color: #333;
 }
+    /* Make small outline-secondary buttons visually match the outline-primary (view-user-btn)
+         when the admin theme is in light mode. This gives `.btn.btn-sm.btn-outline-secondary`
+         the same color, border and hover behaviour as `.btn-outline-primary` used for view buttons. */
+    .admin-wrapper.light-mode .btn.btn-sm.btn-outline-secondary {
+        color: #e14eca !important; /* match outline-primary color */
+        border-color: #e14eca !important;
+        background-color: transparent !important;
+    }
+    .admin-wrapper.light-mode .btn.btn-sm.btn-outline-secondary:hover,
+    .admin-wrapper.light-mode .btn.btn-sm.btn-outline-secondary:focus {
+        color: #ffffff !important;
+        background-color: #e14eca !important;
+        border-color: #e14eca !important;
+        box-shadow: 0 6px 18px rgba(225,78,202,0.12) !important;
+    }
 
 /* Light mode checkbox */
 .admin-wrapper.light-mode .user-checkbox {
@@ -983,6 +1015,15 @@ body {
 
 .admin-wrapper.light-mode .text-white-50 {
     color: #666 !important;
+}
+
+/* Specific override for the small "Đã đăng nhập: Admin" label in the header when
+   admin theme is light-mode. The element sometimes carries both .text-white and
+   .text-white-50 (and is inside .admin-header), so use a more specific selector
+   and !important to ensure the label is visible on light backgrounds. */
+body.white-content .admin-wrapper.light-mode .admin-header .text-white-50.me-3,
+.admin-wrapper.light-mode .admin-header .text-white-50.me-3 {
+    color: #1d253b !important; /* dark slate for readable contrast in light mode */
 }
 
 .admin-wrapper.light-mode .modal-content {
@@ -1520,6 +1561,63 @@ body {
     font-weight: bold;
 }
 
+/* ====== SUBSCRIPTION CARD STYLES ====== */
+.subscription-card {
+    border: 1px solid rgba(255,255,255,0.06);
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.35));
+    box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+}
+.subscription-card .card-body {
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+}
+.subscription-info h6 {
+    font-size: 1rem;
+    margin-bottom: 0.25rem;
+}
+.subscription-meta span {
+    color: rgba(255,255,255,0.75);
+    display: inline-block;
+}
+.subscription-meta .badge {
+    padding: 0.35rem 0.5rem;
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+.subscription-control .form-check-input {
+    width: 2.2em;
+    height: 1.2em;
+}
+.subscription-control .form-check-label i {
+    width: 18px;
+}
+.subscription-control .alert-label-text {
+    font-weight: 600;
+    color: rgba(255,255,255,0.9);
+}
+@media (max-width: 576px) {
+    .subscription-meta { font-size: 0.85rem; }
+    .subscription-control { margin-top: 0.5rem; }
+}
+
+/* Light mode overrides for subscription cards */
+.admin-wrapper.light-mode .subscription-card {
+    background: #fff;
+    border: 1px solid rgba(0,0,0,0.06);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+.admin-wrapper.light-mode .subscription-card .card-body { background: transparent; }
+.admin-wrapper.light-mode .subscription-info h6 { color: #222; }
+.admin-wrapper.light-mode .subscription-meta span { color: #444; }
+.admin-wrapper.light-mode .subscription-control .alert-label-text { color: #222; }
+.admin-wrapper.light-mode .subscription-meta .badge { box-shadow: none; }
+
+/* Ensure bell icon is visible in light mode */
+.admin-wrapper.light-mode .subscription-control .form-check-label i {
+    color: #333 !important;
+}
+.admin-wrapper.light-mode .form-check-label { color: #333; }
+
 /* Ensure icon visibility in light mode */
 .admin-wrapper.light-mode #themeIcon {
     color: #333;
@@ -1530,5 +1628,4 @@ body {
 #themeIcon:hover {
     transform: scale(1.1);
     color: #667eea;
-}
 }

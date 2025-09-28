@@ -111,7 +111,7 @@ function createStationCard(s) {
 	gridCard.innerHTML = `
 		<div class="station-header">
 			<div class="station-name-container">
-				<h4 class="station-name">${escapeHtml(s.nickname || s.station_name || s.location || 'Station')}</h4>
+				<h4 class="station-name">${escapeHtml(s.nickname || s.location || 'Station')}</h4>
 				<div class="station-id">${escapeHtml(String(s.station_id))}</div>
 				<div class="added-date">${formatTimestamp(s.created_at) || ''}</div>
 			</div>

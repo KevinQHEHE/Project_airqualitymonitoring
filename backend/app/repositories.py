@@ -115,28 +115,63 @@ class StationsRepository(BaseRepository):
     def find_by_station_ids(self, station_ids: List[Any]) -> List[Dict[str, Any]]:
         if not station_ids:
             return []
+        # Normalize inputs: collect numeric and string candidates
         numeric_ids: List[int] = []
         string_ids: List[str] = []
         for value in station_ids:
+            # preserve ints
             if isinstance(value, int):
                 numeric_ids.append(value)
-                continue
-            try:
-                numeric_ids.append(int(value))
-            except (TypeError, ValueError):
                 string_ids.append(str(value))
-        filters: List[Dict[str, Any]] = []
-        if numeric_ids:
-            filters.append({'_id': {'$in': numeric_ids}})
+                continue
+            # try to parse numeric-like strings
+            try:
+                n = int(value)
+                numeric_ids.append(n)
+                string_ids.append(str(n))
+            except (TypeError, ValueError):
+                # non-numeric string
+                string_ids.append(str(value))
+
+        # Build a flexible query that looks at station_id (string or numeric) and _id when possible
+        queries: List[Dict[str, Any]] = []
         if string_ids:
-            filters.append({'station_id': {'$in': string_ids}})
-        if not filters:
+            # match station_id against string forms
+            queries.append({'station_id': {'$in': string_ids}})
+        if numeric_ids:
+            # also match station_id against numeric forms (if stored as numbers)
+            queries.append({'station_id': {'$in': numeric_ids}})
+
+        # attempt to match _id for candidates that look like ObjectId strings
+        object_id_candidates = []
+        from bson.errors import InvalidId
+        for s in list(dict.fromkeys(string_ids)):
+            try:
+                # try to interpret as ObjectId
+                oid = ObjectId(s)
+                object_id_candidates.append(oid)
+            except Exception:
+                # ignore invalid ObjectId formats
+                continue
+
+        if object_id_candidates:
+            queries.append({'_id': {'$in': object_id_candidates}})
+
+        # Some historical imports/store station documents with integer _id values
+        # (e.g. _id: 8688). If the caller provided numeric station ids, include
+        # them as candidates for matching the document _id as well.
+        if numeric_ids:
+            queries.append({'_id': {'$in': numeric_ids}})
+
+        if not queries:
             return []
+
         query: Dict[str, Any]
-        if len(filters) == 1:
-            query = filters[0]
+        if len(queries) == 1:
+            query = queries[0]
         else:
-            query = {'$or': filters}
+            query = {'$or': queries}
+
         try:
             return list(self.collection.find(query))
         except PyMongoError as e:

@@ -114,6 +114,15 @@ class AdminUserManagement {
             });
         }
 
+        // Search button (new id added in template)
+        const searchBtn = document.getElementById('searchBtn');
+        if (searchBtn) {
+            searchBtn.addEventListener('click', () => {
+                const q = document.getElementById('userSearch')?.value || '';
+                this.handleSearch(q);
+            });
+        }
+
         // Filter by date range
         const dateFrom = document.getElementById('dateFrom');
         const dateTo = document.getElementById('dateTo');
@@ -128,17 +137,8 @@ class AdminUserManagement {
             statusFilter.addEventListener('change', () => this.handleStatusFilter());
         }
 
-        // Bulk action buttons
-        const bulkActivateBtn = document.getElementById('bulkActivate');
-        const bulkDeactivateBtn = document.getElementById('bulkDeactivate');
+        // Bulk action buttons (only export is wired here)
         const bulkExportBtn = document.getElementById('bulkExport');
-
-        if (bulkActivateBtn) {
-            bulkActivateBtn.addEventListener('click', () => this.handleBulkAction('activate'));
-        }
-        if (bulkDeactivateBtn) {
-            bulkDeactivateBtn.addEventListener('click', () => this.handleBulkAction('deactivate'));
-        }
         if (bulkExportBtn) {
             bulkExportBtn.addEventListener('click', () => this.exportToCSV());
         }
@@ -158,10 +158,11 @@ class AdminUserManagement {
             }
         });
 
-        // User detail modal triggers
+        // User detail modal triggers - use closest to handle clicks on inner elements
         document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('view-user-btn')) {
-                const userId = e.target.dataset.userId;
+            const btn = e.target.closest && e.target.closest('.view-user-btn');
+            if (btn) {
+                const userId = btn.dataset.userId;
                 this.showUserDetail(userId);
             }
         });
@@ -195,64 +196,111 @@ class AdminUserManagement {
                 }
             }
         });
+
+        // (edit action moved to table actions as compact icon/link)
     }
 
     async loadUsers() {
         try {
             this.showLoading(true);
             
-            // Use mock data instead of API call for frontend testing
-            const searchTerm = document.getElementById('userSearch')?.value.toLowerCase() || '';
+            // Check if we have an auth token
+            const token = this.getAuthToken();
+            if (!token) {
+                throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.');
+            }
+            
+            // Build query parameters for API call
+            const searchTerm = document.getElementById('userSearch')?.value || '';
             const statusFilter = document.getElementById('statusFilter')?.value || '';
             const dateFrom = document.getElementById('dateFrom')?.value || '';
             const dateTo = document.getElementById('dateTo')?.value || '';
             
-            // Filter mock data based on search and filters
-            let filteredUsers = this.mockUsers;
+            const params = new URLSearchParams({
+                page: this.currentPage.toString(),
+                page_size: this.itemsPerPage.toString(),
+                sort: 'created_at',
+                order: 'desc'
+            });
             
             if (searchTerm) {
-                filteredUsers = filteredUsers.filter(user => 
-                    user.username.toLowerCase().includes(searchTerm) ||
-                    user.email.toLowerCase().includes(searchTerm) ||
-                    user.fullname.toLowerCase().includes(searchTerm)
-                );
+                params.append('search', searchTerm);
             }
             
             if (statusFilter === 'active') {
-                filteredUsers = filteredUsers.filter(user => user.isActive);
+                params.append('status', 'active');
             } else if (statusFilter === 'inactive') {
-                filteredUsers = filteredUsers.filter(user => !user.isActive);
+                params.append('status', 'inactive');
             }
             
-            if (dateFrom && dateTo) {
-                const fromDate = new Date(dateFrom);
-                const toDate = new Date(dateTo);
-                filteredUsers = filteredUsers.filter(user => {
-                    const userDate = new Date(user.createdAt);
-                    return userDate >= fromDate && userDate <= toDate;
-                });
+            if (dateFrom) {
+                params.append('registered_after', dateFrom + 'T00:00:00Z');
             }
             
-            // Simulate pagination
-            const startIndex = (this.currentPage - 1) * this.itemsPerPage;
-            const endIndex = startIndex + this.itemsPerPage;
-            const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
+            if (dateTo) {
+                params.append('registered_before', dateTo + 'T23:59:59Z');
+            }
+            // Only load regular users in the admin list (exclude admin accounts)
+            // Prefer telling the API to filter server-side, and also defensively
+            // filter client-side in case the API doesn't support the param.
+            params.append('role', 'user');
             
-            this.totalUsers = filteredUsers.length;
-            this.renderUserTable(paginatedUsers);
-            this.renderPagination(filteredUsers.length, Math.ceil(filteredUsers.length / this.itemsPerPage));
+            // Call real API
+            const response = await fetch(`/api/admin/users/?${params}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (response.status === 401) {
+                throw new Error('Token xác thực không hợp lệ. Vui lòng đăng nhập lại.');
+            }
+            
+            if (response.status === 403) {
+                throw new Error('Bạn không có quyền truy cập chức năng này. Cần quyền admin.');
+            }
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            
+            // Prefer server-side filtered results; defensively filter client-side
+            const apiUsers = Array.isArray(result.users) ? result.users : [];
+            const users = apiUsers.filter(u => ((u.role || '') + '').toLowerCase() === 'user');
+            this.totalUsers = users.length;
+            this.renderUserTable(users);
+            this.renderPagination(users.length, Math.ceil(users.length / this.itemsPerPage));
             this.updateBulkActionButtons();
             
         } catch (error) {
             console.error('Error loading users:', error);
-            this.showError('Lỗi hiển thị dữ liệu');
+            this.showError('Lỗi tải dữ liệu người dùng: ' + error.message);
+            
+            // Fallback to mock data in case of API error
+            this.loadMockData();
         } finally {
             this.showLoading(false);
         }
     }
 
+    loadMockData() {
+        // Fallback method using mock data when API fails
+        // Only include mock entries that represent regular users
+        const filteredUsers = (this.mockUsers || []).filter(u => ((u.role || '') + '').toLowerCase() === 'user');
+        this.totalUsers = filteredUsers.length;
+        this.renderUserTable(filteredUsers);
+        this.renderPagination(filteredUsers.length, Math.ceil(filteredUsers.length / this.itemsPerPage));
+        this.updateBulkActionButtons();
+    }
+
     renderUserTable(users) {
-        const tbody = document.querySelector('#userTable tbody');
+        // Defensive: ensure admins are excluded even if upstream passed them
+        users = (users || []).filter(u => ((u.role || '') + '').toLowerCase() === 'user');
+    const tbody = document.getElementById('userTableBody') || document.querySelector('#userTable tbody');
         if (!tbody) return;
 
         tbody.innerHTML = users.map(user => `
@@ -260,51 +308,131 @@ class AdminUserManagement {
                 <td>
                     <div class="form-check">
                         <input class="form-check-input user-checkbox" type="checkbox" 
-                               value="${user._id}" ${this.selectedUsers.has(user._id) ? 'checked' : ''}>
+                               value="${user._id || user.id}" ${this.selectedUsers.has(user._id || user.id) ? 'checked' : ''}>
                     </div>
                 </td>
                 <td>
-                    <div class="d-flex align-items-center">
-                        <div class="avatar-sm me-2">
-                            <div class="avatar-title bg-primary rounded-circle text-white">
-                                ${user.fullname.charAt(0).toUpperCase()}
-                            </div>
-                        </div>
-                        <div>
-                            <h6 class="mb-0">${user.fullname}</h6>
-                            <small class="text-muted">${user.email}</small>
-                        </div>
+                    <div>
+                        ${this.renderUserHeading(user)}
+                        <small class="text-muted">${(user.email && user.email !== this.getHeadingText(user)) ? user.email : ''}</small>
                     </div>
                 </td>
                 <td>
-                    <select class="form-select form-select-sm role-select" data-user-id="${user._id}">
+                    <select class="form-select form-select-sm role-select" data-user-id="${user._id || user.id}">
                         <option value="user" ${user.role === 'user' ? 'selected' : ''}>User</option>
-                        <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
                     </select>
                 </td>
                 <td>
                     <div class="form-check form-switch">
                         <input class="form-check-input status-toggle" type="checkbox" 
-                               data-user-id="${user._id}" ${user.isActive ? 'checked' : ''}>
+                               data-user-id="${user._id || user.id}" ${(user.isActive !== false && user.status !== 'inactive') ? 'checked' : ''}>
                         <label class="form-check-label">
-                            ${user.isActive ? 'Hoạt động' : 'Không hoạt động'}
+                            ${(user.isActive !== false && user.status !== 'inactive') ? 'Hoạt động' : 'Không hoạt động'}
                         </label>
                     </div>
                 </td>
                 <td>
-                    <span class="badge ${user.emailVerified ? 'bg-success' : 'bg-warning'}">
-                        ${user.emailVerified ? 'Đã xác thực' : 'Chưa xác thực'}
-                    </span>
+                    <div class="d-flex flex-column">
+                        <small class="text-muted">Tham gia: ${new Date(user.createdAt || user.created_at).toLocaleDateString('vi-VN')}</small>
+                    </div>
                 </td>
-                <td>${new Date(user.createdAt).toLocaleDateString('vi-VN')}</td>
-                <td>Chưa đăng nhập</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary view-user-btn" data-user-id="${user.id}">
-                        <i class="fas fa-eye"></i> Chi tiết
-                    </button>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-outline-primary view-user-btn" data-user-id="${user._id || user.id}" title="Chi tiết">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <a class="btn btn-sm btn-outline-secondary" href="/admin/users/${user._id || user.id}/edit" title="Chỉnh sửa">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                    </div>
                 </td>
             </tr>
         `).join('');
+    }
+
+    // Helper to render the heading for a user row. Prefer fullname, then username if it's not the same as email.
+    
+    
+    renderUserHeading(user) {
+        // This method returns an HTML string for the name/heading element
+        const fullname = (user.fullname || user.name || '').trim();
+        const username = (user.username || user.name || '').trim();
+        const email = (user.email || '').trim();
+
+        // If fullname exists and is not the email, show it; otherwise prefer username when it's not equal to email
+        let headingText = '';
+        if (fullname && fullname !== email) {
+            headingText = fullname;
+        } else if (username && username !== email) {
+            headingText = username;
+        } else if (email) {
+            // Last resort: show email as heading (but email will also be the small text below) — avoid duplication handled by template
+            headingText = email;
+        } else {
+            headingText = '';
+        }
+
+        return `<h6 class="mb-0">${headingText}</h6>`;
+    }
+
+    // Helper to get a readable location/station name from various data shapes
+    getLocationName(loc, idx) {
+        if (!loc) return `Trạm ${idx+1}`;
+        if (typeof loc === 'string' && loc.trim() !== '') return loc;
+        // Try a list of likely fields (including nested objects) used by different APIs
+        const tryFields = [
+            'name', 'station_name', 'display_name', 'displayName', 'title', 'label',
+            'stationId', 'station_id', 'id'
+        ];
+
+        for (const f of tryFields) {
+            const v = loc[f];
+            if (typeof v === 'string' && v.trim() !== '') return v;
+        }
+
+        // nested shapes: station.name, meta.name, properties.name, info.name, attributes.name
+        const nestedPaths = [
+            ['station','name'], ['meta','name'], ['properties','name'], ['info','name'], ['attributes','name'], ['station','station_name']
+        ];
+        for (const path of nestedPaths) {
+            let cur = loc;
+            for (const key of path) {
+                if (cur && typeof cur === 'object' && key in cur) cur = cur[key]; else { cur = null; break; }
+            }
+            if (typeof cur === 'string' && cur.trim() !== '') return cur;
+        }
+
+        // Try common language variants
+        if (loc.name && typeof loc.name === 'object') {
+            for (const k of ['vi', 'en', 'local']) {
+                if (typeof loc.name[k] === 'string' && loc.name[k].trim() !== '') return loc.name[k];
+            }
+        }
+
+        // fallback: if coordinates exist, show lat,lng
+        if (Array.isArray(loc.coordinates) && loc.coordinates.length >= 2) return `${loc.coordinates[1]}, ${loc.coordinates[0]}`;
+        // last resort: use generic index label
+        return `Trạm ${idx+1}`;
+    }
+
+    // Simple HTML escaper to avoid injecting untrusted HTML into innerHTML
+    escapeHtml(str) {
+        if (str === null || typeof str === 'undefined') return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    getHeadingText(user) {
+        const fullname = (user.fullname || user.name || '').trim();
+        const username = (user.username || user.name || '').trim();
+        const email = (user.email || '').trim();
+        if (fullname && fullname !== '') return fullname;
+        if (username && username !== '') return username;
+        return email || '';
     }
 
     renderPagination(total, totalPages) {
@@ -470,59 +598,312 @@ class AdminUserManagement {
 
     async toggleUserStatus(userId, isActive) {
         try {
-            // Update mock data instead of API call
-            const user = this.mockUsers.find(u => u._id === userId);
-            if (user) {
-                user.isActive = isActive;
-                this.showSuccess(`Đã ${isActive ? 'kích hoạt' : 'vô hiệu hóa'} người dùng`);
-                
-                // Update the label text
-                const checkbox = document.querySelector(`.status-toggle[data-user-id="${userId}"]`);
-                if (checkbox) {
-                    const label = checkbox.nextElementSibling;
-                    if (label) {
-                        label.textContent = isActive ? 'Hoạt động' : 'Không hoạt động';
-                    }
-                }
-            } else {
-                this.showError('Không tìm thấy người dùng');
-                // Revert checkbox
-                const checkbox = document.querySelector(`.status-toggle[data-user-id="${userId}"]`);
-                if (checkbox) checkbox.checked = !isActive;
+            // Call real API to update user status
+            const response = await fetch(`/api/admin/users/${userId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.getAuthToken()}`
+                },
+                body: JSON.stringify({
+                    status: isActive ? 'active' : 'inactive'
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
+
+            const result = await response.json();
+            this.showSuccess(`Đã ${isActive ? 'kích hoạt' : 'vô hiệu hóa'} người dùng thành công`);
+            
+            // Update the label text
+            const checkbox = document.querySelector(`.status-toggle[data-user-id="${userId}"]`);
+            if (checkbox) {
+                const label = checkbox.nextElementSibling;
+                if (label) {
+                    label.textContent = isActive ? 'Hoạt động' : 'Không hoạt động';
+                }
+            }
+            
         } catch (error) {
-            console.error('Status toggle error:', error);
-            this.showError('Lỗi thay đổi trạng thái');
+            console.error('Error toggling user status:', error);
+            this.showError(`Lỗi cập nhật trạng thái: ${error.message}`);
+            
+            // Revert the checkbox state on error
+            const checkbox = document.querySelector(`[data-user-id="${userId}"].status-toggle`);
+            if (checkbox) {
+                checkbox.checked = !isActive;
+            }
+        }
+    }
+
+    // Bulk change status: toggle selected users between active/inactive (asks for target state)
+    async bulkChangeStatus() {
+        if (this.selectedUsers.size === 0) return;
+
+        const confirmed = await this.showConfirmDialog(
+            'Chuyển trạng thái',
+            `Bạn có chắc chắn muốn chuyển trạng thái ${this.selectedUsers.size} người dùng đã chọn?`
+        );
+
+        if (!confirmed) return;
+
+        // Ask which state to set
+        const setActive = confirm('Nhấn OK để đặt là Hoạt động, Cancel để đặt là Không hoạt động.');
+
+        try {
+            this.showLoading(true);
+            let affected = 0;
+            this.selectedUsers.forEach(userId => {
+                const user = this.mockUsers.find(u => u._id === userId);
+                if (user) {
+                    user.isActive = setActive;
+                    affected++;
+                }
+            });
+
+            this.showSuccess(`Đã cập nhật trạng thái cho ${affected} người dùng`);
+            this.selectedUsers.clear();
+            this.loadUsers();
+        } catch (err) {
+            console.error(err);
+            this.showError('Lỗi khi chuyển trạng thái');
+        } finally {
+            this.showLoading(false);
         }
     }
 
     async changeUserRole(userId, newRole) {
         try {
-            // Update mock data instead of API call
-            const user = this.mockUsers.find(u => u._id === userId);
-            if (user) {
-                const oldRole = user.role;
-                user.role = newRole;
-                this.showSuccess(`Đã thay đổi vai trò từ ${oldRole} thành ${newRole}`);
-            } else {
-                this.showError('Không tìm thấy người dùng');
-                // Revert select
-                const select = document.querySelector(`.role-select[data-user-id="${userId}"]`);
-                if (select) select.value = 'user';
+            // Call real API to update user role
+            const response = await fetch(`/api/admin/users/${userId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.getAuthToken()}`
+                },
+                body: JSON.stringify({
+                    role: newRole
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
+
+            const result = await response.json();
+            this.showSuccess(`Đã thay đổi vai trò thành ${newRole}`);
+            
         } catch (error) {
-            console.error('Role change error:', error);
-            this.showError('Lỗi thay đổi vai trò');
+            console.error('Error changing user role:', error);
+            this.showError(`Lỗi thay đổi vai trò: ${error.message}`);
+            
+            // Revert select value on error
+            const select = document.querySelector(`.role-select[data-user-id="${userId}"]`);
+            if (select) {
+                // Try to get previous value from the currently selected user data
+                const user = this.mockUsers.find(u => (u._id || u.id) === userId);
+                select.value = user ? user.role : 'user';
+            }
         }
     }
 
     async showUserDetail(userId) {
         try {
             this.showLoading(true);
+            // If no token, avoid calling protected API — fallback to mock and prompt login
+            const token = this.getAuthToken();
+            if (!token) {
+                this.showToast('Bạn chưa đăng nhập. Hiển thị dữ liệu mẫu.', 'info');
+                const user = this.mockUsers.find(u => u._id === userId || u.id === userId);
+                if (user) {
+                    this.renderUserDetailModal(user);
+                    const modal = new bootstrap.Modal(document.getElementById('userDetailModal'));
+                    modal.show();
+                    return;
+                }
+                // if no mock found, show friendly error
+                this.showError('Không tìm thấy thông tin người dùng (đã thử dữ liệu mẫu)');
+                return;
+            }
+
+            // Call real API to get user details
+            const response = await fetch(`/api/admin/users/${userId}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.status === 401) {
+                // Token invalid — ask user to login
+                this.showError('Phiên đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.');
+                throw new Error('Unauthorized');
+            }
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const user = await response.json();
+            // Try to fetch detailed locations/subscriptions for this user from admin API
+            try {
+                const locRes = await fetch(`/api/admin/users/${userId}/locations`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                if (locRes.ok) {
+                    const locJson = await locRes.json();
+                    console.log('=== DEBUG: Raw locations API response ===');
+                    console.log('Full locJson:', locJson);
+                    console.log('locJson keys:', Object.keys(locJson || {}));
+                    console.log('=== END DEBUG ===');
+                    // Merge locations and alert settings into user object if provided
+                    if (locJson && typeof locJson === 'object') {
+                        // Normalize various possible shapes into a consistent `favoriteLocations` array
+                        let rawSubs = locJson.favorite_locations || locJson.locations || locJson.subscriptions || [];
+                        // If API returned an object map (e.g. { "1583": { ... } }) convert to array
+                        if (rawSubs && !Array.isArray(rawSubs) && typeof rawSubs === 'object') {
+                            rawSubs = Object.keys(rawSubs).map(k => {
+                                const v = rawSubs[k];
+                                // If value is a primitive, wrap it
+                                if (v === null || typeof v !== 'object') return { station_id: k, value: v };
+                                // Merge station id into the object for easier normalization
+                                return Object.assign({ station_id: k }, v);
+                            });
+                        }
+                        // Normalizer: produce objects with consistent keys used by the UI
+                        const normalizeSubscription = (s, idx) => {
+                            if (!s) return null;
+                            // Common shapes handled:
+                            // - { station_id, station_name, created_at, current_aqi, threshold, alert_enabled }
+                            // - { station: { name, id }, created_at, latest_reading: { aqi } }
+                            // - strings (station id) or simple ids
+                            const out = {};
+                            // Try to get station id
+                            out.station_id = s.station_id || s.id || s._id || s.station?.id || s.station_idx || s.station?.station_id || null;
+                            // Station name variants
+                            out.station_name = s.station_name || s.name || s.title || s.label || s.location || s.station?.name || s.meta?.name || s.properties?.name || s.nickname || null;
+                            // Timestamps (accept camelCase createdAt too)
+                            out.created_at = s.created_at || s.added_at || s.createdAt || s.ts || null;
+                            // AQI/latest reading - try many possible variations (explicit null/undefined checks)
+                            out.current_aqi = (typeof s.current_aqi !== 'undefined' && s.current_aqi !== null) ? s.current_aqi
+                                : (typeof s.aqi !== 'undefined' && s.aqi !== null) ? s.aqi
+                                : (s.latest_reading?.aqi ?? s.latest?.aqi ?? (s.latest_reading && s.latest_reading.aqi) ?? s.reading?.aqi ?? s.lastReading?.aqi ?? s.currentReading?.aqi ?? s.data?.aqi ?? s.measurements?.aqi ?? s.value?.aqi ?? s.airQuality?.aqi ?? s.pm25 ?? s.PM25 ?? null);
+                            // Threshold / user preference - try various field names (preserve 0)
+                            out.threshold = (typeof s.threshold !== 'undefined' && s.threshold !== null) ? s.threshold
+                                : (typeof s.alert_threshold !== 'undefined' && s.alert_threshold !== null) ? s.alert_threshold
+                                : (typeof s.user_threshold !== 'undefined' && s.user_threshold !== null) ? s.user_threshold
+                                : (s.settings?.threshold ?? s.alertThreshold ?? s.userThreshold ?? s.notification_threshold ?? s.notificationThreshold ?? s.preferences?.threshold ?? null);
+                            // Alert enabled flag
+                            out.alert_enabled = (typeof s.alert_enabled !== 'undefined') ? s.alert_enabled : (typeof s.enabled !== 'undefined' ? s.enabled : (s.notifications?.enabled ?? null));
+                            // Attach raw object for debugging/edge cases
+                            out._raw = s;
+                            // If name is missing, fall back to generated label
+                            if (!out.station_name) out.station_name = `Trạm ${idx + 1}`;
+                            return out;
+                        };
+
+                        const normalized = Array.isArray(rawSubs) ? rawSubs.map((s, i) => normalizeSubscription(s, i)).filter(Boolean) : [];
+                        user.favoriteLocations = normalized;
+
+                        // Enrich subscriptions that lack human-readable name or AQI by fetching station details
+                        try {
+                            const toEnrich = user.favoriteLocations.filter(s => (!s.station_name || typeof s.current_aqi === 'undefined' || s.current_aqi === null) && s.station_id).map(s => s.station_id);
+                            if (toEnrich.length > 0) {
+                                // Use Promise.all to fetch station details in parallel
+                                const enrichPromises = toEnrich.map(async (sid) => {
+                                    // Try the canonical station endpoint first, then fallbacks when 404
+                                    const tryFetch = async (idToTry) => {
+                                        try {
+                                            const res = await fetch(`/api/stations/${encodeURIComponent(idToTry)}`, {
+                                                method: 'GET',
+                                                headers: {
+                                                    'Content-Type': 'application/json',
+                                                    'Authorization': `Bearer ${token}`
+                                                }
+                                            });
+                                            if (res.ok) return await res.json();
+                                            return null;
+                                        } catch (e) {
+                                            return null;
+                                        }
+                                    };
+
+                                    // Primary attempt
+                                    let staJson = await tryFetch(sid);
+                                    if (!staJson) {
+                                        // If sid contains a colon (e.g. '13665:1'), try the part before the colon
+                                        if (typeof sid === 'string' && sid.includes(':')) {
+                                            const [first] = sid.split(':');
+                                            staJson = await tryFetch(first);
+                                        }
+                                    }
+                                    if (!staJson) {
+                                        // Try numeric cast of sid
+                                        try {
+                                            const numeric = parseInt(sid, 10);
+                                            if (!isNaN(numeric)) {
+                                                staJson = await tryFetch(String(numeric));
+                                            }
+                                        } catch (e) {
+                                            // ignore
+                                        }
+                                    }
+
+                                    if (!staJson) return null;
+                                    // Some station endpoints return { station: { ... } }
+                                    const payload = (staJson && staJson.station) ? staJson.station : staJson;
+                                    return { id: sid, data: payload };
+                                });
+
+                                const enrichResults = await Promise.all(enrichPromises);
+                                enrichResults.forEach(res => {
+                                    if (!res) return;
+                                    const sid = res.id;
+                                    const data = res.data;
+                                    const target = user.favoriteLocations.find(x => String(x.station_id) === String(sid));
+                                    if (!target) return;
+                                    // Pick sensible name fields from station object
+                                    target.station_name = target.station_name || data.name || data.title || data.displayName || data.meta?.name || data.properties?.name || data.location || null;
+                                    // Try to pick latest reading aqi - expanded search and coerce to number when possible
+                                    const foundAqi = target.current_aqi || data.latest_reading?.aqi || data.latest?.aqi || 
+                                                        data.reading?.aqi || data.lastReading?.aqi || data.currentReading?.aqi ||
+                                                        data.airQuality?.aqi || data.measurements?.aqi || data.data?.aqi ||
+                                                        data.pm25 || data.PM25 || data.aqi || null;
+                                    target.current_aqi = (foundAqi === null || typeof foundAqi === 'undefined') ? null : (isNaN(Number(foundAqi)) ? foundAqi : Number(foundAqi));
+                                    // Attach station raw for debugging
+                                    target._station = data;
+                                });
+                            }
+                        } catch (err) {
+                            console.warn('Failed to enrich subscription station details:', err);
+                        }
+
+                        // Merge alert settings
+                        if (locJson.alert_settings || locJson.alertSettings) {
+                            user.alertSettings = locJson.alert_settings || locJson.alertSettings;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Could not load user locations (admin API):', e);
+            }
+
+            this.renderUserDetailModal(user);
+            const modal = new bootstrap.Modal(document.getElementById('userDetailModal'));
+            modal.show();
             
-            // Find user from mock data instead of API call
-            const user = this.mockUsers.find(u => u._id === userId);
+        } catch (error) {
+            console.error('Error loading user details:', error);
             
+            // Fallback to mock data
+            const user = this.mockUsers.find(u => u._id === userId || u.id === userId);
             if (user) {
                 this.renderUserDetailModal(user);
                 const modal = new bootstrap.Modal(document.getElementById('userDetailModal'));
@@ -530,37 +911,390 @@ class AdminUserManagement {
             } else {
                 this.showError('Không tìm thấy thông tin người dùng');
             }
-        } catch (error) {
-            console.error('Error loading user detail:', error);
-            this.showError('Lỗi hiển thị thông tin người dùng');
         } finally {
             this.showLoading(false);
         }
     }
 
     renderUserDetailModal(user) {
-        // Update modal header
-        document.getElementById('userDetailName').textContent = user.fullname;
-        document.getElementById('userDetailEmail').textContent = user.email;
+                // Map user fields safely
+                const fullname = user.fullname || user.name || user.username || '';
+                const email = user.email || '';
+                const id = user._id || user.id || '';
+                const isActive = (typeof user.isActive !== 'undefined') ? user.isActive : (user.status !== 'inactive');
+                const role = user.role || 'user';
+                const createdAt = user.createdAt || user.created_at || '';
+                const lastLogin = user.last_login || user.lastLogin || '';
 
-        // Profile tab
-        document.getElementById('userFullname').textContent = user.fullname;
-        document.getElementById('userEmail').textContent = user.email;
-        document.getElementById('userRole').textContent = user.role;
-        document.getElementById('userStatus').innerHTML = user.isActive 
-            ? '<span class="badge bg-success">Hoạt động</span>'
-            : '<span class="badge bg-danger">Không hoạt động</span>';
-        document.getElementById('userEmailVerified').innerHTML = user.emailVerified
-            ? '<span class="badge bg-success">Đã xác thực</span>'
-            : '<span class="badge bg-warning">Chưa xác thực</span>';
-        document.getElementById('userCreatedAt').textContent = new Date(user.createdAt).toLocaleString('vi-VN');
-        document.getElementById('userLastLogin').textContent = 'Chưa đăng nhập';
+                // Attach user id and data to modal for later use
+                const modal = document.getElementById('userDetailModal');
+                if (modal) {
+                    modal.dataset.userId = id;
+                    // Store the full user data for access in renderUserAlerts
+                    modal.userData = user;
+                }
 
-        // Locations tab
-        this.renderUserLocations(user.favoriteLocations || []);
+                // Update modal title
+                const titleEl = document.getElementById('userDetailModalLabel');
+                if (titleEl) titleEl.innerHTML = `<i class="fas fa-user me-2"></i>Chi tiết: ${fullname}`;
 
-        // Alerts tab
-        this.renderUserAlerts(user.alertSettings || {});
+        // Basic info content - minimal fields as requested
+        const basicInfo = document.getElementById('basicInfoContent');
+        if (basicInfo) {
+            const statusText = isActive ? 'Hoạt động' : 'Không hoạt động';
+            const roleText = role === 'admin' ? 'Quản trị viên' : 'Người dùng';
+            basicInfo.innerHTML = `
+                <div class="row g-3">
+                    <div class="col-12"><div class="user-info-row"><div class="user-info-label fw-bold">ID:</div><div class="user-info-value">#${id}</div></div></div>
+                    <div class="col-12"><div class="user-info-row"><div class="user-info-label fw-bold">Email:</div><div class="user-info-value">${email}</div></div></div>
+                    <div class="col-12"><div class="user-info-row"><div class="user-info-label fw-bold">Vai trò:</div><div class="user-info-value">${roleText}</div></div></div>
+                    <div class="col-12"><div class="user-info-row"><div class="user-info-label fw-bold">Trạng thái:</div><div class="user-info-value">${statusText}</div></div></div>
+                    <div class="col-12"><div class="user-info-row"><div class="user-info-label fw-bold">Ngày tham gia:</div><div class="user-info-value">${createdAt ? new Date(createdAt).toLocaleDateString('vi-VN') : ''}</div></div></div>
+                </div>
+            `;
+        }
+
+                // Locations tab
+                const locationsContent = document.getElementById('locationsContent');
+                if (locationsContent) {
+                        const locations = user.favoriteLocations || user.favorite_locations || [];
+                        if (!locations || locations.length === 0) {
+                                locationsContent.innerHTML = `
+                                        <div class="text-center py-4">
+                                                <i class="fas fa-map-marker-alt fa-3x text-muted mb-3"></i>
+                                                <p class="text-white-50">Người dùng chưa có địa điểm yêu thích nào</p>
+                                        </div>
+                                `;
+                        } else {
+                                let html = '<div class="row g-3">';
+                locations.forEach((loc, idx) => {
+                    const name = this.getLocationName(loc, idx);
+                    const coords = Array.isArray(loc.coordinates) ? `${loc.coordinates[0]}, ${loc.coordinates[1]}` : (loc.coordinates || '');
+                    const alertsEnabled = loc.alerts_enabled || loc.alertsEnabled || false;
+                                        html += `
+                                                <div class="col-md-6">
+                                                    <div class="admin-card p-3">
+                                                        <div class="d-flex justify-content-between align-items-start">
+                                                            <div>
+                                                                <h6 class="text-white mb-1"><i class="fas fa-map-marker-alt text-primary me-2"></i>${name}</h6>
+                                                                <p class="text-white-50 small mb-0">${coords}</p>
+                                                            </div>
+                                                            <span class="badge ${alertsEnabled ? 'bg-success' : 'bg-secondary'}">${alertsEnabled ? 'Bật cảnh báo' : 'Tắt cảnh báo'}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                        `;
+                                });
+                                html += '</div>';
+                                locationsContent.innerHTML = html;
+                        }
+                }
+
+                // Alerts tab
+                const alertsContent = document.getElementById('alertsContent');
+                if (alertsContent) {
+                        const alertSettings = user.alertSettings || user.alert_settings || {};
+                        // Prefer explicit `subscriptions` returned by admin API; fall back to favoriteLocations
+                        const rawSubscriptions = user.subscriptions || user.favoriteLocations || user.favorite_locations || [];
+                        // Normalize (lightweight) to ensure consistent keys for rendering
+                        const subscriptions = (Array.isArray(rawSubscriptions) ? rawSubscriptions : []).map((s) => {
+                            if (!s) return s;
+                            // If this looks like the serialized subscription from backend (has id/station_id)
+                            const station_id = s.station_id || s.stationId || s.station || s.id || s._id || (s._id ? String(s._id) : null) || null;
+                            const station_name = s.station_name || s.nickname || s.name || s.title || s.label || null;
+                            const created_at = s.createdAt || s.created_at || s.added_at || s.ts || null;
+                            const current_aqi = (typeof s.current_aqi !== 'undefined' && s.current_aqi !== null) ? s.current_aqi : (typeof s.aqi !== 'undefined' && s.aqi !== null) ? s.aqi : (s.latest_reading?.aqi ?? null);
+                            const threshold = (typeof s.threshold !== 'undefined' && s.threshold !== null) ? s.threshold : (typeof s.alert_threshold !== 'undefined' && s.alert_threshold !== null) ? s.alert_threshold : null;
+                            const alert_enabled = (typeof s.alert_enabled !== 'undefined') ? s.alert_enabled : (typeof s.enabled !== 'undefined' ? s.enabled : (s.status ? s.status === 'active' : null));
+                            return Object.assign({}, s, {
+                                station_id: station_id,
+                                station_name: station_name,
+                                created_at: created_at,
+                                current_aqi: current_aqi,
+                                threshold: threshold,
+                                alert_enabled: alert_enabled
+                            });
+                        });
+                        
+                        // Debug logging to understand the API response structure
+                        console.log('=== DEBUG: Admin Alerts Data ===');
+                        console.log('Full user object:', user);
+                        console.log('alertSettings:', alertSettings);
+                        console.log('subscriptions/favoriteLocations:', subscriptions);
+                        if (subscriptions.length > 0) {
+                            console.log('First subscription object:', subscriptions[0]);
+                            console.log('All subscription object keys:', Object.keys(subscriptions[0]));
+                        }
+                        console.log('=== END DEBUG ===');
+                        
+                        if (!subscriptions || subscriptions.length === 0) {
+                                alertsContent.innerHTML = '<p class="text-muted">Người dùng chưa đăng ký trạm nào</p>';
+                        } else {
+                                let html = `<div class="mb-3"><h6 class="mb-0"><i class="fas fa-user me-2"></i><strong>Thông tin người dùng:</strong> ${fullname}</h6></div>`;
+                subscriptions.forEach((location, idx) => {
+                    console.log(`=== DEBUG: Location ${idx} ===`);
+                    console.log('Location object:', location);
+                    console.log('Location keys:', Object.keys(location));
+                    console.log('location.created_at:', location.created_at);
+                    console.log('location.added_at:', location.added_at);
+                    console.log('location.current_aqi:', location.current_aqi);
+                    console.log('location.aqi:', location.aqi);
+                    console.log('location.latest_reading:', location.latest_reading);
+                    console.log('location.threshold:', location.threshold);
+                    console.log('location.alert_enabled:', location.alert_enabled);
+                    console.log('=== END DEBUG ===');
+                    
+                    // Prefer normalized fields, but fall back to raw backend object if necessary
+                    // Prefer readable name, then nickname, then station_id label, then generated index label
+                    const locName = this.escapeHtml(location.station_name || location.nickname || (location.station_id ? (`Trạm ${location.station_id}`) : (location._raw ? this.getLocationName(location._raw, idx) : this.getLocationName(location, idx))));
+
+                    // Use real data from API instead of mock data (check normalized then raw)
+                    const registrationDateRaw = location.created_at || location.createdAt || location.added_at || (location._raw && (location._raw.createdAt || location._raw.created_at || location._raw.added_at));
+                    const registrationDate = registrationDateRaw
+                        ? new Date(registrationDateRaw).toLocaleDateString('vi-VN')
+                        : 'N/A';
+
+                    // Use real AQI from normalized location or raw subscription/station doc
+                    const currentAQI = (typeof location.current_aqi !== 'undefined' && location.current_aqi !== null) ? location.current_aqi
+                        : (typeof location.aqi !== 'undefined' && location.aqi !== null) ? location.aqi
+                        : (location.latest_reading?.aqi ?? (location._raw && (location._raw.current_aqi ?? location._raw.aqi ?? location._raw.latest_reading?.aqi)) ?? null);
+                    const numericAQI = (currentAQI !== null && typeof currentAQI !== 'undefined' && !isNaN(Number(currentAQI))) ? Number(currentAQI) : null;
+                    const displayAQI = (numericAQI !== null) ? numericAQI : (currentAQI !== null && typeof currentAQI !== 'undefined' ? this.escapeHtml(currentAQI) : 'N/A');
+
+                    // Use real threshold from normalized location or raw subscription (preserve 0)
+                    const threshold = (typeof location.threshold !== 'undefined' && location.threshold !== null) ? location.threshold
+                        : (typeof location.alert_threshold !== 'undefined' && location.alert_threshold !== null) ? location.alert_threshold
+                        : (location._raw && (typeof location._raw.threshold !== 'undefined' && location._raw.threshold !== null ? location._raw.threshold : (typeof location._raw.alert_threshold !== 'undefined' && location._raw.alert_threshold !== null ? location._raw.alert_threshold : null)))
+                        ?? (alertSettings?.thresholds?.pm25 ?? alertSettings?.threshold ?? 100);
+
+                    // Use real alert enabled status (normalized then raw then default true)
+                    const alertEnabled = (typeof location.alert_enabled !== 'undefined') ? location.alert_enabled : (location._raw && typeof location._raw.alert_enabled !== 'undefined' ? location._raw.alert_enabled : (location._raw && typeof location._raw.status !== 'undefined' ? location._raw.status === 'active' : true));
+                    
+                    // Determine AQI badge color based on actual value
+                    let aqiBadgeClass = 'bg-secondary';
+                    if (numericAQI !== null) {
+                        if (numericAQI <= 50) {
+                            aqiBadgeClass = 'bg-success';
+                        } else if (numericAQI <= 100) {
+                            aqiBadgeClass = 'bg-warning text-dark';
+                        } else {
+                            aqiBadgeClass = 'bg-danger';
+                        }
+                    }
+
+                                        html += `
+                                            <div class="card mb-3 subscription-card">
+                                                <div class="card-body py-3">
+                                                    <div class="d-flex align-items-center">
+                                                        <div class="subscription-info flex-grow-1">
+                                                            <h6 class="mb-1">${locName}</h6>
+                                                            <div class="subscription-meta small text-muted">
+                                                                <span class="me-3"><strong>Đăng ký:</strong> ${registrationDate}</span>
+                                                                <span class="me-3"><strong>AQI:</strong> <span class="badge ${aqiBadgeClass}">${displayAQI}</span></span>
+                                                                <span><strong>Ngưỡng:</strong> <span class="text-nowrap">${threshold}</span></span>
+                                                            </div>
+                                                        </div>
+                                                        <div class="subscription-control text-end ms-3">
+                                                            <div class="form-check form-switch">
+                                                                <input class="form-check-input alert-toggle-inline" type="checkbox" ${alertEnabled ? 'checked' : ''} data-user-id="${id}" data-station="${locName}" data-station-id="${location.station_id || location.stationId || ''}" data-sub-id="${location.id || location._id || ''}" id="alertToggleInline${idx}">
+                                                                <label class="form-check-label" for="alertToggleInline${idx}"><i class="fas ${alertEnabled ? 'fa-bell' : 'fa-bell-slash'} me-1"></i><span class="ms-1 alert-label-text">${alertEnabled ? 'Bật' : 'Tắt'}</span></label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        `;
+                                });
+                                alertsContent.innerHTML = html;
+
+                                // Wire the inline toggles for UX
+                                setTimeout(() => {
+                                        document.querySelectorAll('.alert-toggle-inline').forEach(toggle => {
+                                                toggle.addEventListener('change', async function(event) {
+                                                        const t = event.target;
+                                                        const userId = t.dataset.userId;
+                                                        const stationName = t.dataset.station;
+                                                        const enabled = t.checked;
+                                                        const label = t.nextElementSibling;
+                                                        const icon = label?.querySelector('i');
+                                                        
+                                                        // Update UI optimistically
+                                                        if (icon) icon.className = `fas ${enabled ? 'fa-bell' : 'fa-bell-slash'} me-1`;
+                                                        const textSpan = label?.querySelector('.alert-label-text');
+                                                        if (textSpan) textSpan.textContent = enabled ? 'Bật' : 'Tắt';
+                                                        
+                                                        // Save to server via admin API
+                                                        try {
+                                                            const token = this.getAuthToken();
+                                                            if (!token) {
+                                                                throw new Error('No auth token');
+                                                            }
+                                                            
+                                                            // Find the subscription/location in the current user data
+                                                            const modal = document.getElementById('userDetailModal');
+                                                            const currentUser = modal.userData || user;
+                                                            const dataSubId = t.getAttribute('data-sub-id');
+                                                            const dataStationId = t.getAttribute('data-station-id');
+                                                            let subscription = null;
+                                                            if (dataSubId) {
+                                                                subscription = currentUser.favoriteLocations?.find(loc => String(loc.id || loc._id || loc.sub_id || loc.subscription_id) === String(dataSubId));
+                                                            }
+                                                            if (!subscription && dataStationId) {
+                                                                subscription = currentUser.favoriteLocations?.find(loc => String(loc.station_id) === String(dataStationId) || String(loc.stationId) === String(dataStationId));
+                                                            }
+                                                            if (!subscription) {
+                                                                // Fallback to name matching
+                                                                subscription = currentUser.favoriteLocations?.find(loc => 
+                                                                    this.getLocationName(loc, 0) === stationName || 
+                                                                    loc.station_name === stationName ||
+                                                                    loc.name === stationName
+                                                                );
+                                                            }
+                                                            
+                                                            if (subscription || dataSubId || dataStationId) {
+                                                                console.log('=== DEBUG: Alert Toggle API Call ===');
+                                                                console.log('User ID:', userId);
+                                                                console.log('New enabled state:', enabled);
+                                                                console.log('Subscription object:', subscription);
+                                                                console.log('dataSubId:', dataSubId, 'dataStationId:', dataStationId);
+
+                                                                // Method 1: Try to update user's general notification preferences (best-effort)
+                                                                try {
+                                                                    const notifRes = await fetch(`/api/alerts/user/${userId}/notifications`, {
+                                                                        method: 'PUT',
+                                                                        headers: {
+                                                                            'Content-Type': 'application/json',
+                                                                            'Authorization': `Bearer ${token}`
+                                                                        },
+                                                                        body: JSON.stringify({
+                                                                            enabled: enabled,
+                                                                            threshold: (subscription && (subscription.threshold || subscription.alert_threshold)) || 100
+                                                                        })
+                                                                    });
+                                                                    console.log('Notification update response:', notifRes.status);
+                                                                } catch (e) {
+                                                                    console.warn('Notification update failed (non-fatal):', e);
+                                                                }
+
+                                                                // Prefer updating by explicit subscription id if provided
+                                                                if (dataSubId) {
+                                                                    const updateRes = await fetch(`/api/alerts/subscriptions/${dataSubId}`, {
+                                                                        method: 'PUT',
+                                                                        headers: {
+                                                                            'Content-Type': 'application/json',
+                                                                            'Authorization': `Bearer ${token}`
+                                                                        },
+                                                                        body: JSON.stringify({
+                                                                            status: enabled ? 'active' : 'paused',
+                                                                            alert_threshold: (subscription && (subscription.threshold || subscription.alert_threshold)) || 100,
+                                                                            metadata: { admin_updated: true }
+                                                                        })
+                                                                    });
+
+                                                                    console.log('Subscription update (by sub id) response:', updateRes.status);
+                                                                    if (!updateRes.ok) {
+                                                                        throw new Error(`Subscription update failed: ${updateRes.status}`);
+                                                                    }
+                                                                } else {
+                                                                    // Otherwise try to find by station id (prefer dataStationId if provided)
+                                                                    const stationIdToUse = dataStationId || (subscription && (subscription.station_id || subscription.stationId));
+                                                                    if (!stationIdToUse) {
+                                                                        console.warn('No station id available to update/create subscription');
+                                                                    } else {
+                                                                        const subsRes = await fetch(`/api/alerts/subscriptions?user_id=${userId}&station_id=${stationIdToUse}`, {
+                                                                            method: 'GET',
+                                                                            headers: {
+                                                                                'Content-Type': 'application/json',
+                                                                                'Authorization': `Bearer ${token}`
+                                                                            }
+                                                                        });
+
+                                                                        if (subsRes.ok) {
+                                                                            const subsData = await subsRes.json();
+                                                                            console.log('Found subscriptions:', subsData);
+
+                                                                            if (subsData.subscriptions && subsData.subscriptions.length > 0) {
+                                                                                // Update the first matching subscription
+                                                                                const subId = subsData.subscriptions[0].id || subsData.subscriptions[0]._id;
+                                                                                const updateRes = await fetch(`/api/alerts/subscriptions/${subId}`, {
+                                                                                    method: 'PUT',
+                                                                                    headers: {
+                                                                                        'Content-Type': 'application/json',
+                                                                                        'Authorization': `Bearer ${token}`
+                                                                                    },
+                                                                                    body: JSON.stringify({
+                                                                                        status: enabled ? 'active' : 'paused',
+                                                                                        alert_threshold: (subscription && (subscription.threshold || subscription.alert_threshold)) || 100,
+                                                                                        metadata: { admin_updated: true }
+                                                                                    })
+                                                                                });
+
+                                                                                console.log('Subscription update response:', updateRes.status);
+
+                                                                                if (!updateRes.ok) {
+                                                                                    throw new Error(`Subscription update failed: ${updateRes.status}`);
+                                                                                }
+                                                                            } else {
+                                                                                // Create new subscription if none exists
+                                                                                const createRes = await fetch('/api/alerts/subscriptions', {
+                                                                                    method: 'POST',
+                                                                                    headers: {
+                                                                                        'Content-Type': 'application/json',
+                                                                                        'Authorization': `Bearer ${token}`
+                                                                                    },
+                                                                                    body: JSON.stringify({
+                                                                                        user_id: userId,
+                                                                                        station_id: stationIdToUse,
+                                                                                        alert_threshold: (subscription && (subscription.threshold || subscription.alert_threshold)) || 100,
+                                                                                        status: enabled ? 'active' : 'paused',
+                                                                                        metadata: { admin_created: true }
+                                                                                    })
+                                                                                });
+
+                                                                                console.log('Subscription create response:', createRes.status);
+
+                                                                                if (!createRes.ok) {
+                                                                                    throw new Error(`Subscription creation failed: ${createRes.status}`);
+                                                                                }
+                                                                            }
+                                                                        } else {
+                                                                            console.warn('Could not fetch subscriptions:', subsRes.status);
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                // Update local data
+                                                                if (subscription) subscription.alert_enabled = enabled;
+
+                                                                // Show success toast
+                                                                if (typeof this.showToast === 'function') {
+                                                                    this.showToast(`Đã ${enabled ? 'bật' : 'tắt'} cảnh báo cho trạm ${stationName}`, 'success');
+                                                                } else if (window.showToast) {
+                                                                    window.showToast(`Đã ${enabled ? 'bật' : 'tắt'} cảnh báo cho trạm ${stationName}`, 'success');
+                                                                }
+                                                            } else {
+                                                                throw new Error('Không tìm thấy subscription để cập nhật');
+                                                            }
+                                                            
+                                                        } catch (error) {
+                                                            console.error('Error updating alert setting:', error);
+                                                            // Revert UI on error
+                                                            t.checked = !enabled;
+                                                            if (icon) icon.className = `fas ${!enabled ? 'fa-bell' : 'fa-bell-slash'} me-1`;
+                                                            if (textSpan) textSpan.textContent = !enabled ? 'Bật' : 'Tắt';
+                                                            
+                                                            // Show error toast
+                                                            if (typeof this.showToast === 'function') {
+                                                                this.showToast(`Lỗi: Không thể ${enabled ? 'bật' : 'tắt'} cảnh báo cho trạm ${stationName}. ${error.message}`, 'error');
+                                                            } else if (window.showToast) {
+                                                                window.showToast(`Lỗi: Không thể ${enabled ? 'bật' : 'tắt'} cảnh báo cho trạm ${stationName}`, 'error');
+                                                            }
+                                                        }
+                                                }.bind(this));
+                                        });
+                                }, 50);
+                        }
+                }
     }
 
     renderUserLocations(locations) {
@@ -595,44 +1329,231 @@ class AdminUserManagement {
         const container = document.getElementById('userAlerts');
         if (!container) return;
 
-        if (!alertSettings || Object.keys(alertSettings).length === 0) {
-            container.innerHTML = '<p class="text-muted">Người dùng chưa cài đặt cảnh báo nào.</p>';
+        // Get the current user from the modal dataset - this contains real API data
+        const userModal = document.getElementById('userDetailModal');
+        const userId = userModal?.dataset.userId;
+        
+        // Find current user from either real data or fallback to mock
+        let user = null;
+        
+        // First try to get from the modal's user data (real API data)
+        if (userModal?.userData) {
+            user = userModal.userData;
+        } else {
+            // Fallback to mock data
+            user = this.mockUsers.find(u => u._id === userId);
+        }
+        
+        if (!user || !user.favoriteLocations || user.favoriteLocations.length === 0) {
+            container.innerHTML = '<p class="text-muted">Người dùng chưa đăng ký cảnh báo trạm nào.</p>';
             return;
         }
 
-        container.innerHTML = `
-            <div class="card mb-3">
-                <div class="card-body">
-                    <h6 class="card-title">Cài đặt cảnh báo</h6>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <p><strong>Email:</strong> 
-                                <span class="badge ${alertSettings.enableEmail ? 'bg-success' : 'bg-secondary'}">
-                                    ${alertSettings.enableEmail ? 'Bật' : 'Tắt'}
-                                </span>
-                            </p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><strong>Push Notification:</strong> 
-                                <span class="badge ${alertSettings.enablePush ? 'bg-success' : 'bg-secondary'}">
-                                    ${alertSettings.enablePush ? 'Bật' : 'Tắt'}
-                                </span>
-                            </p>
+        // Use real data from API - each location contains actual subscription details
+        const subscriptions = user.favoriteLocations.map((location, index) => {
+            // Extract real data from location object
+            const stationName = this.escapeHtml(this.getLocationName(location, index));
+            // Try to grab a station id from likely fields so we can fetch full station if AQI missing
+            const stationId = location.station_id || location.stationId || location.id || (location._raw && (location._raw.station_id || location._raw.id)) || (location._station && (location._station.station_id || location._station.id));
+            const registrationDate = location.created_at 
+                ? new Date(location.created_at).toLocaleDateString('vi-VN')
+                : location.added_at 
+                    ? new Date(location.added_at).toLocaleDateString('vi-VN')
+                    : 'N/A';
+
+            // Try a broader set of paths for AQI values to support varied backend shapes
+            const rawAqiCandidates = [
+                location.current_aqi,
+                location.aqi,
+                location.latest_reading && location.latest_reading.aqi,
+                location.latest && location.latest.aqi,
+                location.station && location.station.aqi,
+                // server may attach a full station doc under _station
+                location._station && location._station.latest_reading && location._station.latest_reading.aqi,
+                location._station && location._station.latest && location._station.latest.aqi,
+                // station doc may expose a top-level aqi or pollutant IAQI values
+                location._station && typeof location._station.aqi !== 'undefined' ? location._station.aqi : null,
+                location._station && location._station.pm25,
+                // nested iaqi e.g. { iaqi: { pm25: { v: 12 } } }
+                (location._station && location._station.iaqi && location._station.iaqi.pm25 && typeof location._station.iaqi.pm25.v !== 'undefined') ? location._station.iaqi.pm25.v : null,
+                // raw subscription payload sometimes exists under _raw
+                location._raw && location._raw.current_aqi,
+                location._raw && location._raw.aqi,
+                location._raw && location._raw.latest_reading && location._raw.latest_reading.aqi,
+                location.latest?.value,
+                location.value,
+                location.currentValue
+            ];
+
+            let foundAqi = null;
+            for (const c of rawAqiCandidates) {
+                if (c !== undefined && c !== null && c !== '') {
+                    foundAqi = c;
+                    break;
+                }
+            }
+
+            // DEBUG: log candidates and chosen value to help diagnose missing AQI
+            try {
+                console.debug('[AQI DEBUG] stationName:', stationName, 'rawAqiCandidates:', rawAqiCandidates, 'foundAqi:', foundAqi);
+            } catch (e) {
+                console.debug('[AQI DEBUG] could not stringify candidates');
+            }
+
+            // Coerce to number when possible; otherwise keep null to indicate missing
+            const numericAQI = (foundAqi !== null && foundAqi !== undefined && !isNaN(Number(foundAqi))) ? Number(foundAqi) : null;
+            // Display value: numeric if available, otherwise escaped string or 'N/A'
+            const displayAQI = numericAQI !== null ? String(numericAQI) : (foundAqi !== null && foundAqi !== undefined ? this.escapeHtml(foundAqi) : 'N/A');
+
+            // DEBUG: log numeric/display decision
+            console.debug('[AQI DEBUG] stationName:', stationName, 'foundAqi:', foundAqi, 'numericAQI:', numericAQI, 'displayAQI:', displayAQI);
+
+            // Use real threshold from location data
+            const threshold = location.threshold || user.alertSettings?.thresholds?.pm25 || 100;
+
+            // Use real alert enabled status
+            const alertEnabled = location.alert_enabled !== undefined ? location.alert_enabled : true;
+
+            return {
+                stationName,
+                stationId,
+                registrationDate,
+                currentAQI: displayAQI,
+                numericAQI,
+                threshold,
+                alertEnabled
+            };
+        });
+
+        let html = `<div class="mb-3">
+            <h6 class="mb-0"><i class="fas fa-user me-2"></i><strong>Thông tin người dùng:</strong> ${user.fullname || user.username}</h6>
+        </div>`;
+
+        subscriptions.forEach((sub, index) => {
+            // Determine AQI badge color based on actual value
+            // Map AQI numeric ranges to badge classes. If numericAQI is null, use neutral bg-secondary
+            let aqiBadgeClass = 'bg-secondary';
+            if (typeof sub.numericAQI === 'number') {
+                if (sub.numericAQI <= 50) {
+                    aqiBadgeClass = 'bg-success';
+                } else if (sub.numericAQI <= 100) {
+                    aqiBadgeClass = 'bg-warning text-dark';
+                } else if (sub.numericAQI <= 150) {
+                    aqiBadgeClass = 'bg-danger';
+                } else {
+                    // Very unhealthy / hazardous
+                    aqiBadgeClass = 'bg-dark text-white';
+                }
+            }
+
+            html += `
+                <div class="card mb-3 subscription-card">
+                    <div class="card-body py-3">
+                        <div class="d-flex align-items-center">
+                            <div class="subscription-info flex-grow-1">
+                                <h6 class="mb-1">${sub.stationName}</h6>
+                                <div class="subscription-meta small text-muted">
+                                    <span class="me-3"><strong>Đăng ký:</strong> ${sub.registrationDate}</span>
+                                    <span class="me-3"><strong>AQI:</strong> <span class="badge ${aqiBadgeClass}">${sub.currentAQI}</span></span>
+                                    <span><strong>Ngưỡng:</strong> <span class="text-nowrap">${sub.threshold}</span></span>
+                                </div>
+                            </div>
+
+                            <div class="subscription-control text-end ms-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input alert-toggle" type="checkbox" 
+                                           ${sub.alertEnabled ? 'checked' : ''} 
+                                           data-user-id="${userId}" 
+                                           data-station="${sub.stationName}"
+                                           id="alertToggle${index}">
+                                    <label class="form-check-label" for="alertToggle${index}">
+                                        <i class="fas ${sub.alertEnabled ? 'fa-bell' : 'fa-bell-slash'} me-1"></i>
+                                        <span class="ms-1 alert-label-text">${sub.alertEnabled ? 'Bật' : 'Tắt'}</span>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    ${alertSettings.thresholds ? `
-                        <div class="row">
-                            <div class="col-md-6">
-                                <p><strong>Ngưỡng PM2.5:</strong> ${alertSettings.thresholds.pm25} μg/m³</p>
-                            </div>
-                            <div class="col-md-6">
-                                <p><strong>Ngưỡng PM10:</strong> ${alertSettings.thresholds.pm10} μg/m³</p>
-                            </div>
-                        </div>
-                    ` : ''}
                 </div>
-            </div>
-        `;
+            `;
+            // If AQI is missing (display 'N/A') but we have a stationId, try a non-blocking client-side fetch
+            if ((sub.currentAQI === 'N/A' || sub.numericAQI === null) && sub.stationId) {
+                // schedule a microtask to avoid blocking render
+                (async (stationId, cardIndex) => {
+                    try {
+                        console.debug('[AQI FETCH] attempting fetch for station', stationId);
+                        const token = this.getAuthToken ? this.getAuthToken() : null;
+                        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                        const resp = await fetch(`/api/stations/${encodeURIComponent(stationId)}`, { headers });
+                        if (!resp.ok) {
+                            console.debug('[AQI FETCH] station fetch failed', resp.status);
+                            return;
+                        }
+                        const stationData = await resp.json();
+                        // Try to find an AQI in returned station doc
+                        const stationAqi = stationData?.latest_reading?.aqi ?? stationData?.aqi ?? stationData?.latest?.aqi ?? (stationData?.iaqi?.pm25?.v ?? null);
+                        if (stationAqi !== undefined && stationAqi !== null && stationAqi !== '') {
+                            const numeric = !isNaN(Number(stationAqi)) ? Number(stationAqi) : null;
+                            const disp = numeric !== null ? String(numeric) : String(stationAqi);
+                            // Find the corresponding badge in the modal and update it
+                            try {
+                                const badges = document.querySelectorAll('#userAlerts .subscription-card');
+                                const card = badges[cardIndex];
+                                if (card) {
+                                    const badgeEl = card.querySelector('.badge');
+                                    if (badgeEl) {
+                                        badgeEl.textContent = disp;
+                                        // update badge class based on numeric value
+                                        if (numeric !== null) {
+                                            badgeEl.className = 'badge ' + (numeric <= 50 ? 'bg-success' : numeric <= 100 ? 'bg-warning text-dark' : numeric <= 150 ? 'bg-danger' : 'bg-dark text-white');
+                                        }
+                                    }
+                                }
+                                console.debug('[AQI FETCH] updated badge for station', stationId, 'value', disp);
+                            } catch (e) {
+                                console.debug('[AQI FETCH] failed to update DOM', e);
+                            }
+                        }
+                    } catch (e) {
+                        console.debug('[AQI FETCH] error fetching station', stationId, e);
+                    }
+                })(sub.stationId, index);
+            }
+        });
+
+        container.innerHTML = html;
+
+        // Add event listeners for alert toggles (local-only, no API calls)
+        container.querySelectorAll('.alert-toggle').forEach(toggle => {
+            toggle.addEventListener('change', this.handleAlertToggle.bind(this));
+        });
+    }
+
+    async handleAlertToggle(event) {
+        const toggle = event.target;
+        const userId = toggle.dataset.userId;
+        const stationName = toggle.dataset.station;
+        const isEnabled = toggle.checked;
+        // Update the label and icon immediately for better UX (local-only)
+        const label = toggle.nextElementSibling;
+        const icon = label?.querySelector('i');
+        if (icon) {
+            icon.className = `fas ${isEnabled ? 'fa-bell' : 'fa-bell-slash'} me-1`;
+        }
+        const textSpan = label?.querySelector('.alert-label-text');
+        if (textSpan) {
+            textSpan.textContent = isEnabled ? 'Bật' : 'Tắt';
+        } else if (label) {
+            // fallback: rebuild label content
+            label.innerHTML = `<i class="fas ${isEnabled ? 'fa-bell' : 'fa-bell-slash'} me-1"></i><span class="ms-1 alert-label-text">${isEnabled ? 'Bật' : 'Tắt'}</span>`;
+        }
+
+        // NOTE: per request, do NOT call the admin alerts API from the admin UI.
+        // The alert toggle in the admin detail view is now local-only. If you want
+        // this to call a user-scoped API later, tell me which endpoint to use and
+        // I'll wire it to that API (including CSRF/auth headers).
+        console.log(`Alert toggle (local-only) for user ${userId}, station ${stationName}: ${isEnabled}`);
+        this.showToast(`Đã ${isEnabled ? 'bật' : 'tắt'} cảnh báo cho trạm ${stationName}`, 'info');
     }
 
     async exportToCSV() {
@@ -701,6 +1622,26 @@ class AdminUserManagement {
     }
 
     // Utility methods
+    getAuthToken() {
+        // Try to get token from localStorage, sessionStorage, or cookie
+     return localStorage.getItem('access_token') || 
+         sessionStorage.getItem('access_token') || 
+         this.getCookie('access_token') || 
+         null;
+    }
+
+    setAuthToken(token) {
+        // Store token in localStorage for persistence
+        localStorage.setItem('access_token', token);
+    }
+
+    getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
+    }
+
     getCSRFToken() {
         const token = document.querySelector('meta[name="csrf-token"]');
         return token ? token.getAttribute('content') : '';
@@ -836,5 +1777,212 @@ class AdminUserManagement {
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     console.log('[admin_user_management.js] DOMContentLoaded - initializing AdminUserManagement');
-    new AdminUserManagement();
+    window.__adminUserManagement = new AdminUserManagement();
 });
+
+// Global helper for template button
+function bulkChangeStatus() {
+    if (window.__adminUserManagement) {
+        window.__adminUserManagement.bulkChangeStatus();
+    } else {
+        alert('Quản lý người dùng chưa sẵn sàng');
+    }
+}
+
+/*
+ * Backward-compatible global wrappers for legacy template onclick handlers.
+ * These expose `editUser()` and `saveUserChanges()` globally so the template
+ * buttons continue to work while the class-based system is used.
+ */
+function editUser() {
+    try {
+        const detailModal = document.getElementById('userDetailModal');
+        let currentUserId = detailModal?.dataset.userId;
+
+        // Fallback: if dataset not set, try to parse ID from basic info content (#ID)
+        if (!currentUserId) {
+            try {
+                const basic = document.getElementById('basicInfoContent');
+                if (basic) {
+                    // Find the row label that contains 'ID' and take its value
+                    const rows = basic.querySelectorAll('.user-info-row');
+                    for (const row of rows) {
+                        const label = row.querySelector('.user-info-label');
+                        const value = row.querySelector('.user-info-value');
+                        if (label && value && /ID/i.test(label.textContent || '')) {
+                            currentUserId = (value.textContent || '').replace(/^#/, '').trim();
+                            if (currentUserId) break;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('Failed parsing ID from basicInfoContent', err);
+            }
+        }
+        const manager = window.__adminUserManagement;
+
+        // Prefer class method if present
+        if (manager && typeof manager.openEditModal === 'function') {
+            return manager.openEditModal(currentUserId);
+        }
+
+        // Otherwise populate edit form from manager.mockUsers or HTML in-place
+        let user = null;
+        if (manager && Array.isArray(manager.mockUsers)) {
+            user = manager.mockUsers.find(u => {
+                const a = String(u._id || u.id || '');
+                const b = String(currentUserId || '');
+                return a === b;
+            });
+        }
+
+        if (!user) {
+            // Try to fetch from API as fallback (include auth if available)
+            try {
+                const token = (manager && typeof manager.getAuthToken === 'function')
+                    ? manager.getAuthToken()
+                    : (localStorage.getItem('access_token') || sessionStorage.getItem('access_token') || null);
+
+                fetch(`/api/admin/users/${currentUserId}`, {
+                    headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { 'Authorization': `Bearer ${token}` } : {})
+                })
+                    .then(r => {
+                        if (r.ok) return r.json();
+                        if (r.status === 401) {
+                            // Unauthorized - surface friendly error
+                            if (manager && typeof manager.showError === 'function') manager.showError('Yêu cầu xác thực không hợp lệ. Vui lòng đăng nhập lại.');
+                            return Promise.reject(new Error('Unauthorized'));
+                        }
+                        return Promise.reject(r);
+                    })
+                    .then(data => fillAndShowEditModal(data))
+                    .catch((err) => {
+                        console.warn('Fallback fetch for user failed', err);
+                        // Final fallback: show message
+                        if (manager && typeof manager.showError === 'function') manager.showError('Không tìm thấy thông tin người dùng');
+                        else alert('Không tìm thấy thông tin người dùng');
+                    });
+            } catch (err) {
+                console.warn('Error attempting fallback fetch for user', err);
+                if (manager && typeof manager.showError === 'function') manager.showError('Không tìm thấy thông tin người dùng');
+            }
+            return;
+        }
+
+        fillAndShowEditModal(user);
+
+        function fillAndShowEditModal(u) {
+            const nameEl = document.getElementById('editUserName');
+            const emailEl = document.getElementById('editUserEmail');
+            const roleEl = document.getElementById('editUserRole');
+            const statusEl = document.getElementById('editUserStatus');
+            const createdEl = document.getElementById('editUserCreated');
+            const lastLoginEl = document.getElementById('editUserLastLogin');
+            const editModal = document.getElementById('editUserModal');
+
+            if (nameEl) nameEl.value = u.fullname || u.name || '';
+            if (emailEl) emailEl.value = u.email || '';
+            if (roleEl) roleEl.value = u.role || 'user';
+            if (statusEl) statusEl.value = (u.isActive === false || u.status === 'inactive') ? 'inactive' : 'active';
+            if (createdEl) createdEl.value = u.createdAt || u.created_at || '';
+            if (lastLoginEl) lastLoginEl.value = u.last_login || u.lastLogin || '';
+
+            if (editModal) editModal.dataset.userId = currentUserId;
+
+            // Hide detail modal if present, then show edit modal
+            try {
+                const detailInstance = bootstrap.Modal.getInstance(detailModal);
+                if (detailInstance) detailInstance.hide();
+            } catch (err) { /* ignore */ }
+
+            setTimeout(() => {
+                try {
+                    const editInstance = new bootstrap.Modal(document.getElementById('editUserModal'));
+                    editInstance.show();
+                } catch (err) { console.warn('Failed showing edit modal', err); }
+            }, 250);
+        }
+    } catch (err) {
+        console.error('editUser wrapper error', err);
+    }
+}
+
+async function saveUserChanges() {
+    try {
+        const editModal = document.getElementById('editUserModal');
+        if (!editModal) return;
+        const userId = editModal.dataset.userId;
+
+        const name = document.getElementById('editUserName')?.value.trim() || '';
+        const email = document.getElementById('editUserEmail')?.value.trim() || '';
+        const role = document.getElementById('editUserRole')?.value || 'user';
+        const status = document.getElementById('editUserStatus')?.value || 'active';
+
+        // Basic validation
+        if (!name || !email) {
+            if (window.__adminUserManagement && typeof window.__adminUserManagement.showError === 'function') {
+                window.__adminUserManagement.showError('Vui lòng điền đầy đủ thông tin bắt buộc!');
+            } else alert('Vui lòng điền đầy đủ thông tin bắt buộc!');
+            return;
+        }
+
+        // Try API update first
+        const manager = window.__adminUserManagement;
+        const token = manager ? manager.getAuthToken() : (localStorage.getItem('access_token') || '');
+
+        const payload = { name, email, role, status };
+
+        let updated = false;
+        if (userId) {
+            try {
+                const res = await fetch(`/api/admin/users/${userId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': token ? `Bearer ${token}` : ''
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    updated = true;
+                    if (manager && typeof manager.showSuccess === 'function') manager.showSuccess('Cập nhật thông tin người dùng thành công!');
+                }
+            } catch (err) {
+                console.warn('API update failed, will fallback to mock', err);
+            }
+        }
+
+        // Fallback: update mock data if API not available
+        if (!updated && manager && Array.isArray(manager.mockUsers)) {
+            const idx = manager.mockUsers.findIndex(u => (u._id || u.id) == userId);
+            if (idx !== -1) {
+                const u = manager.mockUsers[idx];
+                manager.mockUsers[idx] = {
+                    ...u,
+                    name: name,
+                    fullname: name,
+                    email: email,
+                    role: role,
+                    isActive: status === 'active',
+                    status: status
+                };
+                if (manager && typeof manager.showSuccess === 'function') manager.showSuccess('Cập nhật (mock) thông tin người dùng thành công!');
+                updated = true;
+            }
+        }
+
+        // Close modal and refresh table
+        try {
+            const instance = bootstrap.Modal.getInstance(editModal);
+            if (instance) instance.hide();
+        } catch (err) { /* ignore */ }
+
+        if (manager && typeof manager.loadUsers === 'function') manager.loadUsers();
+        else location.reload();
+
+    } catch (err) {
+        console.error('saveUserChanges wrapper error', err);
+        if (window.__adminUserManagement && typeof window.__adminUserManagement.showError === 'function') window.__adminUserManagement.showError('Có lỗi xảy ra khi cập nhật thông tin!');
+    }
+}

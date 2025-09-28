@@ -1,0 +1,570 @@
+/*
+ Styles for admin edit user page
+
+ Change: apply Times New Roman font-family to the edit user page only.
+ Reason: User requested Times New Roman for the Edit User page; keep scope local so other admin pages are unaffected.
+*/
+/* Styles for admin edit user page */
+
+/* Page-scoped font: Times New Roman for the Edit User page only
+   This targets the edit-user card wrapper so other admin pages keep their existing fonts. */
+.admin-wrapper .admin-card,
+.admin-wrapper .admin-card * {
+  font-family: "Times New Roman", Times, serif !important;
+}
+.container-edit-user {
+  padding-top: 3.5rem;
+  padding-bottom: 3.5rem;
+}
+.card-edit-user {
+  border-radius: .5rem;
+}
+.user-summary {
+  border-radius: .6rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f6f9fc 100%);
+  box-shadow: 0 10px 30px rgba(13, 110, 253, 0.06);
+  padding-top: 1.5rem;
+  /* make the summary card taller and centered vertically */
+  padding: 2rem 1.5rem !important;
+  min-height: 360px !important;
+  box-shadow: 0 12px 36px rgba(13, 110, 253, 0.08) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+}
+.avatar-large {
+  width: 160px;
+  height: 160px;
+  line-height: 160px;
+  border-radius: 50%;
+  display: inline-block;
+  background-color: #0b5ed7; /* stronger blue */
+  color: white;
+  font-weight: 800;
+  font-size: 72px;
+  /* Ensure avatar and badge align visually with the larger card */
+  width: 160px !important;
+  height: 160px !important;
+  line-height: 160px !important;
+  font-size: 72px !important;
+}
+.badge-role {
+  font-size: .95rem;
+  padding: .5em .75em;
+  border-radius: .5rem;
+  /* --- User-summary overrides: larger, clearer, and theme-aware --- */
+  font-size: 1rem !important;
+  padding: .6em .85em !important;
+  border-radius: .6rem !important;
+  font-weight: 700 !important;
+}
+#mainTitle { font-size: 1.45rem; font-weight:700; }
+#mainTitle { font-size: 2rem; font-weight:700; }
+.form-label.fw-semibold { font-weight: 700; font-size: 1.35rem; color:#22303f; }
+.input-lg { padding: 1.1rem 1.15rem; font-size:1.18rem; }
+#saveStatus {
+  font-size: .95rem;
+  color: #6c757d;
+}
+/* Make readonly role field look disabled */
+[readonly].bg-light {
+  background-color: #f8f9fa !important;
+  color: #495057;
+}
+.form-grid-gap { gap: 1rem; }
+@media (min-width: 992px) { .form-grid-gap { gap: 1.5rem; } }
+
+/* Buttons and actions */
+.btn-success { background-color: #0b5ed7; border-color: #0b5ed7; }
+.btn-success:hover { background-color: #094bb0; border-color: #094bb0; }
+.btn-outline-secondary { border-color: #dfe7ef; color: #22303f; }
+
+/* Larger form labels/controls across the edit page */
+.card-edit-user .form-label, .card-edit-user .form-label.fw-semibold, .card-edit-user .form-text {
+  font-size: 1.15rem;
+}
+.card-edit-user .form-control, .card-edit-user .form-select {
+  font-size: 1.12rem;
+  padding: 1rem 1.15rem;
+}
+
+/* Alert tweaks */
+.alert { font-size: 0.98rem; padding: .75rem 1rem; }
+
+/* Dark mode adjustments (respect root [data-theme]) */
+[data-theme="dark"] .card-edit-user,
+[data-theme="dark"] .user-summary {
+  /* slightly lighter, layered card background with a faint border for separation */
+  background: linear-gradient(180deg, #071722 0%, #04101a 100%);
+  border: 1px solid rgba(255,255,255,0.03);
+  box-shadow: 0 8px 22px rgba(2,6,23,0.45);
+  color: #e6f0ff;
+}
+[data-theme="dark"] body {
+  background-color: #040812; /* deep near-black navy */
+  color: #dbeafe;
+}
+[data-theme="dark"] .user-summary { color: #e6f0ff; }
+[data-theme="dark"] .avatar-large {
+  /* vivid but slightly softened blue to pop on dark backgrounds */
+  background-color: #2563eb;
+  color: #f8fafc;
+  box-shadow: 0 6px 18px rgba(37,99,235,0.12);
+}
+[data-theme="dark"] .card-edit-user {
+  /* soften the edit card specifically so it doesn't look harsh on dark backgrounds */
+  background: linear-gradient(180deg, #081826 0%, #04101a 100%) !important;
+  border: 1px solid rgba(255,255,255,0.035) !important;
+  box-shadow: 0 6px 16px rgba(2,6,23,0.28) !important;
+  color: #e6f0ff !important;
+}
+
+[data-theme="dark"] .card-edit-user .card-body {
+  background: transparent !important;
+}
+[data-theme="dark"] .badge-role.bg-secondary { background-color: #334155; color:#e6eefc; }
+[data-theme="dark"] .badge-role.bg-danger { background-color: #ef4444; color:#fff; }
+[data-theme="dark"] .form-control,
+[data-theme="dark"] .form-select {
+  background-color: #041425; /* slightly lighter than page bg for contrast */
+  border-color: rgba(255,255,255,0.06);
+  color: #e6f0ff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+}
+[data-theme="dark"] .form-control::placeholder { color: #7fa3c2; }
+[data-theme="dark"] .form-text, [data-theme="dark"] .small { color: #9fb3cc; }
+[data-theme="dark"] .btn-success {
+  background-color: #2563eb; border-color: #2563eb; color: #fff;
+  box-shadow: 0 8px 20px rgba(37,99,235,0.12);
+}
+[data-theme="dark"] .btn-success:hover { background-color: #1e40af; border-color: #1e40af; }
+
+[data-theme="dark"] .btn-outline-secondary {
+  border-color: rgba(255,255,255,0.06);
+  color: #cfe8ff;
+  background: transparent;
+}
+[data-theme="dark"] .btn-outline-secondary:hover,
+[data-theme="dark"] .btn-outline-secondary:focus {
+  background-color: rgba(255,255,255,0.06);
+  color: #ffffff !important;
+  border-color: rgba(255,255,255,0.09);
+  box-shadow: 0 8px 20px rgba(2,6,23,0.5);
+  transform: translateY(-1px);
+}
+
+[data-theme="dark"] .alert {
+  background: linear-gradient(180deg,#071a23,#041118);
+  color: #e6f0ff;
+  border-color: rgba(255,255,255,0.03);
+  box-shadow: 0 6px 18px rgba(2,6,23,0.45);
+}
+
+/* Specific dark-mode fixes: prevent unexpected white boxes for summary & role field */
+[data-theme="dark"] .user-summary.p-4.h-100.text-center,
+[data-theme="dark"] .user-summary.p-4.h-100.text-center * {
+  background: transparent !important;
+  color: inherit !important;
+}
+
+/* The role input/display may be rendered as a readonly input, a select, or a badge.
+   Ensure common IDs/classes use dark backgrounds and proper borders instead of white. */
+[data-theme="dark"] #editUserRole,
+[data-theme="dark"] .editUserRole,
+[data-theme="dark"] select[name="role"],
+[data-theme="dark"] input[name="role"] {
+  background-color: rgba(255,255,255,0.02) !important; /* subtle panel */
+  border: 1px solid rgba(255,255,255,0.06) !important;
+  color: #e6f0ff !important;
+  box-shadow: none !important;
+}
+
+/* If role is shown with Bootstrap .bg-light on read-only, override it in dark mode */
+[data-theme="dark"] [readonly].bg-light,
+[data-theme="dark"] .bg-light {
+  background-color: rgba(255,255,255,0.02) !important;
+  color: #e6f0ff !important;
+  border-color: rgba(255,255,255,0.04) !important;
+}
+
+/* Stronger, high-specificity overrides for summary card internals and any white/light bg helpers */
+[data-theme="dark"] .user-summary.p-4.h-100.text-center,
+[data-theme="dark"] .user-summary.p-4.h-100.text-center .card,
+[data-theme="dark"] .user-summary.p-4.h-100.text-center .card-body,
+[data-theme="dark"] .user-summary.p-4.h-100.text-center .bg-white,
+[data-theme="dark"] .user-summary.p-4.h-100.text-center .bg-light,
+[data-theme="dark"] .user-summary.p-4.h-100.text-center .form-control,
+[data-theme="dark"] .user-summary.p-4.h-100.text-center .form-select {
+  background-color: transparent !important;
+  background-image: none !important;
+  color: inherit !important;
+  border-color: rgba(255,255,255,0.04) !important;
+  box-shadow: none !important;
+}
+
+/* Role field / display fixes: override white badges, readonly inputs, selects */
+[data-theme="dark"] #editUserRole,
+[data-theme="dark"] .editUserRole,
+[data-theme="dark"] .role-display,
+[data-theme="dark"] select[name="role"],
+[data-theme="dark"] input[name="role"],
+[data-theme="dark"] .form-control[name="role"],
+[data-theme="dark"] .form-select[name="role"],
+[data-theme="dark"] .badge.bg-white,
+[data-theme="dark"] .badge.bg-light,
+[data-theme="dark"] .form-control.bg-white,
+[data-theme="dark"] .form-select.bg-white {
+  background-color: rgba(255,255,255,0.03) !important;
+  color: #e6f0ff !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+  box-shadow: none !important;
+}
+
+/* Last-resort: if a parent element forces white via .bg-white, target it specifically under data-theme dark */
+[data-theme="dark"] .bg-white {
+  background-color: rgba(255,255,255,0.02) !important;
+  color: #e6f0ff !important;
+}
+
+/* Explicitly target the left summary column wrapper used in the template: .col-12.col-lg-4.mb-4.mb-lg-0
+   Some templates wrap the .user-summary in this column and a .card; ensure the whole column/card uses dark panel style. */
+[data-theme="dark"] .col-12.col-lg-4.mb-4.mb-lg-0,
+[data-theme="dark"] .col-12.col-lg-4.mb-4.mb-lg-0 .card,
+[data-theme="dark"] .col-12.col-lg-4.mb-4.mb-lg-0 .card-body,
+[data-theme="dark"] .col-12.col-lg-4.mb-4.mb-lg-0 .user-summary,
+[data-theme="dark"] .col-12.col-lg-4.mb-4.mb-lg-0 .user-summary * {
+  background-color: transparent !important;
+  background-image: none !important;
+  color: inherit !important;
+  border-color: rgba(255,255,255,0.04) !important;
+  box-shadow: none !important;
+}
+
+/* Ensure #editUserRole and its container are dark in dark mode (covers readonly inputs, badges, selects) */
+[data-theme="dark"] #editUserRole,
+[data-theme="dark"] #editUserRole .card,
+[data-theme="dark"] #editUserRole .card-body,
+[data-theme="dark"] #editUserRole .bg-white,
+[data-theme="dark"] #editUserRole .bg-light,
+[data-theme="dark"] #editUserRole .form-control,
+[data-theme="dark"] #editUserRole .form-select {
+  background-color: rgba(255,255,255,0.03) !important;
+  color: #e6f0ff !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+  box-shadow: none !important;
+}
+
+/* Fix: left summary column wrapper (.col-12.col-lg-4.mb-4.mb-lg-0) sometimes retains white background in dark mode.
+   Apply a high-specificity rule to force it to the dark panel styling to match other cards. */
+[data-theme="dark"] .col-12.col-lg-4.mb-4.mb-lg-0,
+[data-theme="dark"] .col-12.col-lg-4.mb-4.mb-lg-0 .card,
+[data-theme="dark"] .col-12.col-lg-4.mb-4.mb-lg-0 .card-body,
+[data-theme="dark"] .col-12.col-lg-4.mb-4.mb-lg-0 .user-summary {
+  background-color: rgba(255,255,255,0.02) !important;
+  color: #e6f0ff !important;
+  border: 1px solid rgba(255,255,255,0.04) !important;
+  box-shadow: 0 6px 18px rgba(2,6,23,0.45) !important;
+}
+
+/* Ensure the #editUserRole immediate container (in the form right-column) doesn't render white.
+   This covers cases where the role field is rendered as an input/select inside a column/card. */
+[data-theme="dark"] #editUserRole,
+[data-theme="dark"] #editUserRole *,
+[data-theme="dark"] .col-12.col-lg-8 #editUserRole,
+[data-theme="dark"] .col-12.col-lg-8 #editUserRole * {
+  background-color: rgba(255,255,255,0.03) !important;
+  color: #e6f0ff !important;
+  border-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Also cover cases where role is shown as an immediate element with that id/class */
+[data-theme="dark"] .editUserRole,
+[data-theme="dark"] .role-display,
+[data-theme="dark"] #editUserRole.bg-white,
+[data-theme="dark"] #editUserRole.bg-light {
+  background-color: rgba(255,255,255,0.03) !important;
+  color: #e6f0ff !important;
+  border-color: rgba(255,255,255,0.06) !important;
+}
+
+/* NOTE: The admin theme in templates toggles `.admin-wrapper.light-mode` and `body.white-content`
+   rather than adding a [data-theme="dark"] attribute. The previous rules targeted
+   [data-theme="dark"] which doesn't exist in this app, so dark styles weren't applied.
+   Add equivalent selectors that match the project's toggling: when .admin-wrapper does NOT
+   have .light-mode (dark) OR body does NOT have .white-content (dark), enforce dark styles. */
+
+/* Left summary column forced dark when admin-wrapper is not light-mode */
+.admin-wrapper:not(.light-mode) .col-12.col-lg-4.mb-4.mb-lg-0,
+.admin-wrapper:not(.light-mode) .col-12.col-lg-4.mb-4.mb-lg-0 .card,
+.admin-wrapper:not(.light-mode) .col-12.col-lg-4.mb-4.mb-lg-0 .card-body,
+.admin-wrapper:not(.light-mode) .col-12.col-lg-4.mb-4.mb-lg-0 .user-summary,
+body:not(.white-content) .col-12.col-lg-4.mb-4.mb-lg-0,
+body:not(.white-content) .col-12.col-lg-4.mb-4.mb-lg-0 .card,
+body:not(.white-content) .col-12.col-lg-4.mb-4.mb-lg-0 .card-body,
+body:not(.white-content) .col-12.col-lg-4.mb-4.mb-lg-0 .user-summary {
+  background-color: rgba(255,255,255,0.02) !important;
+  color: #e6f0ff !important;
+  border: 1px solid rgba(255,255,255,0.04) !important;
+  box-shadow: 0 6px 18px rgba(2,6,23,0.45) !important;
+}
+
+/* Very high-specificity rule for the exact summary card element used in the template.
+   This targets any .user-summary rendered with the classes .card.p-4.h-100.text-center
+   and forces dark panel styling to override .bg-white or similar. */
+.admin-wrapper:not(.light-mode) .user-summary.card.p-4.h-100.text-center,
+.admin-wrapper:not(.light-mode) .user-summary.card.p-4.h-100.text-center *,
+body:not(.white-content) .user-summary.card.p-4.h-100.text-center,
+body:not(.white-content) .user-summary.card.p-4.h-100.text-center * {
+  background-color: transparent !important;
+  background-image: none !important;
+  color: inherit !important;
+  border: 1px solid rgba(255,255,255,0.04) !important;
+  box-shadow: 0 6px 18px rgba(2,6,23,0.45) !important;
+}
+
+/* Improve text colors inside the left summary card in dark mode so pure white text isn't used
+   (white on subtle panels can look harsh). Use softer light-blue/gray tones for headings and meta. */
+.admin-wrapper:not(.light-mode) .user-summary,
+.admin-wrapper:not(.light-mode) .user-summary *,
+body:not(.white-content) .user-summary,
+body:not(.white-content) .user-summary * {
+  color: #cfe8ff !important; /* soft light-blue for general text */
+}
+
+.admin-wrapper:not(.light-mode) .user-summary #summaryName,
+body:not(.white-content) .user-summary #summaryName {
+  color: #e6f0ff !important; /* slightly brighter for the name */
+}
+
+.admin-wrapper:not(.light-mode) .user-summary .small,
+.admin-wrapper:not(.light-mode) .user-summary .text-muted,
+body:not(.white-content) .user-summary .small,
+body:not(.white-content) .user-summary .text-muted {
+  color: #9fb3cc !important; /* muted meta color */
+}
+
+/* ID/link color - make it readable but not strong white */
+.admin-wrapper:not(.light-mode) .user-summary a,
+body:not(.white-content) .user-summary a {
+  color: #7fc0ff !important;
+}
+
+/* Ensure badge text contrasts well */
+.admin-wrapper:not(.light-mode) .user-summary .badge-role,
+body:not(.white-content) .user-summary .badge-role {
+  color: #f8fafc !important;
+}
+
+/* #editUserRole forced dark when admin-wrapper is not light-mode or body not white-content */
+.admin-wrapper:not(.light-mode) #editUserRole,
+.admin-wrapper:not(.light-mode) #editUserRole *,
+.admin-wrapper:not(.light-mode) .col-12.col-lg-8 #editUserRole,
+.admin-wrapper:not(.light-mode) .col-12.col-lg-8 #editUserRole *,
+body:not(.white-content) #editUserRole,
+body:not(.white-content) #editUserRole *,
+body:not(.white-content) .col-12.col-lg-8 #editUserRole,
+body:not(.white-content) .col-12.col-lg-8 #editUserRole * {
+  background-color: rgba(255,255,255,0.03) !important;
+  color: #e6f0ff !important;
+  border-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Align edit user page with admin add-user styling and responsive card layout */
+.admin-card { background: var(--card-bg, #0f1724); color: var(--text-color, #fff); }
+.add-user-card, .admin-card { max-width: 900px; }
+.add-user-card .card-body { padding: 1.75rem; }
+
+/* Increase the card-body height to make the layout feel taller and match add_user */
+.admin-card .card-body, .card-edit-user .card-body {
+  padding: 2.75rem;
+  min-height: 640px;
+}
+
+/* Make primary/secondary action buttons larger on edit page */
+.card-edit-user .btn-success, .card-edit-user .btn-outline-secondary {
+  padding: 1.35rem 1.9rem;
+  font-size: 1.35rem;
+  border-radius: 12px;
+}
+
+/* Push actions down slightly to balance with the large summary card */
+.action-row { margin-top: 1.75rem; }
+
+/* Larger readable typography for form on edit page */
+.card-edit-user .form-label, .form-label { font-size: 1.3rem; font-weight:700; }
+.card-edit-user .form-control, .card-edit-user .form-select { font-size: 1.15rem; padding: 1rem 1.1rem; }
+
+/* Light mode overrides to match add_user.css */
+.admin-wrapper.light-mode .card-edit-user,
+.admin-wrapper.light-mode .user-summary {
+  background: #ffffff;
+  color: #1b2330;
+  border: 1px solid #e9eef5;
+  box-shadow: 0 6px 18px rgba(23, 34, 56, 0.06);
+}
+.admin-wrapper.light-mode .card-edit-user .form-control,
+.admin-wrapper.light-mode .card-edit-user .form-select {
+  background: #ffffff;
+  color: #1b2330;
+  border-color: #e6e9ef;
+  box-shadow: none;
+}
+.admin-wrapper.light-mode .card-edit-user .form-control::placeholder { color: #6c757d; }
+
+/* Buttons in light mode (make cancel hover behave like add_user) */
+.admin-wrapper.light-mode .card-edit-user .btn-success { background-color: #4061f6; border-color: #4061f6; }
+.admin-wrapper.light-mode .card-edit-user .btn-outline-secondary {
+  color: #495057;
+  border-color: #dfe6f3;
+  background: transparent;
+}
+.admin-wrapper.light-mode .card-edit-user .btn-outline-secondary:hover,
+.admin-wrapper.light-mode .card-edit-user .btn-outline-secondary:focus {
+  background-color: #4061f6; /* blue that provides good contrast */
+  color: #ffffff !important; /* white label on hover */
+  border-color: #4061f6;
+  box-shadow: 0 6px 18px rgba(64,97,246,0.14);
+  transform: translateY(-1px);
+}
+
+/* Ensure labels and inputs inside the right column are dark and larger in light mode */
+.admin-wrapper.light-mode .admin-card .card-body .col-lg-8 .form-label,
+.admin-wrapper.light-mode .admin-card .card-body .col-lg-8 .form-text {
+  color: #0f1724 !important;
+  font-size: 1.08rem !important;
+  font-weight: 600 !important;
+}
+.admin-wrapper.light-mode .admin-card .card-body .col-lg-8 .form-control,
+.admin-wrapper.light-mode .admin-card .card-body .col-lg-8 .form-select {
+  color: #0f1724 !important;
+  font-size: 1.05rem !important;
+  background: #ffffff !important;
+  border-color: #e6e9ef !important;
+}
+
+/* Increase vertical spacing inside the right column so fields are pushed downward */
+.admin-wrapper .admin-card .card-body .col-lg-8 .row.g-3 {
+  row-gap: 1.25rem;
+}
+.admin-wrapper .admin-card .card-body .col-lg-8 .mb-3,
+.admin-wrapper .admin-card .card-body .col-lg-8 .form-text {
+  margin-top: 0.35rem;
+  margin-bottom: 0.9rem;
+}
+.admin-wrapper .admin-card .card-body .col-lg-8 label.form-label {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+.admin-wrapper .admin-card .card-body .col-lg-8 .form-control {
+  padding-top: 0.95rem;
+  padding-bottom: 0.95rem;
+}
+
+/* Ensure the small user-summary card looks consistent in light-mode */
+.admin-wrapper.light-mode .user-summary { background: linear-gradient(180deg, #ffffff 0%, #f6f9fc 100%); box-shadow: 0 10px 30px rgba(13,110,253,0.06); color:#1b2330; }
+/* Slightly larger summary name and meta text */
+.user-summary #summaryName { font-size: 1.85rem; font-weight: 800; margin-bottom: .25rem; }
+.user-summary #summaryEmail { font-size: 1rem; color: inherit; }
+.user-summary .small, .user-summary .text-muted { font-size: .98rem; }
+
+/* Ensure mobile still looks ok */
+@media (max-width: 767px) {
+  .user-summary { padding: 1.25rem !important; min-height: auto !important; }
+  .avatar-large { width: 96px !important; height: 96px !important; line-height: 96px !important; font-size: 40px !important; }
+  .user-summary #summaryName { font-size: 1.25rem; }
+}
+
+/* --- Final layout polish for edit-user page --- */
+/* 1) nudge the right column downward to visually align with the summary card */
+.admin-wrapper .admin-card .card-body .col-lg-8 {
+  padding-top: 2.5rem; /* slightly less top padding when using flex centering */
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* vertically center the form block to match summary */
+}
+
+/* increase row gap for better visual rhythm on desktop */
+.admin-wrapper .admin-card .card-body .col-lg-8 .row.g-3 {
+  row-gap: 1.8rem;
+}
+
+/* Make label/value pairs align left with comfortable spacing */
+.admin-wrapper .admin-card .card-body .col-lg-8 .form-label {
+  margin-bottom: 0.6rem;
+}
+.admin-wrapper .admin-card .card-body .col-lg-8 .form-control,
+.admin-wrapper .admin-card .card-body .col-lg-8 .form-select {
+  margin-bottom: 0.25rem;
+}
+
+/* 2) center the section header and make it more prominent */
+.admin-wrapper .admin-card .card-body .col-lg-8 h3.mb-3 {
+  text-align: center;
+  font-weight: 800;
+  font-size: 1.9rem;
+  margin-bottom: 1.5rem;
+}
+
+/* 3) avatar centered but summary text left-aligned and readable */
+.user-summary {
+  align-items: center; /* center avatar horizontally */
+}
+.user-summary .avatar-large {
+  display: block;
+  margin: 0 auto 1rem auto; /* center and add bottom spacing */
+}
+.user-summary .text-start {
+  align-self: stretch; /* allow the text block to take full width */
+  text-align: left !important;
+  padding-left: 0.3rem;
+}
+
+/* 4) make the meta info smaller and muted, left-aligned for readability */
+.user-summary .text-start div {
+  font-size: 0.92rem;
+  color: #6c757d; /* muted */
+  margin-bottom: 0.35rem;
+  word-break: break-word;
+}
+.user-summary .text-start div span {
+  color: inherit; /* inherit muted color */
+}
+
+/* Slight adjustments for mobile so header doesn't feel huge */
+@media (max-width: 767px) {
+  .admin-wrapper .admin-card .card-body .col-lg-8 {
+    padding-top: 1.25rem;
+  }
+  .admin-wrapper .admin-card .card-body .col-lg-8 h3.mb-3 {
+    text-align: left;
+    font-size: 1.35rem;
+  }
+  .user-summary { align-items: center; }
+  .user-summary .text-start { padding-left: 0; }
+  .card-edit-user .form-label, .form-label { font-size: 1.12rem; }
+  .card-edit-user .form-control, .card-edit-user .form-select { font-size: 1rem; padding: 0.85rem 0.95rem; }
+  .card-edit-user .btn-success, .card-edit-user .btn-outline-secondary { font-size: 1.05rem; padding: 0.9rem 1.1rem; }
+}
+
+/* Small spacing tweak: move the status control a little right so the label "Trạng thái" has breathing room.
+   Targets the select with id #editUserStatus and the label with .form-label.me-3 already used in template.
+   Keep it modest so it doesn't break small screens (use margin-left on the control and adjust on mobile). */
+#editUserStatus {
+  margin-left: 0.5rem; /* nudge right for better spacing next to label */
+}
+
+@media (max-width: 575px) {
+  /* On very small screens, remove the extra left margin so the layout stacks cleanly */
+  #editUserStatus { margin-left: 0 !important; margin-top: 0.25rem; }
+}
+
+/* Dark mode defaults preserved via [data-theme="dark"] rules above */
+
+/* Ensure specific edit form fields use a consistent, readable font-size */
+/* Targets: name/email inputs, any .form-control with bg-light (readonly display), and small-width selects */
+#editUserName,
+#editUserEmail,
+.form-control.bg-light,
+.form-select.w-auto {
+  font-size: 1rem !important; /* user requested 1.0rem */
+}

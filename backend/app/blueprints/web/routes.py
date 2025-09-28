@@ -85,3 +85,15 @@ def subscriptions_page():
     the frontend links sometimes point to the `.html` path.
     """
     return render_template('dashboard/subscriptions.html')
+
+
+@web_bp.route('/admin/users/<user_id>/edit')
+def admin_edit_user(user_id: str):
+    """Render the admin edit user page. Frontend will fetch user details via API."""
+    return render_template('admin/edit_user.html', user_id=user_id)
+
+
+@web_bp.route('/admin/users/add')
+def admin_add_user():
+    """Render the admin add user page."""
+    return render_template('admin/add_user.html')
