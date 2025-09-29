@@ -10,7 +10,10 @@ let subscriptionsInitialized = false;
 
 // Initialize subscriptions only when explicitly called
 function initializeSubscriptions() {
-	if (subscriptionsInitialized) return;
+	if (subscriptionsInitialized) {
+		refreshSubscriptions();
+		return;
+	}
 	subscriptionsInitialized = true;
 	setView(currentView);
 	refreshSubscriptions();

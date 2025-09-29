@@ -1844,6 +1844,7 @@
           subscribeBtn.classList.remove('subscribed');
           subscribeBtn.title = 'Subscribe to station alerts';
           showNotification('Station unsubscribed successfully', 'success');
+          if (typeof refreshSubscriptions === 'function') refreshSubscriptions();
         } else {
           const errorData = await response.json();
           showNotification(errorData.error || 'Failed to unsubscribe', 'error');
@@ -1869,6 +1870,7 @@
           subscribeBtn.classList.add('subscribed');
           subscribeBtn.title = 'Unsubscribe from station alerts';
           showNotification('Station subscribed successfully', 'success');
+          if (typeof refreshSubscriptions === 'function') refreshSubscriptions();
         } else {
           const errorData = await response.json();
           if (errorData.error && errorData.error.includes('limit')) {
