@@ -945,7 +945,7 @@
        <input class="form-check-input alert-toggle-inline-mock" type="checkbox" 
          ${alertEnabled ? 'checked' : ''} 
          data-user-id="${user.id}" 
-         data-station="${location}"
+         data-station="${location ? location.replace(/"/g, '&quot;') : ''}"
          data-station-id=""
          data-sub-id=""
          id="alertToggleInline${index}">

@@ -16,7 +16,7 @@ import bcrypt
 from bson import ObjectId
 from pymongo.errors import DuplicateKeyError, PyMongoError
 
-from backend.app.repositories import stations_repo, users_repo
+from backend.app.repositories import stations_repo, users_repo, readings_repo
 from backend.app import db as db_module
 
 logger = logging.getLogger(__name__)
@@ -275,7 +275,7 @@ def soft_delete_user(user_id: str, *, initiator_id: Optional[str] = None) -> Dic
     return result
 
 
-def get_user_locations(user_id: str, *, initiator_id: Optional[str] = None) -> Dict[str, Any]:
+def get_user_locations(user_id: str, *, initiator_id: Optional[str] = None, include_expired: bool = False) -> Dict[str, Any]:
     """Return favorite locations and alert settings for a user."""
     user = users_repo.find_by_id(user_id)
     if not user:
@@ -287,10 +287,10 @@ def get_user_locations(user_id: str, *, initiator_id: Optional[str] = None) -> D
     # Load active subscriptions for this user and merge with favorites
     try:
         database = db_module.get_db()
-        subs_cursor = database.alert_subscriptions.find({
-            'user_id': ObjectId(user_id),
-            'status': {'$ne': 'expired'}
-        }).sort('createdAt', -1)
+        query = {'user_id': ObjectId(user_id)}
+        if not include_expired:
+            query['status'] = {'$ne': 'expired'}
+        subs_cursor = database.alert_subscriptions.find(query).sort('createdAt', -1)
         subscriptions = list(subs_cursor)
     except PyMongoError as exc:
         logger.error("Failed to load subscriptions for user %s: %s", user.get("_id"), exc)
@@ -318,19 +318,96 @@ def get_user_locations(user_id: str, *, initiator_id: Optional[str] = None) -> D
         sid = sub.get('station_id')
         st = station_map.get(sid) or station_map.get(str(sid))
         nickname = (sub.get('metadata') or {}).get('nickname') or (st and (st.get('city') or {}).get('name'))
-        serialized_subs.append(
-            {
-                'id': str(sub.get('_id')),
-                'station_id': sid,
-                'nickname': nickname,
-                'threshold': sub.get('alert_threshold'),
-                'status': sub.get('status'),
-                'alert_enabled': sub.get('status') == 'active',
-                'station_name': (st and ((st.get('city') or {}).get('name'))) if st else None,
-                'is_favorite': sid in fav_ids,
-                'createdAt': _serialize_datetime(sub.get('createdAt')),
-            }
-        )
+        # include any known latest AQI from the station doc to help the UI show current values
+        current_aqi = None
+        if st:
+            lr = st.get('latest_reading')
+            if isinstance(lr, dict):
+                current_aqi = lr.get('aqi')
+            if current_aqi is None and st.get('aqi') is not None:
+                current_aqi = st.get('aqi')
+        # if still missing, try to fetch a latest reading document
+        if current_aqi is None:
+            try:
+                if sid is not None:
+                    readings = readings_repo.find_latest_by_station(str(sid), limit=1)
+                    if readings:
+                        maybe = readings[0]
+                        if isinstance(maybe, dict) and maybe.get('aqi') is not None:
+                            current_aqi = maybe.get('aqi')
+            except Exception:
+                pass
+        # Resolve a stable human-readable station name with fallbacks.
+        # Priority:
+        # 1) subscription metadata.nickname (admins may set a friendly nickname per subscription)
+        # 2) explicit subscription-level name fields (sub.station_name, sub.name, sub.display_name)
+        # 3) station document explicit fields (st.name, st.station_name, st.displayName)
+        # 4) latest reading-level station_name
+        # 5) station city name
+        # 6) generated fallback label
+        resolved_name = None
+        meta = sub.get('metadata') or {}
+        resolved_name = meta.get('nickname')
+
+        # Prefer any name stored on the subscription itself (admin edits may have written these)
+        if not resolved_name:
+            resolved_name = sub.get('station_name') or sub.get('name') or sub.get('display_name')
+
+        # Next prefer station document explicit fields
+        if not resolved_name and st:
+            resolved_name = st.get('name') or st.get('station_name') or (st.get('displayName') if isinstance(st.get('displayName'), str) else None)
+
+        # Try reading-level station_name if still missing
+        if not resolved_name:
+            try:
+                readings = readings_repo.find_latest_by_station(str(sid), limit=1) if sid is not None else []
+                if readings:
+                    r0 = readings[0]
+                    if isinstance(r0, dict):
+                        resolved_name = r0.get('station_name') or r0.get('stationName') or resolved_name
+            except Exception:
+                pass
+
+        # Then try station city
+        if not resolved_name and st:
+            resolved_name = (st.get('city') or {}).get('name')
+
+        # Fallback to a generated label so UI always has something predictable
+        if not resolved_name:
+            resolved_name = f"Trạm {sid if sid is not None else '(unknown)'}"
+
+        # If the resolved name is a generic code like "Trạm 8688" prefer the
+        # station document's richer name when available. This avoids situations
+        # where subscription documents contain only numeric codes while the
+        # station record has a human-friendly display name.
+        try:
+            generic_re = re.compile(r"^\s*(TRAM|TRẠM)\s*\d+\s*$", re.IGNORECASE)
+            if isinstance(resolved_name, str) and generic_re.match(resolved_name) and st:
+                st_candidate = st.get('station_name') or st.get('name') or (st.get('displayName') if isinstance(st.get('displayName'), str) else None) or (st.get('city') or {}).get('name')
+                if st_candidate and isinstance(st_candidate, str) and not generic_re.match(st_candidate):
+                    resolved_name = st_candidate
+        except Exception:
+            # Non-fatal; continue with the prior resolved_name if anything goes wrong
+            pass
+
+        serialized_subs.append({
+                    'id': str(sub.get('_id')),
+                    'subscription_id': str(sub.get('_id')),
+                    'station_id': sid,
+                    'stationId': sid,
+                    'nickname': nickname,
+                    'threshold': sub.get('alert_threshold'),
+                    'status': sub.get('status'),
+                    'alert_enabled': sub.get('status') == 'active',
+                    # Prefer explicit station name fields when available; include multiple aliases
+                    'station_name': resolved_name,
+                    'name': resolved_name,
+                    'display_name': resolved_name,
+                    'is_favorite': sid in fav_ids,
+                    'current_aqi': current_aqi,
+                    'createdAt': _serialize_datetime(sub.get('createdAt')),
+                    'created_at': _serialize_datetime(sub.get('createdAt')),
+        })
 
     _log_action("get_user_locations", initiator_id, target_id=str(user.get("_id")))
     return {
@@ -428,14 +505,59 @@ def _build_favorite_locations(user: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     serialized: List[Dict[str, Any]] = []
     for station in stations:
-        serialized.append(
-            {
-                "id": station.get("_id"),
-                "station_id": station.get("station_id"),
-                "name": (station.get("city") or {}).get("name"),
-                "country": station.get("country"),
-            }
-        )
+        # attempt to extract latest AQI from station document
+        current_aqi = None
+        lr = station.get("latest_reading")
+        if isinstance(lr, dict):
+            current_aqi = lr.get("aqi")
+        if current_aqi is None and station.get("aqi") is not None:
+            current_aqi = station.get("aqi")
+
+        # If we still don't have an AQI, try to load the latest reading doc
+        if current_aqi is None:
+            try:
+                sid = station.get('station_id') or station.get('_id')
+                if sid is not None:
+                    readings = readings_repo.find_latest_by_station(str(sid), limit=1)
+                    if readings:
+                        maybe = readings[0]
+                        if isinstance(maybe, dict) and maybe.get('aqi') is not None:
+                            current_aqi = maybe.get('aqi')
+            except Exception:
+                # non-fatal - leave current_aqi as None
+                current_aqi = current_aqi
+
+        # Resolve a stable human-readable station name
+        station_name = station.get("name") or station.get("station_name") or (station.get("displayName") if isinstance(station.get("displayName"), str) else None)
+        if not station_name:
+            station_name = (station.get("city") or {}).get("name")
+        # Try reading-level name if still missing
+        if not station_name:
+            try:
+                sid = station.get('station_id') or station.get('_id')
+                if sid is not None:
+                    readings = readings_repo.find_latest_by_station(str(sid), limit=1)
+                    if readings and isinstance(readings[0], dict):
+                        station_name = readings[0].get('station_name') or readings[0].get('stationName') or station_name
+            except Exception:
+                pass
+        if not station_name:
+            station_name = f"Trạm {station.get('station_id') or station.get('_id') or '(unknown)'}"
+
+        serialized.append({
+            # canonical ids as strings for stable matching in frontend
+            "id": str(station.get("_id")) if station.get("_id") is not None else None,
+            "station_id": station.get("station_id"),
+            "stationId": station.get("station_id"),
+            # name aliases (keep both 'name' and 'station_name')
+            "name": station_name,
+            "station_name": station_name,
+            "display_name": station_name,
+            "country": station.get("country"),
+            "current_aqi": current_aqi,
+            # preserve createdAt if present under station doc
+            "createdAt": _serialize_datetime(station.get("createdAt"))
+        })
     return serialized
 
 

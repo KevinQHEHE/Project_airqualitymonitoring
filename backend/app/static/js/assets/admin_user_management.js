@@ -236,7 +236,6 @@ class AdminUserManagement {
             if (dateFrom) {
                 params.append('registered_after', dateFrom + 'T00:00:00Z');
             }
-            
             if (dateTo) {
                 params.append('registered_before', dateTo + 'T23:59:59Z');
             }
@@ -312,10 +311,7 @@ class AdminUserManagement {
                     </div>
                 </td>
                 <td>
-                    <div>
-                        ${this.renderUserHeading(user)}
-                        <small class="text-muted">${(user.email && user.email !== this.getHeadingText(user)) ? user.email : ''}</small>
-                    </div>
+                    ${this.renderUserHeading(user)}
                 </td>
                 <td>
                     <select class="form-select form-select-sm role-select" data-user-id="${user._id || user.id}">
@@ -378,39 +374,53 @@ class AdminUserManagement {
     // Helper to get a readable location/station name from various data shapes
     getLocationName(loc, idx) {
         if (!loc) return `Trạm ${idx+1}`;
-        if (typeof loc === 'string' && loc.trim() !== '') return loc;
-        // Try a list of likely fields (including nested objects) used by different APIs
-        const tryFields = [
-            'name', 'station_name', 'display_name', 'displayName', 'title', 'label',
-            'stationId', 'station_id', 'id'
-        ];
+        if (typeof loc === 'string' && loc.trim() !== '') return loc.trim();
 
-        for (const f of tryFields) {
-            const v = loc[f];
-            if (typeof v === 'string' && v.trim() !== '') return v;
+        // Helper to decide whether a found name is meaningful (not a generic code)
+        const isMeaningful = (s) => {
+            if (!s || typeof s !== 'string') return false;
+            const t = s.trim();
+            if (t.length < 3) return false;
+            // Generic codes like "TRAM 1583", "TRẠM 1583" are common — prefer richer names
+            if (/^\s*(TRAM|TRẠM)\s*\d+\s*$/i.test(t)) return false;
+            return true;
+        };
+
+        // First, prefer direct subscription-level or display fields if they are meaningful
+        const preferredFields = ['station_name', 'display_name', 'displayName', 'name', 'label', 'title', 'nickname'];
+        for (const f of preferredFields) {
+            const v = (loc[f] ?? (loc._raw && loc._raw[f]) ?? (loc.metadata && loc.metadata[f]) ?? (loc._station && loc._station[f]));
+            if (isMeaningful(v)) return v.trim();
         }
 
-        // nested shapes: station.name, meta.name, properties.name, info.name, attributes.name
+        // Search nested paths that often contain a human-friendly name
         const nestedPaths = [
-            ['station','name'], ['meta','name'], ['properties','name'], ['info','name'], ['attributes','name'], ['station','station_name']
+            ['_station','display_name'], ['_station','name'], ['_station','title'],
+            ['_raw','station','name'], ['_raw','station','display_name'], ['_raw','name'],
+            ['metadata','nickname'], ['meta','name'], ['properties','name'], ['info','name'], ['attributes','name'], ['station','name']
         ];
         for (const path of nestedPaths) {
             let cur = loc;
             for (const key of path) {
                 if (cur && typeof cur === 'object' && key in cur) cur = cur[key]; else { cur = null; break; }
             }
-            if (typeof cur === 'string' && cur.trim() !== '') return cur;
+            if (isMeaningful(cur)) return cur.trim();
         }
 
-        // Try common language variants
+        // Language-specific name object, e.g., { name: { vi: '...', en: '...' } }
         if (loc.name && typeof loc.name === 'object') {
-            for (const k of ['vi', 'en', 'local']) {
-                if (typeof loc.name[k] === 'string' && loc.name[k].trim() !== '') return loc.name[k];
+            for (const k of ['vi','en','local','default']) {
+                if (isMeaningful(loc.name[k])) return loc.name[k].trim();
             }
         }
 
+        // If station_name exists but was generic (e.g., TRAM 1583), return it as a last-ditch
+        // option after trying richer fields, so the UI at least shows something stable.
+        if (loc.station_name && typeof loc.station_name === 'string' && loc.station_name.trim() !== '') return loc.station_name.trim();
+
         // fallback: if coordinates exist, show lat,lng
         if (Array.isArray(loc.coordinates) && loc.coordinates.length >= 2) return `${loc.coordinates[1]}, ${loc.coordinates[0]}`;
+
         // last resort: use generic index label
         return `Trạm ${idx+1}`;
     }
@@ -766,7 +776,7 @@ class AdminUserManagement {
                     // Merge locations and alert settings into user object if provided
                     if (locJson && typeof locJson === 'object') {
                         // Normalize various possible shapes into a consistent `favoriteLocations` array
-                        let rawSubs = locJson.favorite_locations || locJson.locations || locJson.subscriptions || [];
+                        let rawSubs = locJson.favorite_locations || locJson.favoriteLocations || locJson.locations || locJson.subscriptions || [];
                         // If API returned an object map (e.g. { "1583": { ... } }) convert to array
                         if (rawSubs && !Array.isArray(rawSubs) && typeof rawSubs === 'object') {
                             rawSubs = Object.keys(rawSubs).map(k => {
@@ -787,6 +797,12 @@ class AdminUserManagement {
                             const out = {};
                             // Try to get station id
                             out.station_id = s.station_id || s.id || s._id || s.station?.id || s.station_idx || s.station?.station_id || null;
+                            // Carry subscription identifiers for later lookups so we can match updates
+                            out.id = s.id || s._id || s.subscription_id || s.subscriptionId || s.alert_subscription_id || null;
+                            out.subscription_id = s.subscription_id || s.subscriptionId || s.alert_subscription_id || null;
+                            if (!out.id && out.subscription_id) {
+                                out.id = out.subscription_id;
+                            }
                             // Station name variants
                             out.station_name = s.station_name || s.name || s.title || s.label || s.location || s.station?.name || s.meta?.name || s.properties?.name || s.nickname || null;
                             // Timestamps (accept camelCase createdAt too)
@@ -802,6 +818,9 @@ class AdminUserManagement {
                                 : (s.settings?.threshold ?? s.alertThreshold ?? s.userThreshold ?? s.notification_threshold ?? s.notificationThreshold ?? s.preferences?.threshold ?? null);
                             // Alert enabled flag
                             out.alert_enabled = (typeof s.alert_enabled !== 'undefined') ? s.alert_enabled : (typeof s.enabled !== 'undefined' ? s.enabled : (s.notifications?.enabled ?? null));
+                            if (typeof s.status !== 'undefined') {
+                                out.status = s.status;
+                            }
                             // Attach raw object for debugging/edge cases
                             out._raw = s;
                             // If name is missing, fall back to generated label
@@ -811,6 +830,11 @@ class AdminUserManagement {
 
                         const normalized = Array.isArray(rawSubs) ? rawSubs.map((s, i) => normalizeSubscription(s, i)).filter(Boolean) : [];
                         user.favoriteLocations = normalized;
+                        if (Array.isArray(locJson.subscriptions)) {
+                            user.subscriptions = locJson.subscriptions;
+                        } else if (!Array.isArray(user.subscriptions)) {
+                            user.subscriptions = normalized;
+                        }
 
                         // Enrich subscriptions that lack human-readable name or AQI by fetching station details
                         try {
@@ -1046,7 +1070,8 @@ class AdminUserManagement {
                     
                     // Prefer normalized fields, but fall back to raw backend object if necessary
                     // Prefer readable name, then nickname, then station_id label, then generated index label
-                    const locName = this.escapeHtml(location.station_name || location.nickname || (location.station_id ? (`Trạm ${location.station_id}`) : (location._raw ? this.getLocationName(location._raw, idx) : this.getLocationName(location, idx))));
+                    const rawLocName = location.station_name || location.nickname || (location.station_id ? (`Trạm ${location.station_id}`) : (location._raw ? this.getLocationName(location._raw, idx) : this.getLocationName(location, idx)));
+                    const locName = this.escapeHtml(rawLocName);
 
                     // Use real data from API instead of mock data (check normalized then raw)
                     const registrationDateRaw = location.created_at || location.createdAt || location.added_at || (location._raw && (location._raw.createdAt || location._raw.created_at || location._raw.added_at));
@@ -1096,7 +1121,7 @@ class AdminUserManagement {
                                                         </div>
                                                         <div class="subscription-control text-end ms-3">
                                                             <div class="form-check form-switch">
-                                                                <input class="form-check-input alert-toggle-inline" type="checkbox" ${alertEnabled ? 'checked' : ''} data-user-id="${id}" data-station="${locName}" data-station-id="${location.station_id || location.stationId || ''}" data-sub-id="${location.id || location._id || ''}" id="alertToggleInline${idx}">
+                                                                <input class="form-check-input alert-toggle-inline" type="checkbox" ${alertEnabled ? 'checked' : ''} data-user-id="${id}" data-station="${(rawLocName || '').replace(/"/g, '&quot;')}" data-station-id="${location.station_id || location.stationId || ''}" data-sub-id="${location.id || location._id || ''}" id="alertToggleInline${idx}">
                                                                 <label class="form-check-label" for="alertToggleInline${idx}"><i class="fas ${alertEnabled ? 'fa-bell' : 'fa-bell-slash'} me-1"></i><span class="ms-1 alert-label-text">${alertEnabled ? 'Bật' : 'Tắt'}</span></label>
                                                             </div>
                                                         </div>
@@ -1113,7 +1138,16 @@ class AdminUserManagement {
                                                 toggle.addEventListener('change', async function(event) {
                                                         const t = event.target;
                                                         const userId = t.dataset.userId;
-                                                        const stationName = t.dataset.station;
+                                                        // Keep station name from dataset but fallback to heading if missing
+                                                        let stationName = t.dataset.station;
+                                                        if (!stationName || stationName === 'undefined') {
+                                                            try {
+                                                                const card = t.closest('.subscription-card');
+                                                                const heading = card ? card.querySelector('.subscription-info h6, h6') : null;
+                                                                stationName = heading && heading.textContent ? heading.textContent.trim() : stationName;
+                                                            } catch (e) {}
+                                                        }
+                                                        let finalDisplayName = stationName;
                                                         const enabled = t.checked;
                                                         const label = t.nextElementSibling;
                                                         const icon = label?.querySelector('i');
@@ -1137,21 +1171,33 @@ class AdminUserManagement {
                                                             const dataStationId = t.getAttribute('data-station-id');
                                                             let subscription = null;
                                                             if (dataSubId) {
-                                                                subscription = currentUser.favoriteLocations?.find(loc => String(loc.id || loc._id || loc.sub_id || loc.subscription_id) === String(dataSubId));
+                                                                subscription = (currentUser.subscriptions || []).find(s => String(s.id || s._id) === String(dataSubId)) ||
+                                                                              (currentUser.favoriteLocations || []).find(loc => String(loc.id || loc._id || loc.sub_id || loc.subscription_id) === String(dataSubId));
                                                             }
                                                             if (!subscription && dataStationId) {
-                                                                subscription = currentUser.favoriteLocations?.find(loc => String(loc.station_id) === String(dataStationId) || String(loc.stationId) === String(dataStationId));
+                                                                subscription = (currentUser.subscriptions || []).find(s => String(s.station_id) === String(dataStationId) || String(s.stationId) === String(dataStationId)) ||
+                                                                              (currentUser.favoriteLocations || []).find(loc => String(loc.station_id) === String(dataStationId) || String(loc.stationId) === String(dataStationId));
                                                             }
                                                             if (!subscription) {
-                                                                // Fallback to name matching
-                                                                subscription = currentUser.favoriteLocations?.find(loc => 
-                                                                    this.getLocationName(loc, 0) === stationName || 
-                                                                    loc.station_name === stationName ||
-                                                                    loc.name === stationName
-                                                                );
-                                                            }
+                                // Fallback to name matching against subscriptions then favorites
+                                subscription = (currentUser.subscriptions || []).find(loc => (loc.station_name || loc.name) === stationName) ||
+                                              (currentUser.favoriteLocations || []).find(loc => this.getLocationName(loc, 0) === stationName || loc.station_name === stationName || loc.name === stationName);
+                            }
                                                             
-                                                            if (subscription || dataSubId || dataStationId) {
+                                                            if (subscription && typeof subscription === 'object') {
+                            const resolvedDisplayName = subscription.station_name || subscription.name || subscription.nickname || (subscription._raw && (subscription._raw.station_name || subscription._raw.name));
+                            if (resolvedDisplayName) {
+                                finalDisplayName = resolvedDisplayName;
+                                try { t.dataset.station = resolvedDisplayName; } catch (e) {}
+                                                                // Update the card heading text so UI doesn't lose the station name
+                                                                try {
+                                                                    const card = t.closest('.subscription-card');
+                                                                    const heading = card ? card.querySelector('.subscription-info h6, h6') : null;
+                                                                    if (heading) heading.textContent = resolvedDisplayName;
+                                                                } catch (e) {}
+                            }
+                        }
+                        if (subscription || dataSubId || dataStationId) {
                                                                 console.log('=== DEBUG: Alert Toggle API Call ===');
                                                                 console.log('User ID:', userId);
                                                                 console.log('New enabled state:', enabled);
@@ -1263,14 +1309,45 @@ class AdminUserManagement {
                                                                     }
                                                                 }
 
-                                                                // Update local data
-                                                                if (subscription) subscription.alert_enabled = enabled;
+                                                                // Update local data and persist resolved display name so future renders keep the name
+                                                                if (subscription) {
+                                                                    subscription.alert_enabled = enabled;
+                                                                    try {
+                                                                        // prefer preserving any existing server name but ensure a display name exists
+                                                                        subscription.station_name = subscription.station_name || finalDisplayName || stationName || subscription.name || subscription.nickname;
+                                                                        subscription.name = subscription.name || subscription.station_name;
+                                                                        if (subscription._raw) subscription._raw.station_name = subscription._raw.station_name || subscription.station_name;
+                                                                    } catch (e) {}
+                                                                }
+
+                                                                // Also update the modal's stored userData (subscriptions/favoriteLocations) so re-renders use the resolved name
+                                                                try {
+                                                                    const modal = document.getElementById('userDetailModal');
+                                                                    if (modal && modal.userData) {
+                                                                        const u = modal.userData;
+                                                                        const updateArr = (arrName) => {
+                                                                            const arr = u[arrName];
+                                                                            if (!Array.isArray(arr)) return;
+                                                                            for (const s of arr) {
+                                                                                const sId = String(s.id || s._id || s.subscription_id || s.subscriptionId || s.subscription_id || s.station_id || '');
+                                                                                const subId = String(subscription.id || subscription._id || subscription.subscription_id || subscription.station_id || '');
+                                                                                if (sId && subId && sId === subId) {
+                                                                                    s.station_name = subscription.station_name;
+                                                                                    s.name = subscription.station_name;
+                                                                                }
+                                                                            }
+                                                                        };
+                                                                        updateArr('subscriptions');
+                                                                        updateArr('favoriteLocations');
+                                                                        updateArr('favorite_locations');
+                                                                    }
+                                                                } catch (e) {}
 
                                                                 // Show success toast
                                                                 if (typeof this.showToast === 'function') {
-                                                                    this.showToast(`Đã ${enabled ? 'bật' : 'tắt'} cảnh báo cho trạm ${stationName}`, 'success');
+                                                                    this.showToast(`Đã ${enabled ? 'bật' : 'tắt'} cảnh báo cho trạm ${finalDisplayName || stationName}`, 'success');
                                                                 } else if (window.showToast) {
-                                                                    window.showToast(`Đã ${enabled ? 'bật' : 'tắt'} cảnh báo cho trạm ${stationName}`, 'success');
+                                                                    window.showToast(`Đã ${enabled ? 'bật' : 'tắt'} cảnh báo cho trạm ${finalDisplayName || stationName}`, 'success');
                                                                 }
                                                             } else {
                                                                 throw new Error('Không tìm thấy subscription để cập nhật');
@@ -1285,9 +1362,9 @@ class AdminUserManagement {
                                                             
                                                             // Show error toast
                                                             if (typeof this.showToast === 'function') {
-                                                                this.showToast(`Lỗi: Không thể ${enabled ? 'bật' : 'tắt'} cảnh báo cho trạm ${stationName}. ${error.message}`, 'error');
+                                                                this.showToast(`Lỗi: Không thể ${enabled ? 'bật' : 'tắt'} cảnh báo cho trạm ${finalDisplayName || stationName}. ${error.message}`, 'error');
                                                             } else if (window.showToast) {
-                                                                window.showToast(`Lỗi: Không thể ${enabled ? 'bật' : 'tắt'} cảnh báo cho trạm ${stationName}`, 'error');
+                                                                window.showToast(`Lỗi: Không thể ${enabled ? 'bật' : 'tắt'} cảnh báo cho trạm ${finalDisplayName || stationName}`, 'error');
                                                             }
                                                         }
                                                 }.bind(this));
@@ -1350,9 +1427,30 @@ class AdminUserManagement {
         }
 
         // Use real data from API - each location contains actual subscription details
-        const subscriptions = user.favoriteLocations.map((location, index) => {
-            // Extract real data from location object
-            const stationName = this.escapeHtml(this.getLocationName(location, index));
+        // When both `subscriptions` and `favoriteLocations` exist, prefer the subscription
+        // object for canonical display values (subscription-level names are authoritative).
+        const subscriptions = (user.favoriteLocations || []).map((location, index) => {
+            // Try to find a matching explicit subscription by id or station id
+            let matchingSub = null;
+            try {
+                const subs = user.subscriptions || [];
+                const locId = location.id || location._id || location.subscription_id || location.subscriptionId || null;
+                const locStationId = location.station_id || location.stationId || null;
+                if (Array.isArray(subs) && subs.length > 0) {
+                    matchingSub = subs.find(s => {
+                        const sId = s.id || s._id || s.subscription_id || s.subscriptionId || null;
+                        const sStation = s.station_id || s.stationId || null;
+                        if (sId && locId && String(sId) === String(locId)) return true;
+                        if (sStation && locStationId && String(sStation) === String(locStationId)) return true;
+                        return false;
+                    }) || null;
+                }
+            } catch (e) {
+                matchingSub = null;
+            }
+            // Extract real data from location object; prefer canonical server-provided names
+            const rawName = location.station_name || location.name || location.display_name || location.displayName || this.getLocationName(location, index);
+            const stationName = this.escapeHtml(rawName);
             // Try to grab a station id from likely fields so we can fetch full station if AQI missing
             const stationId = location.station_id || location.stationId || location.id || (location._raw && (location._raw.station_id || location._raw.id)) || (location._station && (location._station.station_id || location._station.id));
             const registrationDate = location.created_at 
@@ -1414,8 +1512,23 @@ class AdminUserManagement {
             // Use real alert enabled status
             const alertEnabled = location.alert_enabled !== undefined ? location.alert_enabled : true;
 
+            // If a matching subscription exists, prefer its station_name and keep local arrays in sync
+            if (matchingSub && typeof matchingSub === 'object') {
+                try {
+                    const subName = matchingSub.station_name || matchingSub.name || matchingSub.display_name || matchingSub.nickname || null;
+                    if (subName && subName !== location.station_name) {
+                        // update the location object so subsequent renders use the canonical name
+                        try { location.station_name = subName; } catch (e) {}
+                        try { location.name = location.name || subName; } catch (e) {}
+                        try { location.display_name = location.display_name || subName; } catch (e) {}
+                    }
+                } catch (e) {}
+            }
+
             return {
-                stationName,
+                stationName: stationName,
+                // also expose raw name for internal matching (unescaped)
+                station_name: rawName,
                 stationId,
                 registrationDate,
                 currentAQI: displayAQI,
@@ -1423,6 +1536,121 @@ class AdminUserManagement {
                 threshold,
                 alertEnabled
             };
+        });
+
+        // Ensure we include any explicit user.subscriptions that are not present
+        // in favoriteLocations. This preserves canonical subscription-level
+        // station names (and other metadata) so toggling alerts doesn't lose
+        // the display name.
+        if (Array.isArray(user.subscriptions) && user.subscriptions.length > 0) {
+            const presentKeys = new Set(subscriptions.map(s => String(s.subscription_id || s.stationId || s.station_id || '')));
+            user.subscriptions.forEach((s, sidx) => {
+                const sId = s.id || s._id || s.subscription_id || s.subscriptionId || null;
+                const sStation = s.station_id || s.stationId || (s._raw && (s._raw.station_id || s._raw.id)) || null;
+                const key = String(sId || sStation || '');
+                if (!key) return;
+                const existingIndex = subscriptions.findIndex(s => String(s.subscription_id || s.stationId || s.station_id || '') === key);
+                // if an entry exists but key is present via other heuristics, allow replacement
+                if (existingIndex === -1 && presentKeys.has(key)) return; // already represented
+
+                const rawName = s.station_name || s.name || s.display_name || s.nickname || (s.metadata && s.metadata.nickname) || this.getLocationName(s, sidx);
+                const stationName = this.escapeHtml(rawName);
+                const stationId = s.station_id || s.stationId || s.id || (s._raw && (s._raw.station_id || s._raw.id)) || null;
+                const registrationDate = s.created_at ? new Date(s.created_at).toLocaleDateString('vi-VN') : s.added_at ? new Date(s.added_at).toLocaleDateString('vi-VN') : 'N/A';
+
+                const rawAqiCandidates = [
+                    s.current_aqi,
+                    s.aqi,
+                    s.latest_reading && s.latest_reading.aqi,
+                    s.latest && s.latest.aqi,
+                    s.station && s.station.aqi,
+                    s._station && s._station.latest_reading && s._station.latest_reading.aqi,
+                    s._station && s._station.latest && s._station.latest.aqi,
+                    s._station && typeof s._station.aqi !== 'undefined' ? s._station.aqi : null,
+                    s._station && s._station.pm25,
+                    (s._station && s._station.iaqi && s._station.iaqi.pm25 && typeof s._station.iaqi.pm25.v !== 'undefined') ? s._station.iaqi.pm25.v : null,
+                    s._raw && s._raw.current_aqi,
+                    s._raw && s._raw.aqi,
+                    s._raw && s._raw.latest_reading && s._raw.latest_reading.aqi,
+                    s.latest?.value,
+                    s.value,
+                    s.currentValue
+                ];
+                let foundAqi = null;
+                for (const c of rawAqiCandidates) {
+                    if (c !== undefined && c !== null && c !== '') { foundAqi = c; break; }
+                }
+                const numericAQI = (foundAqi !== null && foundAqi !== undefined && !isNaN(Number(foundAqi))) ? Number(foundAqi) : null;
+                const displayAQI = numericAQI !== null ? String(numericAQI) : (foundAqi !== null && foundAqi !== undefined ? this.escapeHtml(foundAqi) : 'N/A');
+                const threshold = s.threshold || user.alertSettings?.thresholds?.pm25 || 100;
+                const alertEnabled = s.alert_enabled !== undefined ? s.alert_enabled : true;
+
+                const enriched = {
+                    stationName: stationName,
+                    station_name: rawName,
+                    stationId,
+                    registrationDate,
+                    currentAQI: displayAQI,
+                    numericAQI,
+                    threshold,
+                    alertEnabled,
+                    subscription_id: sId
+                };
+                if (existingIndex >= 0) {
+                    // Replace the existing (likely favorite-derived) entry with subscription-level data
+                    subscriptions[existingIndex] = enriched;
+                    presentKeys.add(key);
+                } else {
+                    subscriptions.push(enriched);
+                    presentKeys.add(key);
+                }
+        
+            });
+        }
+
+        // Post-process names: sometimes subscriptions contain generic codes like "Trạm 8688"
+        // while other entries have a richer display_name. Build a name map keyed by
+        // stationId or subscription_id and pick the most meaningful name.
+        const nameMap = {};
+        const meaningfulRegex = /^\s*(TRAM|TRẠM)\s*\d+\s*$/i;
+        const scoreName = (n) => {
+            if (!n || typeof n !== 'string') return 0;
+            const t = n.trim();
+            if (meaningfulRegex.test(t)) return 1; // low score for generic codes
+            return Math.min(100, t.length + 10); // longer names get higher score
+        };
+        subscriptions.forEach(s => {
+            const key = String(s.subscription_id || s.stationId || s.station_id || '');
+            const candidate = (s.station_name || s.stationName || '').trim();
+            if (!key) return;
+            const prev = nameMap[key];
+            if (!prev || scoreName(candidate) > scoreName(prev)) {
+                nameMap[key] = candidate;
+            }
+        });
+
+        // Also check raw user.subscriptions array for richer names in case some
+        // subscription objects weren't normalized yet.
+        if (Array.isArray(user.subscriptions)) {
+            user.subscriptions.forEach(s => {
+                const key = String(s.id || s._id || s.subscription_id || s.station_id || s.stationId || '');
+                const candidate = (s.display_name || s.station_name || s.name || s.nickname || '').trim();
+                if (!key) return;
+                const prev = nameMap[key];
+                if (!prev || scoreName(candidate) > scoreName(prev)) {
+                    nameMap[key] = candidate;
+                }
+            });
+        }
+
+        // Apply the best name back to subscription display fields
+        subscriptions.forEach(s => {
+            const key = String(s.subscription_id || s.stationId || s.station_id || '');
+            const best = nameMap[key];
+            if (best && best !== '' && !/^\s*(TRAM|TRẠM)\s*\d+\s*$/i.test(best)) {
+                s.station_name = best;
+                s.stationName = this.escapeHtml(best);
+            }
         });
 
         let html = `<div class="mb-3">
@@ -1461,11 +1689,13 @@ class AdminUserManagement {
 
                             <div class="subscription-control text-end ms-3">
                                 <div class="form-check form-switch">
-                                    <input class="form-check-input alert-toggle" type="checkbox" 
-                                           ${sub.alertEnabled ? 'checked' : ''} 
-                                           data-user-id="${userId}" 
-                                           data-station="${sub.stationName}"
-                                           id="alertToggle${index}">
+                     <input class="form-check-input alert-toggle" type="checkbox" 
+                         ${sub.alertEnabled ? 'checked' : ''} 
+                         data-user-id="${userId}" 
+                         data-station-id="${sub.stationId || sub.station_id || ''}"
+                         data-sub-id="${sub.subscription_id || sub.id || ''}"
+                         data-station="${(sub.station_name || '').replace(/"/g, '&quot;')}"
+                         id="alertToggle${index}">
                                     <label class="form-check-label" for="alertToggle${index}">
                                         <i class="fas ${sub.alertEnabled ? 'fa-bell' : 'fa-bell-slash'} me-1"></i>
                                         <span class="ms-1 alert-label-text">${sub.alertEnabled ? 'Bật' : 'Tắt'}</span>
@@ -1532,7 +1762,17 @@ class AdminUserManagement {
     async handleAlertToggle(event) {
         const toggle = event.target;
         const userId = toggle.dataset.userId;
-        const stationName = toggle.dataset.station;
+        // Prefer dataset value but fall back to card heading text to avoid losing name
+        let stationName = toggle.dataset.station;
+        if (!stationName || stationName === 'undefined') {
+            try {
+                const card = toggle.closest('.subscription-card');
+                const heading = card ? card.querySelector('.subscription-info h6, h6') : null;
+                stationName = heading && heading.textContent ? heading.textContent.trim() : stationName;
+            } catch (e) {
+                // ignore and keep original dataset value
+            }
+        }
         const isEnabled = toggle.checked;
         // Update the label and icon immediately for better UX (local-only)
         const label = toggle.nextElementSibling;
@@ -1545,6 +1785,7 @@ class AdminUserManagement {
             textSpan.textContent = isEnabled ? 'Bật' : 'Tắt';
         } else if (label) {
             // fallback: rebuild label content
+            // Rebuild only the label contents (do not touch other card elements)
             label.innerHTML = `<i class="fas ${isEnabled ? 'fa-bell' : 'fa-bell-slash'} me-1"></i><span class="ms-1 alert-label-text">${isEnabled ? 'Bật' : 'Tắt'}</span>`;
         }
 
@@ -1554,6 +1795,72 @@ class AdminUserManagement {
         // I'll wire it to that API (including CSRF/auth headers).
         console.log(`Alert toggle (local-only) for user ${userId}, station ${stationName}: ${isEnabled}`);
         this.showToast(`Đã ${isEnabled ? 'bật' : 'tắt'} cảnh báo cho trạm ${stationName}`, 'info');
+        // Persist name into modal.userData if available so subsequent JS re-renders keep the name
+        try {
+            const modal = document.getElementById('userDetailModal');
+            if (modal && modal.userData) {
+                const u = modal.userData;
+                const dataSubId = toggle.getAttribute('data-sub-id');
+                const dataStationId = toggle.getAttribute('data-station-id');
+
+                // Helper to attempt to update an array of subscriptions/locations
+                const tryUpdateArray = (arr) => {
+                    if (!Array.isArray(arr)) return false;
+                    let matched = false;
+                    for (const s of arr) {
+                        if (!s || typeof s !== 'object') continue;
+
+                        // Normalize various id fields for matching
+                        const sIds = [s.id, s._id, s.subscription_id, s.subscriptionId, s.sub_id, s.station_id, s.stationId].map(x => typeof x !== 'undefined' && x !== null ? String(x) : null).filter(Boolean);
+                        const stationIdStr = s.station_id || s.stationId || (s._raw && (s._raw.station_id || s._raw.stationId)) || null;
+
+                        const matchesSubId = dataSubId && sIds.includes(String(dataSubId));
+                        const matchesStationId = dataStationId && (String(stationIdStr) === String(dataStationId) || sIds.includes(String(dataStationId)));
+                        const matchesByName = (s.station_name && String(s.station_name) === String(stationName)) || (s.name && String(s.name) === String(stationName)) || (String(this.getLocationName(s, 0)) === String(stationName));
+
+                        if (matchesSubId || matchesStationId || matchesByName) {
+                            try {
+                                s.station_name = stationName;
+                                s.name = s.name || stationName;
+                                s.display_name = s.display_name || stationName;
+                                if (s._raw && typeof s._raw === 'object') s._raw.station_name = s._raw.station_name || stationName;
+                            } catch (e) {}
+                            matched = true;
+                        }
+                    }
+                    return matched;
+                };
+
+                // Try to update common arrays used by the UI
+                const arraysToUpdate = ['subscriptions', 'favoriteLocations', 'favorite_locations'];
+                let anyMatched = false;
+                for (const aName of arraysToUpdate) {
+                    try {
+                        const arr = u[aName];
+                        if (tryUpdateArray(arr)) anyMatched = true;
+                    } catch (e) {}
+                }
+
+                // If nothing matched, attempt a best-effort append to favoriteLocations so the name is preserved locally
+                if (!anyMatched) {
+                    try {
+                        u.favoriteLocations = u.favoriteLocations || u.favorite_locations || [];
+                        u.favoriteLocations.push({ station_id: dataStationId || null, station_name: stationName, name: stationName, created_at: new Date().toISOString() });
+                        // Keep alias for other arrays as well
+                        u.favorite_locations = u.favorite_locations || u.favoriteLocations;
+                    } catch (e) {}
+                }
+
+                // Update the toggle element's dataset so future reads get the resolved value
+                try { toggle.dataset.station = stationName; } catch (e) {}
+
+                // Re-render the alerts pane from the updated modal.userData so the visible heading is stable
+                try {
+                    const currentAlertSettings = u.alertSettings || u.alert_settings || {};
+                    this.renderUserAlerts(currentAlertSettings);
+                } catch (e) {}
+            }
+        } catch (e) {}
     }
 
     async exportToCSV() {
