@@ -383,9 +383,26 @@ def get_user_locations(user_id: str, *, initiator_id: Optional[str] = None, incl
         try:
             generic_re = re.compile(r"^\s*(TRAM|TRẠM)\s*\d+\s*$", re.IGNORECASE)
             if isinstance(resolved_name, str) and generic_re.match(resolved_name) and st:
-                st_candidate = st.get('station_name') or st.get('name') or (st.get('displayName') if isinstance(st.get('displayName'), str) else None) or (st.get('city') or {}).get('name')
+                # Try richer fields first
+                st_candidate = st.get('station_name') or st.get('name') or (st.get('displayName') if isinstance(st.get('displayName'), str) else None)
+                city_name = (st.get('city') or {}).get('name')
                 if st_candidate and isinstance(st_candidate, str) and not generic_re.match(st_candidate):
                     resolved_name = st_candidate
+                elif city_name and isinstance(city_name, str) and city_name.strip():
+                    # Build a composite label using city and station id to be more informative than a bare code
+                    resolved_name = f"{city_name} (Trạm {sid})"
+                else:
+                    # Last-ditch: try to extract from attributions or other fields
+                    alt = None
+                    if isinstance(st.get('attributions'), list) and st.get('attributions'):
+                        # pick first attribution name if present
+                        a0 = st.get('attributions')[0]
+                        if isinstance(a0, dict):
+                            alt = a0.get('name')
+                        elif isinstance(a0, str):
+                            alt = a0
+                    if alt and isinstance(alt, str) and not generic_re.match(alt):
+                        resolved_name = alt
         except Exception:
             # Non-fatal; continue with the prior resolved_name if anything goes wrong
             pass
@@ -403,18 +420,64 @@ def get_user_locations(user_id: str, *, initiator_id: Optional[str] = None, incl
                     'station_name': resolved_name,
                     'name': resolved_name,
                     'display_name': resolved_name,
+                    'canonical_display_name': resolved_name,
                     'is_favorite': sid in fav_ids,
                     'current_aqi': current_aqi,
                     'createdAt': _serialize_datetime(sub.get('createdAt')),
                     'created_at': _serialize_datetime(sub.get('createdAt')),
         })
+    # Collapse multiple subscription documents that reference the same station
+    # into a single canonical entry. This prevents the admin UI from showing
+    # a generic subscription label when another subscription for the same
+    # station contains a richer human-friendly name.
+    try:
+        canonical_map: Dict[str, Dict[str, Any]] = {}
+        generic_re = re.compile(r"^\s*(TRAM|TRẠM)\s*\d+\s*$", re.IGNORECASE)
+        for sub_entry in serialized_subs:
+            sid = sub_entry.get('station_id')
+            key = str(sid) if sid is not None else 'unknown'
+
+            def is_generic(name: Optional[str]) -> bool:
+                return not isinstance(name, str) or bool(generic_re.match(name))
+
+            current = canonical_map.get(key)
+            if not current:
+                canonical_map[key] = sub_entry
+                continue
+
+            # Prefer an entry with a non-generic name
+            cur_name = current.get('station_name')
+            cand_name = sub_entry.get('station_name')
+
+            cur_generic = is_generic(cur_name)
+            cand_generic = is_generic(cand_name)
+
+            # Prefer non-generic over generic
+            if cur_generic and not cand_generic:
+                canonical_map[key] = sub_entry
+                continue
+
+            # If both are non-generic or both generic, prefer an entry that is a favorite
+            if current.get('is_favorite') and not sub_entry.get('is_favorite'):
+                # keep current
+                continue
+            if sub_entry.get('is_favorite') and not current.get('is_favorite'):
+                canonical_map[key] = sub_entry
+                continue
+
+            # Otherwise keep the existing (which is the most-recent due to query sort), so no-op
+        # Replace subscriptions list with canonicalized values preserving order
+        subscriptions_final: List[Dict[str, Any]] = list(canonical_map.values())
+    except Exception:
+        # If anything goes wrong, fall back to the original list
+        subscriptions_final = serialized_subs
 
     _log_action("get_user_locations", initiator_id, target_id=str(user.get("_id")))
     return {
         "userId": str(user.get("_id")),
         "favoriteLocations": favorites,
         "alertSettings": alert_settings,
-        "subscriptions": serialized_subs,
+        "subscriptions": subscriptions_final,
     }
 
 
@@ -553,6 +616,7 @@ def _build_favorite_locations(user: Dict[str, Any]) -> List[Dict[str, Any]]:
             "name": station_name,
             "station_name": station_name,
             "display_name": station_name,
+            "canonical_display_name": station_name,
             "country": station.get("country"),
             "current_aqi": current_aqi,
             # preserve createdAt if present under station doc

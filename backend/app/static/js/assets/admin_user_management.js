@@ -386,8 +386,8 @@ class AdminUserManagement {
             return true;
         };
 
-        // First, prefer direct subscription-level or display fields if they are meaningful
-        const preferredFields = ['station_name', 'display_name', 'displayName', 'name', 'label', 'title', 'nickname'];
+    // First, prefer direct subscription-level or display fields if they are meaningful
+    const preferredFields = ['canonical_display_name','station_name', 'display_name', 'displayName', 'name', 'label', 'title', 'nickname'];
         for (const f of preferredFields) {
             const v = (loc[f] ?? (loc._raw && loc._raw[f]) ?? (loc.metadata && loc.metadata[f]) ?? (loc._station && loc._station[f]));
             if (isMeaningful(v)) return v.trim();
@@ -803,8 +803,25 @@ class AdminUserManagement {
                             if (!out.id && out.subscription_id) {
                                 out.id = out.subscription_id;
                             }
-                            // Station name variants
-                            out.station_name = s.station_name || s.name || s.title || s.label || s.location || s.station?.name || s.meta?.name || s.properties?.name || s.nickname || null;
+                            // Station name variants - prefer friendly nickname/name/display_name and avoid generic 'Trạm ####'
+                            const _pickFriendly = (obj) => {
+                                if (!obj) return null;
+                                const cand = [obj.canonical_display_name, obj.display_name, obj.nickname, obj.station_name, obj.name, obj.title, obj.label, obj.location, (obj._raw && obj._raw.station_name), (obj._raw && obj._raw.name)];
+                                const genericRe = /^\s*(TRAM|TRẠM)\s*\d+\s*$/i;
+                                for (const c of cand) {
+                                    if (!c || typeof c !== 'string') continue;
+                                    const t = c.trim();
+                                    if (!t) continue;
+                                    if (genericRe.test(t)) continue;
+                                    return t;
+                                }
+                                // fallback to the first available non-empty string if all are generic
+                                for (const c of cand) {
+                                    if (c && typeof c === 'string' && c.trim()) return c.trim();
+                                }
+                                return null;
+                            };
+                            out.station_name = _pickFriendly(s) || null;
                             // Timestamps (accept camelCase createdAt too)
                             out.created_at = s.created_at || s.added_at || s.createdAt || s.ts || null;
                             // AQI/latest reading - try many possible variations (explicit null/undefined checks)
@@ -817,7 +834,7 @@ class AdminUserManagement {
                                 : (typeof s.user_threshold !== 'undefined' && s.user_threshold !== null) ? s.user_threshold
                                 : (s.settings?.threshold ?? s.alertThreshold ?? s.userThreshold ?? s.notification_threshold ?? s.notificationThreshold ?? s.preferences?.threshold ?? null);
                             // Alert enabled flag
-                            out.alert_enabled = (typeof s.alert_enabled !== 'undefined') ? s.alert_enabled : (typeof s.enabled !== 'undefined' ? s.enabled : (s.notifications?.enabled ?? null));
+                            out.alert_enabled = (typeof s.alert_enabled !== 'undefined') ? s.alert_enabled : (typeof s.enabled !== 'undefined' ? s.enabled : (typeof s.status !== 'undefined' ? s.status === 'active' : (s.notifications?.enabled ?? false)));
                             if (typeof s.status !== 'undefined') {
                                 out.status = s.status;
                             }
@@ -991,10 +1008,26 @@ class AdminUserManagement {
                                 `;
                         } else {
                                 let html = '<div class="row g-3">';
+                // helper to pick friendly display name for rendering
+                const pickFriendlyFrom = (obj, idx) => {
+                    if (!obj) return this.getLocationName(obj, idx);
+                    const candidates = [obj.nickname, obj.name, obj.display_name, obj.canonical_display_name, obj.station_name, obj.label, obj.title];
+                    const genericRe = /^\s*(TRAM|TRẠM)\s*\d+\s*$/i;
+                    for (const c of candidates) {
+                        if (!c || typeof c !== 'string') continue;
+                        const t = c.trim();
+                        if (!t) continue;
+                        if (genericRe.test(t)) continue;
+                        return t;
+                    }
+                    // fallback to existing robust getter
+                    return this.getLocationName(obj, idx);
+                };
+
                 locations.forEach((loc, idx) => {
-                    const name = this.getLocationName(loc, idx);
+                    const name = pickFriendlyFrom(loc, idx);
                     const coords = Array.isArray(loc.coordinates) ? `${loc.coordinates[0]}, ${loc.coordinates[1]}` : (loc.coordinates || '');
-                    const alertsEnabled = loc.alerts_enabled || loc.alertsEnabled || false;
+                    const alertsEnabled = (typeof loc.alerts_enabled !== 'undefined') ? loc.alerts_enabled : (typeof loc.alertsEnabled !== 'undefined' ? loc.alertsEnabled : (typeof loc.status !== 'undefined' ? loc.status === 'active' : false));
                                         html += `
                                                 <div class="col-md-6">
                                                     <div class="admin-card p-3">
@@ -1029,7 +1062,7 @@ class AdminUserManagement {
                             const created_at = s.createdAt || s.created_at || s.added_at || s.ts || null;
                             const current_aqi = (typeof s.current_aqi !== 'undefined' && s.current_aqi !== null) ? s.current_aqi : (typeof s.aqi !== 'undefined' && s.aqi !== null) ? s.aqi : (s.latest_reading?.aqi ?? null);
                             const threshold = (typeof s.threshold !== 'undefined' && s.threshold !== null) ? s.threshold : (typeof s.alert_threshold !== 'undefined' && s.alert_threshold !== null) ? s.alert_threshold : null;
-                            const alert_enabled = (typeof s.alert_enabled !== 'undefined') ? s.alert_enabled : (typeof s.enabled !== 'undefined' ? s.enabled : (s.status ? s.status === 'active' : null));
+                            const alert_enabled = (typeof s.alert_enabled !== 'undefined') ? s.alert_enabled : (typeof s.enabled !== 'undefined' ? s.enabled : (typeof s.status !== 'undefined' ? s.status === 'active' : false));
                             return Object.assign({}, s, {
                                 station_id: station_id,
                                 station_name: station_name,
@@ -1070,7 +1103,8 @@ class AdminUserManagement {
                     
                     // Prefer normalized fields, but fall back to raw backend object if necessary
                     // Prefer readable name, then nickname, then station_id label, then generated index label
-                    const rawLocName = location.station_name || location.nickname || (location.station_id ? (`Trạm ${location.station_id}`) : (location._raw ? this.getLocationName(location._raw, idx) : this.getLocationName(location, idx)));
+                    // Prefer friendly nickname/name/display_name over generic canonical labels
+                    const rawLocName = (location && (location.nickname || location.name || location.display_name || location.canonical_display_name || location.station_name)) || (location.station_id ? (`Trạm ${location.station_id}`) : (location._raw ? this.getLocationName(location._raw, idx) : this.getLocationName(location, idx)));
                     const locName = this.escapeHtml(rawLocName);
 
                     // Use real data from API instead of mock data (check normalized then raw)
@@ -1093,7 +1127,7 @@ class AdminUserManagement {
                         ?? (alertSettings?.thresholds?.pm25 ?? alertSettings?.threshold ?? 100);
 
                     // Use real alert enabled status (normalized then raw then default true)
-                    const alertEnabled = (typeof location.alert_enabled !== 'undefined') ? location.alert_enabled : (location._raw && typeof location._raw.alert_enabled !== 'undefined' ? location._raw.alert_enabled : (location._raw && typeof location._raw.status !== 'undefined' ? location._raw.status === 'active' : true));
+                    const alertEnabled = (typeof location.alert_enabled !== 'undefined') ? location.alert_enabled : (location._raw && typeof location._raw.alert_enabled !== 'undefined' ? location._raw.alert_enabled : (location._raw && typeof location._raw.status !== 'undefined' ? location._raw.status === 'active' : false));
                     
                     // Determine AQI badge color based on actual value
                     let aqiBadgeClass = 'bg-secondary';
@@ -1510,7 +1544,7 @@ class AdminUserManagement {
             const threshold = location.threshold || user.alertSettings?.thresholds?.pm25 || 100;
 
             // Use real alert enabled status
-            const alertEnabled = location.alert_enabled !== undefined ? location.alert_enabled : true;
+            const alertEnabled = (typeof location.alert_enabled !== 'undefined') ? location.alert_enabled : (typeof location.status !== 'undefined' ? location.status === 'active' : false);
 
             // If a matching subscription exists, prefer its station_name and keep local arrays in sync
             if (matchingSub && typeof matchingSub === 'object') {
@@ -1544,7 +1578,7 @@ class AdminUserManagement {
         // the display name.
         if (Array.isArray(user.subscriptions) && user.subscriptions.length > 0) {
             const presentKeys = new Set(subscriptions.map(s => String(s.subscription_id || s.stationId || s.station_id || '')));
-            user.subscriptions.forEach((s, sidx) => {
+                user.subscriptions.forEach((s, sidx) => {
                 const sId = s.id || s._id || s.subscription_id || s.subscriptionId || null;
                 const sStation = s.station_id || s.stationId || (s._raw && (s._raw.station_id || s._raw.id)) || null;
                 const key = String(sId || sStation || '');
@@ -1553,7 +1587,7 @@ class AdminUserManagement {
                 // if an entry exists but key is present via other heuristics, allow replacement
                 if (existingIndex === -1 && presentKeys.has(key)) return; // already represented
 
-                const rawName = s.station_name || s.name || s.display_name || s.nickname || (s.metadata && s.metadata.nickname) || this.getLocationName(s, sidx);
+                const rawName = (s && (s.nickname || s.display_name || s.canonical_display_name || s.station_name || s.name)) || this.getLocationName(s, sidx);
                 const stationName = this.escapeHtml(rawName);
                 const stationId = s.station_id || s.stationId || s.id || (s._raw && (s._raw.station_id || s._raw.id)) || null;
                 const registrationDate = s.created_at ? new Date(s.created_at).toLocaleDateString('vi-VN') : s.added_at ? new Date(s.added_at).toLocaleDateString('vi-VN') : 'N/A';
@@ -1583,7 +1617,7 @@ class AdminUserManagement {
                 const numericAQI = (foundAqi !== null && foundAqi !== undefined && !isNaN(Number(foundAqi))) ? Number(foundAqi) : null;
                 const displayAQI = numericAQI !== null ? String(numericAQI) : (foundAqi !== null && foundAqi !== undefined ? this.escapeHtml(foundAqi) : 'N/A');
                 const threshold = s.threshold || user.alertSettings?.thresholds?.pm25 || 100;
-                const alertEnabled = s.alert_enabled !== undefined ? s.alert_enabled : true;
+                const alertEnabled = (typeof s.alert_enabled !== 'undefined') ? s.alert_enabled : (typeof s.status !== 'undefined' ? s.status === 'active' : false);
 
                 const enriched = {
                     stationName: stationName,
@@ -1687,8 +1721,12 @@ class AdminUserManagement {
                                 </div>
                             </div>
 
-                            <div class="subscription-control text-end ms-3">
-                                <div class="form-check form-switch">
+                            <div class="subscription-control text-end ms-3 d-flex align-items-center justify-content-end">
+                                <div class="me-2">
+                                    <button class="btn btn-sm btn-outline-secondary edit-subscription-name" data-sub-id="${sub.subscription_id || sub.id || ''}" data-current-name="${(sub.station_name || '').replace(/"/g, '&quot;')}"><i class="fas fa-edit"></i></button>
+                                </div>
+                                <div>
+                                    <div class="form-check form-switch">
                      <input class="form-check-input alert-toggle" type="checkbox" 
                          ${sub.alertEnabled ? 'checked' : ''} 
                          data-user-id="${userId}" 
@@ -1700,6 +1738,7 @@ class AdminUserManagement {
                                         <i class="fas ${sub.alertEnabled ? 'fa-bell' : 'fa-bell-slash'} me-1"></i>
                                         <span class="ms-1 alert-label-text">${sub.alertEnabled ? 'Bật' : 'Tắt'}</span>
                                     </label>
+                                </div>
                                 </div>
                             </div>
                         </div>
@@ -1753,9 +1792,151 @@ class AdminUserManagement {
 
         container.innerHTML = html;
 
+        // Post-render: attempt to enrich generic names (e.g., 'Trạm 13665') by fetching station docs
+        (async () => {
+            try {
+                const genericRe = /^\s*(TRAM|TRẠM)\s*\d+\s*$/i;
+                const token = this.getAuthToken ? this.getAuthToken() : null;
+                const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                // iterate subscriptions again to find generic names to enrich
+                subscriptions.forEach(async (sub, idx) => {
+                    try {
+                        const nameCandidate = (sub.station_name || sub.stationName || '') + '';
+                        if (!genericRe.test(nameCandidate)) return; // only enrich generic labels
+                        const stationId = sub.stationId || sub.station_id || sub.subscription_id || null;
+                        if (!stationId) return;
+                        const resp = await fetch(`/api/stations/${encodeURIComponent(stationId)}`, { headers });
+                        if (!resp.ok) return;
+                        const stationData = await resp.json();
+                        const payload = stationData && stationData.station ? stationData.station : stationData;
+                        if (!payload) return;
+                        // pick friendly name from station payload
+                        const candFields = [payload.nickname, payload.display_name, payload.canonical_display_name, payload.name, payload.title, payload.meta?.name, payload.properties?.name, payload.location, payload.label];
+                        let best = null;
+                        for (const c of candFields) {
+                            if (!c || typeof c !== 'string') continue;
+                            const t = c.trim();
+                            if (!t) continue;
+                            if (/^\s*(TRAM|TRẠM)\s*\d+\s*$/i.test(t)) continue;
+                            best = t; break;
+                        }
+                        if (!best) {
+                            // fallback to any non-empty field
+                            for (const c of candFields) { if (c && typeof c === 'string' && c.trim()) { best = c.trim(); break; } }
+                        }
+                        if (!best) return;
+                        // Update DOM card heading
+                        try {
+                            const cards = document.querySelectorAll('#userAlerts .subscription-card');
+                            const card = cards[idx];
+                            if (card) {
+                                const heading = card.querySelector('.subscription-info h6, h6');
+                                if (heading) heading.textContent = best;
+                                const dataStationEl = card.querySelector('.form-check-input.alert-toggle');
+                                if (dataStationEl) dataStationEl.dataset.station = best;
+                            }
+                        } catch (e) {}
+                        // Persist into modal.userData arrays so future renders keep the friendly name
+                        try {
+                            const modal = document.getElementById('userDetailModal');
+                            if (modal && modal.userData) {
+                                const u = modal.userData;
+                                const updateArr = (arrName) => {
+                                    const arr = u[arrName]; if (!Array.isArray(arr)) return;
+                                    for (const s of arr) {
+                                        if (!s || typeof s !== 'object') continue;
+                                        const sKey = String(s.id || s._id || s.subscription_id || s.station_id || s.stationId || '');
+                                        const subKey = String(sub.subscription_id || sub.id || sub.stationId || sub.station_id || '');
+                                        if (sKey && subKey && sKey === subKey) {
+                                            try { s.station_name = best; s.name = s.name || best; s.display_name = s.display_name || best; if (s._raw && typeof s._raw === 'object') s._raw.station_name = s._raw.station_name || best; } catch (e) {}
+                                        }
+                                    }
+                                };
+                                updateArr('subscriptions'); updateArr('favoriteLocations'); updateArr('favorite_locations');
+                            }
+                        } catch (e) {}
+                    } catch (e) {
+                        // ignore per-station failures
+                    }
+                });
+            } catch (e) {
+                console.debug('[NAME ENRICH] unexpected error', e);
+            }
+        })();
+
         // Add event listeners for alert toggles (local-only, no API calls)
         container.querySelectorAll('.alert-toggle').forEach(toggle => {
             toggle.addEventListener('change', this.handleAlertToggle.bind(this));
+        });
+
+        // Wire edit button handlers for friendly station name
+        container.querySelectorAll('.edit-subscription-name').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const b = e.currentTarget;
+                const subId = b.dataset.subId;
+                const current = b.dataset.currentName || '';
+                const newName = prompt('Nhập tên hiển thị cho trạm (nickname):', current || '');
+                if (newName === null) return; // cancelled
+                const friendly = (newName || '').trim();
+                if (!friendly) {
+                    alert('Tên không được để trống');
+                    return;
+                }
+
+                // Optimistic UI update
+                try {
+                    const card = b.closest('.subscription-card');
+                    if (card) {
+                        const heading = card.querySelector('.subscription-info h6, h6');
+                        if (heading) heading.textContent = friendly;
+                        const input = card.querySelector('.form-check-input.alert-toggle');
+                        if (input) input.dataset.station = friendly;
+                    }
+
+                    // Update modal.userData arrays
+                    const modal = document.getElementById('userDetailModal');
+                    if (modal && modal.userData) {
+                        const u = modal.userData;
+                        const arrs = ['subscriptions','favoriteLocations','favorite_locations'];
+                        for (const a of arrs) {
+                            const arr = u[a];
+                            if (!Array.isArray(arr)) continue;
+                            for (const s of arr) {
+                                if (!s || typeof s !== 'object') continue;
+                                const key = String(s.id || s._id || s.subscription_id || s.station_id || s.stationId || '');
+                                if (!key) continue;
+                                if (subId && key === String(subId)) {
+                                    try { s.station_name = friendly; s.name = s.name || friendly; s.display_name = s.display_name || friendly; if (s._raw && typeof s._raw === 'object') s._raw.station_name = s._raw.station_name || friendly; } catch (e){}
+                                }
+                            }
+                        }
+                    }
+
+                    // Persist to server if subscription id present
+                    if (subId) {
+                        try {
+                            const token = this.getAuthToken ? this.getAuthToken() : null;
+                            const headers = { 'Content-Type': 'application/json' };
+                            if (token) headers['Authorization'] = `Bearer ${token}`;
+                            const resp = await fetch(`/api/alerts/subscriptions/${encodeURIComponent(subId)}`, {
+                                method: 'PUT',
+                                headers,
+                                body: JSON.stringify({ station_name: friendly, display_name: friendly, name: friendly })
+                            });
+                            if (!resp.ok) {
+                                const txt = await resp.text();
+                                throw new Error(`HTTP ${resp.status}: ${txt}`);
+                            }
+                            if (typeof this.showToast === 'function') this.showToast('Đã lưu tên trạm', 'success');
+                        } catch (e) {
+                            console.error('Failed to persist friendly name', e);
+                            if (typeof this.showToast === 'function') this.showToast('Không thể lưu tên trạm lên server', 'error');
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error setting friendly name', e);
+                }
+            });
         });
     }
 
@@ -1853,6 +2034,143 @@ class AdminUserManagement {
 
                 // Update the toggle element's dataset so future reads get the resolved value
                 try { toggle.dataset.station = stationName; } catch (e) {}
+                // If we have a subscription id, persist the friendly name to the server
+                // so the canonical name is stored on the subscription document. The
+                // alerts API accepts station_name updates via PUT and is safe for
+                // admin workflows (no auth required for this endpoint in backend).
+                const persistIfPossible = async () => {
+                    if (!dataSubId) return;
+                    try {
+                        const token = this.getAuthToken ? this.getAuthToken() : null;
+                        const headers = { 'Content-Type': 'application/json' };
+                        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+                        // Persist the friendly name on the subscription
+                        const resp = await fetch(`/api/alerts/subscriptions/${encodeURIComponent(dataSubId)}`, {
+                            method: 'PUT',
+                            headers,
+                            body: JSON.stringify({ station_name: stationName, display_name: stationName, name: stationName })
+                        });
+
+                        if (!resp.ok) {
+                            console.debug('[ADMIN TOGGLE] failed to persist subscription name', await resp.text());
+                            return;
+                        }
+
+                        // Re-fetch canonical user locations from admin API so we render
+                        // authoritative subscription names (this avoids stale favorite-derived names)
+                                if (token && userId) {
+                                    try {
+                                        // Correct admin locations endpoint: /api/admin/users/<user_id>/locations
+                                        const locResp = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/locations?include_expired=1`, {
+                                            method: 'GET',
+                                            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+                                        });
+                                if (locResp.ok) {
+                                            const json = await locResp.json();
+                                            // Merge server response into modal.userData but prefer any
+                                            // existing non-generic (friendly) names already shown in the UI.
+                                            try {
+                                                modal.userData = modal.userData || {};
+                                                const serverFavorites = json.favoriteLocations || json.favorite_locations || [];
+                                                const serverSubscriptions = json.subscriptions || [];
+
+                                                const isGeneric = (n) => {
+                                                    if (!n || typeof n !== 'string') return false;
+                                                    return /^\s*(TRAM|TRẠM)\s*\d+\s*$/i.test(n.trim());
+                                                };
+
+                                                const pickBestName = (localName, serverName) => {
+                                                    // Prefer the local friendly name when available (admin just edited it).
+                                                    // Fall back to server-provided name only when local name is missing or generic.
+                                                    if (localName && !isGeneric(localName)) return localName;
+                                                    if (serverName && !isGeneric(serverName)) return serverName;
+                                                    // fallback to serverName if present, else localName
+                                                    return serverName || localName || null;
+                                                };
+
+                                                const mergeArrays = (localArr, serverArr, keyFields = ['id','_id','subscription_id','station_id','stationId']) => {
+                                                    const out = [];
+                                                    const seen = new Set();
+                                                    const findKey = (item) => {
+                                                        if (!item || typeof item !== 'object') return null;
+                                                        for (const k of keyFields) {
+                                                            if (item[k]) return String(item[k]);
+                                                        }
+                                                        return null;
+                                                    };
+
+                                                    // Index local by key
+                                                    const localMap = new Map();
+                                                    if (Array.isArray(localArr)) {
+                                                        for (const l of localArr) {
+                                                            const k = findKey(l);
+                                                            if (k) localMap.set(k, l);
+                                                        }
+                                                    }
+
+                                                    // Merge server items, prefer best names
+                                                    if (Array.isArray(serverArr)) {
+                                                        for (const s of serverArr) {
+                                                            const k = findKey(s) || findKey(s._raw) || null;
+                                                            let local = k ? localMap.get(k) : null;
+                                                            const localName = local ? (local.station_name || local.name || local.display_name) : null;
+                                                            const serverName = s.station_name || s.name || s.display_name || (s.metadata && s.metadata.nickname) || null;
+                                                            const chosen = pickBestName(localName, serverName);
+                                                            const merged = Object.assign({}, local || {}, s || {});
+                                                            if (chosen) {
+                                                                try { merged.station_name = chosen; merged.name = merged.name || chosen; merged.display_name = merged.display_name || chosen; } catch (e) {}
+                                                            }
+                                                            out.push(merged);
+                                                            if (k) seen.add(k);
+                                                        }
+                                                    }
+
+                                                    // Append any local-only items that server didn't return
+                                                    if (Array.isArray(localArr)) {
+                                                        for (const l of localArr) {
+                                                            const k = findKey(l);
+                                                            if (k && seen.has(k)) continue;
+                                                            out.push(l);
+                                                        }
+                                                    }
+
+                                                    return out;
+                                                };
+
+                                                // Merge favorites and subscriptions, preserving friendly local names
+                                                modal.userData.favoriteLocations = mergeArrays(modal.userData.favoriteLocations || [], serverFavorites, ['station_id','stationId','id','_id']);
+                                                modal.userData.subscriptions = mergeArrays(modal.userData.subscriptions || [], serverSubscriptions, ['id','_id','subscription_id','station_id','stationId']);
+                                                modal.userData.alertSettings = json.alertSettings || json.alert_settings || modal.userData.alertSettings;
+                                            } catch (e) {
+                                                console.debug('[ADMIN TOGGLE] failed to merge server locations', e);
+                                            }
+                                        } else {
+                                            // Preserve local friendly names and inform the admin that refresh failed
+                                            try {
+                                                const serverBody = await locResp.text();
+                                                console.debug('[ADMIN TOGGLE] failed to reload user locations', locResp.status, serverBody);
+                                            } catch (e) {
+                                                console.debug('[ADMIN TOGGLE] failed to reload user locations', locResp.status);
+                                            }
+                                            if (typeof this.showToast === 'function') {
+                                                this.showToast('Không thể làm mới tên trạm từ server — tên cục bộ đã được giữ.', 'error');
+                                            }
+                                            // Do not attempt to merge or replace modal.userData when the server returns an error
+                                            return;
+                                        }
+                            } catch (e) {
+                                console.debug('[ADMIN TOGGLE] error fetching admin user locations', e);
+                            }
+                        }
+
+                    } catch (e) {
+                        console.debug('[ADMIN TOGGLE] error persisting subscription name', e);
+                    }
+                };
+
+                // Fire-and-forget persistence and canonical refresh, but re-render immediately for UX
+                persistIfPossible();
 
                 // Re-render the alerts pane from the updated modal.userData so the visible heading is stable
                 try {
