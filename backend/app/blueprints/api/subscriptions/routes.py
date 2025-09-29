@@ -3,14 +3,99 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from bson import ObjectId
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import logging
+import unicodedata
+import re
 
 from backend.app.repositories import users_repo, readings_repo
 from backend.app import db as db_module
-from datetime import timezone, timedelta
 
 logger = logging.getLogger(__name__)
+
+_GENERIC_STATION_LABEL_RE = re.compile(r'^\s*(?:TRAM|STATION)(?:[\s\-_/]*)\d+\s*$', re.IGNORECASE)
+
+def _normalize_station_label(name: str) -> str:
+    normalized = unicodedata.normalize('NFKD', name)
+    stripped = ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+    collapsed = re.sub(r'\s+', ' ', stripped.replace('đ', 'd').replace('Đ', 'D')).strip()
+    return collapsed.upper()
+
+def _is_generic_station_label(name: str) -> bool:
+    if not isinstance(name, str) or not name.strip():
+        return True
+    return bool(_GENERIC_STATION_LABEL_RE.match(_normalize_station_label(name)))
+
+
+def _resolve_station_names(sub, station, station_id_int):
+    metadata = sub.get('metadata') or {}
+    nickname_meta = metadata.get('nickname')
+
+    def normalize_candidate(value):
+        if isinstance(value, str):
+            value = value.strip()
+            return value or None
+        return None
+
+    def collect_from_mapping(mapping, keys):
+        results = []
+        if isinstance(mapping, dict):
+            for key in keys:
+                val = mapping.get(key)
+                if isinstance(val, dict):
+                    results.extend([
+                        normalize_candidate(val.get('name')),
+                        normalize_candidate(val.get('description')),
+                        normalize_candidate(val.get('label')),
+                    ])
+                else:
+                    results.append(normalize_candidate(val))
+        return [v for v in results if v]
+
+    nickname_meta = normalize_candidate(nickname_meta)
+    if nickname_meta and _is_generic_station_label(nickname_meta):
+        nickname_meta = None
+
+    candidates = [
+        nickname_meta,
+        normalize_candidate(sub.get('station_name')),
+        normalize_candidate(sub.get('name')),
+        normalize_candidate(sub.get('display_name')),
+        normalize_candidate(metadata.get('label')),
+        normalize_candidate(metadata.get('description')),
+    ]
+
+    if station:
+        station_candidates = [
+            normalize_candidate(station.get('name')),
+            normalize_candidate(station.get('displayName')),
+            normalize_candidate(station.get('station_name')),
+            normalize_candidate(station.get('full_name')),
+            normalize_candidate(station.get('label')),
+            normalize_candidate(station.get('description')),
+        ]
+        station_candidates.extend(collect_from_mapping(station.get('meta') or {}, ['name', 'label', 'displayName', 'description']))
+        location = station.get('location')
+        if isinstance(location, dict):
+            station_candidates.extend(collect_from_mapping(location, ['name', 'displayName', 'label', 'description', 'address']))
+            station_candidates.extend(collect_from_mapping(location.get('city') or {}, ['name', 'label']))
+            station_candidates.extend(collect_from_mapping(location.get('region') or {}, ['name', 'label']))
+        else:
+            station_candidates.append(normalize_candidate(location))
+        city_name = normalize_candidate((station.get('city') or {}).get('name'))
+        if city_name:
+            station_candidates.append(city_name)
+        station_candidates = [c for c in station_candidates if c]
+        candidates.extend(station_candidates)
+
+    friendly = next((candidate for candidate in candidates if candidate and not _is_generic_station_label(candidate)), None)
+    if not friendly:
+        friendly = next((candidate for candidate in candidates if candidate), None)
+    if not friendly:
+        friendly = f"Station {station_id_int}"
+
+    nickname = nickname_meta or friendly
+    return friendly, nickname
 
 subscriptions_bp = Blueprint('subscriptions', __name__, url_prefix='/api')
 
@@ -36,9 +121,10 @@ def get_user_subscriptions():
             'user_id': ObjectId(user_id),
             'status': {'$ne': 'expired'}
         }).sort('createdAt', -1))
-        
+
         # Transform for frontend
         result = []
+        seen_stations = set()
         for sub in subscriptions:
             station_id = sub['station_id']
             # Normalize to int when possible to keep API surface consistent
@@ -46,6 +132,11 @@ def get_user_subscriptions():
                 station_id_int = int(station_id)
             except Exception:
                 station_id_int = station_id
+            key = str(station_id_int)
+            if key in seen_stations:
+                logger.debug(f'Skipping duplicate subscription for station_id {key}')
+                continue
+            seen_stations.add(key)
             logger.info(f"Processing subscription for station_id: {station_id_int}")
             
             # Try to get latest AQI for this station using direct DB lookup
@@ -91,7 +182,34 @@ def get_user_subscriptions():
                 except Exception:
                     station = None
             logger.info(f"Station info for {station_id_int}: {station is not None}")
-            
+
+            metadata = sub.get('metadata') or {}
+            nickname_meta = metadata.get('nickname')
+            if nickname_meta and _is_generic_station_label(nickname_meta):
+                nickname_meta = None
+
+            subscription_name_candidate = sub.get('station_name') or sub.get('name') or sub.get('display_name')
+            if subscription_name_candidate and _is_generic_station_label(subscription_name_candidate):
+                subscription_name_candidate = None
+
+            station_name_candidate = None
+            if station:
+                for field in (station.get('name'), station.get('displayName'), station.get('station_name')):
+                    if field and not _is_generic_station_label(field):
+                        station_name_candidate = field
+                        break
+                if not station_name_candidate:
+                    for field in (station.get('name'), station.get('displayName'), station.get('station_name')):
+                        if field:
+                            station_name_candidate = field
+                            break
+
+            friendly_name = next((value for value in [nickname_meta, subscription_name_candidate, station_name_candidate] if value), None)
+            if not friendly_name or _is_generic_station_label(friendly_name):
+                friendly_name = f"Station {station_id_int}"
+
+            friendly_name, nickname_value = _resolve_station_names(sub, station, station_id_int)
+
             # Format createdAt to VN timezone if available
             created_at_raw = sub.get('createdAt')
             try:
@@ -108,9 +226,9 @@ def get_user_subscriptions():
             result.append({
                 'id': str(sub['_id']),
                 'station_id': station_id_int,
-                'station_name': station.get('name') if station else f"Station {station_id_int}",
+                'station_name': friendly_name,
                 'location': station.get('location') if station else '',
-                'nickname': sub.get('metadata', {}).get('nickname') or (station.get('name') if station else f"Station {station_id_int}"),
+                'nickname': nickname_value,
                 'threshold': sub.get('alert_threshold', 100),
                 'alert_enabled': sub.get('status') == 'active',
                 'created_at': created_at,
@@ -154,7 +272,7 @@ def subscribe_to_station():
         # Check if already subscribed
         existing = db.alert_subscriptions.find_one({
             'user_id': ObjectId(user_id),
-            'station_id': station_id,
+            'station_id': {'$in': [station_id, str(station_id)]},
             'status': {'$ne': 'expired'}
         })
         if existing:
@@ -221,7 +339,7 @@ def unsubscribe_from_station():
         result = db.alert_subscriptions.update_one(
             {
                 'user_id': ObjectId(user_id),
-                'station_id': station_id,
+                'station_id': {'$in': [station_id, str(station_id)]},
                 'status': {'$ne': 'expired'}
             },
             {
@@ -304,3 +422,4 @@ def update_subscription(subscription_id):
     except Exception as e:
         logger.exception("Error updating subscription")
         return jsonify({"error": "internal server error"}), 500
+

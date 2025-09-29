@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 from datetime import datetime, timezone
 from math import ceil
 from typing import Any, Dict, List, Optional, Tuple
@@ -27,6 +28,7 @@ VALID_ROLES = {"user", "admin"}
 VALID_STATUSES = {"active", "inactive"}
 DEFAULT_SORT_FIELD = "createdAt"
 ALLOWED_SORT_FIELDS = {
+
     "createdAt": "createdAt",
     "updatedAt": "updatedAt",
     "email": "email",
@@ -34,6 +36,88 @@ ALLOWED_SORT_FIELDS = {
     "role": "role",
     "status": "status",
 }
+
+
+_GENERIC_STATION_LABEL_RE = re.compile(r'^\s*(?:TRAM|STATION)(?:[\s\-_/]*)\d+\s*$', re.IGNORECASE)
+
+
+def _normalize_station_label(name: str) -> str:
+    normalized = unicodedata.normalize('NFKD', name)
+    stripped = ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+    stripped = stripped.replace('đ', 'd').replace('Đ', 'D')
+    collapsed = re.sub(r'\s+', ' ', stripped).strip()
+    return collapsed.upper()
+
+
+def _is_generic_station_label(name: Optional[str]) -> bool:
+    if not isinstance(name, str):
+        return True
+    normalized = _normalize_station_label(name)
+    return bool(_GENERIC_STATION_LABEL_RE.match(normalized))
+
+def _normalize_field(value: Optional[str]) -> Optional[str]:
+    if isinstance(value, str):
+        value = value.strip()
+        return value or None
+    return None
+
+def _collect_station_candidates(station: Optional[Dict[str, Any]]) -> List[str]:
+    candidates: List[str] = []
+    if not isinstance(station, dict):
+        return candidates
+
+    def add_values(mapping: Optional[Dict[str, Any]], keys: List[str]):
+        if not isinstance(mapping, dict):
+            return
+        for key in keys:
+            val = mapping.get(key)
+            if isinstance(val, dict):
+                add_values(val, ['name', 'label', 'displayName', 'description'])
+            else:
+                normalized = _normalize_field(val)
+                if normalized:
+                    candidates.append(normalized)
+
+    add_values(station, ['name', 'station_name', 'displayName', 'full_name', 'label', 'description', 'location'])
+    add_values(station.get('meta'), ['name', 'label', 'displayName', 'description'])
+    location = station.get('location')
+    if isinstance(location, dict):
+        add_values(location, ['name', 'displayName', 'label', 'description', 'address'])
+        add_values(location.get('city'), ['name', 'label'])
+        add_values(location.get('region'), ['name', 'label'])
+    else:
+        normalized = _normalize_field(location)
+        if normalized:
+            candidates.append(normalized)
+    add_values(station.get('city'), ['name', 'label'])
+    return candidates
+
+def _resolve_subscription_display_name(sub: Dict[str, Any], station: Optional[Dict[str, Any]], sid: Any) -> Tuple[str, Optional[str]]:
+    metadata = sub.get('metadata') or {}
+    nickname_meta = _normalize_field(metadata.get('nickname'))
+    meta_label = _normalize_field(metadata.get('label'))
+    meta_description = _normalize_field(metadata.get('description'))
+
+    candidates: List[Optional[str]] = [
+        nickname_meta,
+        _normalize_field(sub.get('station_name')),
+        _normalize_field(sub.get('name')),
+        _normalize_field(sub.get('display_name')),
+        meta_label,
+        meta_description,
+    ]
+
+    candidates.extend(_collect_station_candidates(station))
+
+    friendly = next((cand for cand in candidates if cand and not _is_generic_station_label(cand)), None)
+    if not friendly:
+        friendly = next((cand for cand in candidates if cand), None)
+    if not friendly:
+        friendly = f"Station {sid if sid is not None else '(unknown)'}"
+
+    nickname = nickname_meta or friendly
+    return friendly, nickname
+
 
 
 class UserServiceError(Exception):
@@ -309,7 +393,21 @@ def get_user_locations(user_id: str, *, initiator_id: Optional[str] = None, incl
     # Build map by station_id for quick lookup (station_id can be int or str)
     station_map = {}
     for st in station_docs:
-        station_map[st.get('station_id')] = st
+        sid_val = st.get('station_id')
+        if sid_val is not None:
+            station_map[sid_val] = st
+            try:
+                station_map[int(sid_val)] = st
+            except Exception:
+                pass
+        meta = st.get('meta') or {}
+        meta_idx = meta.get('station_idx') or meta.get('stationId') or meta.get('stationIdStr')
+        if meta_idx is not None:
+            station_map[meta_idx] = st
+            try:
+                station_map[int(meta_idx)] = st
+            except Exception:
+                pass
 
     serialized_subs: List[Dict[str, Any]] = []
     # favorite ids for quick check
@@ -317,7 +415,6 @@ def get_user_locations(user_id: str, *, initiator_id: Optional[str] = None, incl
     for sub in subscriptions:
         sid = sub.get('station_id')
         st = station_map.get(sid) or station_map.get(str(sid))
-        nickname = (sub.get('metadata') or {}).get('nickname') or (st and (st.get('city') or {}).get('name'))
         # include any known latest AQI from the station doc to help the UI show current values
         current_aqi = None
         if st:
@@ -338,89 +435,23 @@ def get_user_locations(user_id: str, *, initiator_id: Optional[str] = None, incl
             except Exception:
                 pass
         # Resolve a stable human-readable station name with fallbacks.
-        # Priority:
-        # 1) subscription metadata.nickname (admins may set a friendly nickname per subscription)
-        # 2) explicit subscription-level name fields (sub.station_name, sub.name, sub.display_name)
-        # 3) station document explicit fields (st.name, st.station_name, st.displayName)
-        # 4) latest reading-level station_name
-        # 5) station city name
-        # 6) generated fallback label
-        resolved_name = None
-        meta = sub.get('metadata') or {}
-        resolved_name = meta.get('nickname')
+        friendly_name, nickname_value = _resolve_subscription_display_name(sub, st, sid)
 
-        # Prefer any name stored on the subscription itself (admin edits may have written these)
-        if not resolved_name:
-            resolved_name = sub.get('station_name') or sub.get('name') or sub.get('display_name')
-
-        # Next prefer station document explicit fields
-        if not resolved_name and st:
-            resolved_name = st.get('name') or st.get('station_name') or (st.get('displayName') if isinstance(st.get('displayName'), str) else None)
-
-        # Try reading-level station_name if still missing
-        if not resolved_name:
-            try:
-                readings = readings_repo.find_latest_by_station(str(sid), limit=1) if sid is not None else []
-                if readings:
-                    r0 = readings[0]
-                    if isinstance(r0, dict):
-                        resolved_name = r0.get('station_name') or r0.get('stationName') or resolved_name
-            except Exception:
-                pass
-
-        # Then try station city
-        if not resolved_name and st:
-            resolved_name = (st.get('city') or {}).get('name')
-
-        # Fallback to a generated label so UI always has something predictable
-        if not resolved_name:
-            resolved_name = f"Trạm {sid if sid is not None else '(unknown)'}"
-
-        # If the resolved name is a generic code like "Trạm 8688" prefer the
-        # station document's richer name when available. This avoids situations
-        # where subscription documents contain only numeric codes while the
-        # station record has a human-friendly display name.
-        try:
-            generic_re = re.compile(r"^\s*(TRAM|TRẠM)\s*\d+\s*$", re.IGNORECASE)
-            if isinstance(resolved_name, str) and generic_re.match(resolved_name) and st:
-                # Try richer fields first
-                st_candidate = st.get('station_name') or st.get('name') or (st.get('displayName') if isinstance(st.get('displayName'), str) else None)
-                city_name = (st.get('city') or {}).get('name')
-                if st_candidate and isinstance(st_candidate, str) and not generic_re.match(st_candidate):
-                    resolved_name = st_candidate
-                elif city_name and isinstance(city_name, str) and city_name.strip():
-                    # Build a composite label using city and station id to be more informative than a bare code
-                    resolved_name = f"{city_name} (Trạm {sid})"
-                else:
-                    # Last-ditch: try to extract from attributions or other fields
-                    alt = None
-                    if isinstance(st.get('attributions'), list) and st.get('attributions'):
-                        # pick first attribution name if present
-                        a0 = st.get('attributions')[0]
-                        if isinstance(a0, dict):
-                            alt = a0.get('name')
-                        elif isinstance(a0, str):
-                            alt = a0
-                    if alt and isinstance(alt, str) and not generic_re.match(alt):
-                        resolved_name = alt
-        except Exception:
-            # Non-fatal; continue with the prior resolved_name if anything goes wrong
-            pass
 
         serialized_subs.append({
                     'id': str(sub.get('_id')),
                     'subscription_id': str(sub.get('_id')),
                     'station_id': sid,
                     'stationId': sid,
-                    'nickname': nickname,
+                    'nickname': nickname_value,
                     'threshold': sub.get('alert_threshold'),
                     'status': sub.get('status'),
                     'alert_enabled': sub.get('status') == 'active',
                     # Prefer explicit station name fields when available; include multiple aliases
-                    'station_name': resolved_name,
-                    'name': resolved_name,
-                    'display_name': resolved_name,
-                    'canonical_display_name': resolved_name,
+                    'station_name': friendly_name,
+                    'name': friendly_name,
+                    'display_name': friendly_name,
+                    'canonical_display_name': friendly_name,
                     'is_favorite': sid in fav_ids,
                     'current_aqi': current_aqi,
                     'createdAt': _serialize_datetime(sub.get('createdAt')),
@@ -432,13 +463,12 @@ def get_user_locations(user_id: str, *, initiator_id: Optional[str] = None, incl
     # station contains a richer human-friendly name.
     try:
         canonical_map: Dict[str, Dict[str, Any]] = {}
-        generic_re = re.compile(r"^\s*(TRAM|TRẠM)\s*\d+\s*$", re.IGNORECASE)
         for sub_entry in serialized_subs:
             sid = sub_entry.get('station_id')
             key = str(sid) if sid is not None else 'unknown'
 
             def is_generic(name: Optional[str]) -> bool:
-                return not isinstance(name, str) or bool(generic_re.match(name))
+                return _is_generic_station_label(name)
 
             current = canonical_map.get(key)
             if not current:
@@ -591,32 +621,24 @@ def _build_favorite_locations(user: Dict[str, Any]) -> List[Dict[str, Any]]:
                 current_aqi = current_aqi
 
         # Resolve a stable human-readable station name
-        station_name = station.get("name") or station.get("station_name") or (station.get("displayName") if isinstance(station.get("displayName"), str) else None)
-        if not station_name:
-            station_name = (station.get("city") or {}).get("name")
-        # Try reading-level name if still missing
-        if not station_name:
-            try:
-                sid = station.get('station_id') or station.get('_id')
-                if sid is not None:
-                    readings = readings_repo.find_latest_by_station(str(sid), limit=1)
-                    if readings and isinstance(readings[0], dict):
-                        station_name = readings[0].get('station_name') or readings[0].get('stationName') or station_name
-            except Exception:
-                pass
-        if not station_name:
-            station_name = f"Trạm {station.get('station_id') or station.get('_id') or '(unknown)'}"
+        station_candidates = _collect_station_candidates(station)
+        friendly_station = next((cand for cand in station_candidates if cand and not _is_generic_station_label(cand)), None)
+        if not friendly_station:
+            friendly_station = next((cand for cand in station_candidates if cand), None)
+        if not friendly_station:
+            friendly_station = f"Station {station.get('station_id') or station.get('_id') or '(unknown)'}"
 
         serialized.append({
             # canonical ids as strings for stable matching in frontend
             "id": str(station.get("_id")) if station.get("_id") is not None else None,
             "station_id": station.get("station_id"),
             "stationId": station.get("station_id"),
-            # name aliases (keep both 'name' and 'station_name')
-            "name": station_name,
-            "station_name": station_name,
-            "display_name": station_name,
-            "canonical_display_name": station_name,
+            # name aliases (keep both "name" and "station_name")
+            "name": friendly_station,
+            "station_name": friendly_station,
+            "display_name": friendly_station,
+            "canonical_display_name": friendly_station,
+
             "country": station.get("country"),
             "current_aqi": current_aqi,
             # preserve createdAt if present under station doc

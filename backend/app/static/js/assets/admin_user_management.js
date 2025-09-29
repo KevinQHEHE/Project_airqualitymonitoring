@@ -2049,7 +2049,12 @@ class AdminUserManagement {
                         const resp = await fetch(`/api/alerts/subscriptions/${encodeURIComponent(dataSubId)}`, {
                             method: 'PUT',
                             headers,
-                            body: JSON.stringify({ station_name: stationName, display_name: stationName, name: stationName })
+                            body: JSON.stringify({
+                                station_name: stationName,
+                                display_name: stationName,
+                                name: stationName,
+                                metadata: { nickname: stationName }
+                            })
                         });
 
                         if (!resp.ok) {
@@ -2075,9 +2080,21 @@ class AdminUserManagement {
                                                 const serverFavorites = json.favoriteLocations || json.favorite_locations || [];
                                                 const serverSubscriptions = json.subscriptions || [];
 
+                                                const normalizeGenericLabel = (name) => {
+                                                    if (!name || typeof name !== 'string') return '';
+                                                    return name
+                                                        .normalize('NFD')
+                                                        .replace(/[\u0300-\u036f]/g, '')
+                                                        .replace(/\u0111/g, 'd')
+                                                        .replace(/\u0110/g, 'D')
+                                                        .toUpperCase()
+                                                        .replace(/\s+/g, ' ')
+                                                        .trim();
+                                                };
                                                 const isGeneric = (n) => {
                                                     if (!n || typeof n !== 'string') return false;
-                                                    return /^\s*(TRAM|TRẠM)\s*\d+\s*$/i.test(n.trim());
+                                                    const normalized = normalizeGenericLabel(n);
+                                                    return /^(TRAM|STATION)(?:[\s\-_/])*\d+$/.test(normalized);
                                                 };
 
                                                 const pickBestName = (localName, serverName) => {
