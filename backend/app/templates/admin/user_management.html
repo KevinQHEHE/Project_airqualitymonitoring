@@ -41,13 +41,10 @@
           <a class="nav-link text-white" href="/">
             <i class="fas fa-home me-1"></i>Dashboard
           </a>
-          <a class="nav-link text-white" href="/reports">
-            <i class="fas fa-chart-bar me-1"></i>Reports  
-          </a>
           <a class="nav-link text-white" href="/admin">
             <i class="fas fa-users me-1"></i>Admin
           </a>
-          <a class="nav-link text-white" href="/login">
+          <a id="navLogout" class="nav-link text-white" href="/login" onclick="try{ logout(); }catch(e){}; window.location.href='/login'; return false;">
             <i class="fas fa-sign-out-alt me-1"></i>Logout
           </a>
         </div>
@@ -72,7 +69,7 @@
                   <i class="fas fa-user-plus me-1"></i> Tạo người dùng
                 </a>
                 <!-- login button removed as requested -->
-                <button id="logoutBtn" class="btn btn-sm btn-outline-secondary" onclick="logout()" style="display: none;">Đăng xuất</button>
+                <!-- Logout button removed per request -->
               </div>
             </div>
           </div>
@@ -119,7 +116,7 @@
                 <thead>
                   <tr>
                     <th scope="col" width="5%">
-                      <input class="form-check-input" type="checkbox" id="selectAllUsers">
+                      <!-- selectAllUsers checkbox removed -->
                     </th>
                     <th scope="col" width="30%">Thông tin</th>
                     <th scope="col" width="15%">Vai trò</th>

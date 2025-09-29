@@ -337,7 +337,7 @@ class AdminUserManagement {
                         <button class="btn btn-sm btn-outline-primary view-user-btn" data-user-id="${user._id || user.id}" title="Chi tiết">
                             <i class="fas fa-eye"></i>
                         </button>
-                        <a class="btn btn-sm btn-outline-secondary" href="/admin/users/${user._id || user.id}/edit" title="Chỉnh sửa">
+                        <a class="btn btn-sm" href="/admin/users/${user._id || user.id}/edit" title="Chỉnh sửa">
                             <i class="fas fa-edit"></i>
                         </a>
                     </div>
@@ -1258,7 +1258,7 @@ class AdminUserManagement {
 
                                                                 // Prefer updating by explicit subscription id if provided
                                                                 if (dataSubId) {
-                                                                    const updateRes = await fetch(`/api/alerts/subscriptions/${dataSubId}`, {
+                                                                        const updateRes = await fetch(`/api/alerts/subscriptions/${dataSubId}`, {
                                                                         method: 'PUT',
                                                                         headers: {
                                                                             'Content-Type': 'application/json',
@@ -1266,8 +1266,7 @@ class AdminUserManagement {
                                                                         },
                                                                         body: JSON.stringify({
                                                                             status: enabled ? 'active' : 'paused',
-                                                                            alert_threshold: (subscription && (subscription.threshold || subscription.alert_threshold)) || 100,
-                                                                            metadata: { admin_updated: true }
+                                                                            alert_threshold: (subscription && (subscription.threshold || subscription.alert_threshold)) || 100
                                                                         })
                                                                     });
 
@@ -1304,8 +1303,7 @@ class AdminUserManagement {
                                                                                     },
                                                                                     body: JSON.stringify({
                                                                                         status: enabled ? 'active' : 'paused',
-                                                                                        alert_threshold: (subscription && (subscription.threshold || subscription.alert_threshold)) || 100,
-                                                                                        metadata: { admin_updated: true }
+                                                                                        alert_threshold: (subscription && (subscription.threshold || subscription.alert_threshold)) || 100
                                                                                     })
                                                                                 });
 
@@ -1723,7 +1721,7 @@ class AdminUserManagement {
 
                             <div class="subscription-control text-end ms-3 d-flex align-items-center justify-content-end">
                                 <div class="me-2">
-                                    <button class="btn btn-sm btn-outline-secondary edit-subscription-name" data-sub-id="${sub.subscription_id || sub.id || ''}" data-current-name="${(sub.station_name || '').replace(/"/g, '&quot;')}"><i class="fas fa-edit"></i></button>
+                                    <button class="btn btn-sm edit-subscription-name" data-sub-id="${sub.subscription_id || sub.id || ''}" data-current-name="${(sub.station_name || '').replace(/"/g, '&quot;')}"><i class="fas fa-edit"></i></button>
                                 </div>
                                 <div>
                                     <div class="form-check form-switch">
@@ -1912,22 +1910,36 @@ class AdminUserManagement {
                         }
                     }
 
-                    // Persist to server if subscription id present
+                            // Persist to server if subscription id present. Only persist a
+                    // friendly (non-generic) name — avoid saving generic fallbacks like
+                    // "Station 1583" which would overwrite a better server-side name.
                     if (subId) {
                         try {
-                            const token = this.getAuthToken ? this.getAuthToken() : null;
-                            const headers = { 'Content-Type': 'application/json' };
-                            if (token) headers['Authorization'] = `Bearer ${token}`;
-                            const resp = await fetch(`/api/alerts/subscriptions/${encodeURIComponent(subId)}`, {
-                                method: 'PUT',
-                                headers,
-                                body: JSON.stringify({ station_name: friendly, display_name: friendly, name: friendly })
-                            });
-                            if (!resp.ok) {
-                                const txt = await resp.text();
-                                throw new Error(`HTTP ${resp.status}: ${txt}`);
+                            const isGeneric = (n) => {
+                                if (!n || typeof n !== 'string') return true;
+                                const re = /^\s*(?:TRAM|TRẠM|STATION)(?:[\s\-_/]*)\d+\s*$/i;
+                                return re.test(n.trim());
+                            };
+
+                            // If friendly looks generic, skip persisting names to avoid
+                            // overwriting server-side canonical names.
+                            if (isGeneric(friendly)) {
+                                console.debug('[ADMIN] Friendly name appears generic; skipping persist to avoid overwriting server value:', friendly);
+                            } else {
+                                const token = this.getAuthToken ? this.getAuthToken() : null;
+                                const headers = { 'Content-Type': 'application/json' };
+                                if (token) headers['Authorization'] = `Bearer ${token}`;
+                                const resp = await fetch(`/api/alerts/subscriptions/${encodeURIComponent(subId)}`, {
+                                    method: 'PUT',
+                                    headers,
+                                    body: JSON.stringify({ station_name: friendly, display_name: friendly, name: friendly, metadata: { nickname: friendly } })
+                                });
+                                if (!resp.ok) {
+                                    const txt = await resp.text();
+                                    throw new Error(`HTTP ${resp.status}: ${txt}`);
+                                }
+                                if (typeof this.showToast === 'function') this.showToast('Đã lưu tên trạm', 'success');
                             }
-                            if (typeof this.showToast === 'function') this.showToast('Đã lưu tên trạm', 'success');
                         } catch (e) {
                             console.error('Failed to persist friendly name', e);
                             if (typeof this.showToast === 'function') this.showToast('Không thể lưu tên trạm lên server', 'error');
@@ -2046,20 +2058,30 @@ class AdminUserManagement {
                         if (token) headers['Authorization'] = `Bearer ${token}`;
 
                         // Persist the friendly name on the subscription
-                        const resp = await fetch(`/api/alerts/subscriptions/${encodeURIComponent(dataSubId)}`, {
-                            method: 'PUT',
-                            headers,
-                            body: JSON.stringify({
-                                station_name: stationName,
-                                display_name: stationName,
-                                name: stationName,
-                                metadata: { nickname: stationName }
-                            })
-                        });
+                        const isGeneric = (n) => {
+                            if (!n || typeof n !== 'string') return true;
+                            const re = /^\s*(?:TRAM|TRẠM|STATION)(?:[\s\-_/]*)\d+\s*$/i;
+                            return re.test(n.trim());
+                        };
 
-                        if (!resp.ok) {
-                            console.debug('[ADMIN TOGGLE] failed to persist subscription name', await resp.text());
-                            return;
+                        if (isGeneric(stationName)) {
+                            console.debug('[ADMIN TOGGLE] stationName appears generic; skipping persist for subscription', stationName);
+                        } else {
+                            const resp = await fetch(`/api/alerts/subscriptions/${encodeURIComponent(dataSubId)}`, {
+                                method: 'PUT',
+                                headers,
+                                body: JSON.stringify({
+                                    station_name: stationName,
+                                    display_name: stationName,
+                                    name: stationName,
+                                    metadata: { nickname: stationName }
+                                })
+                            });
+
+                            if (!resp.ok) {
+                                console.debug('[ADMIN TOGGLE] failed to persist subscription name', await resp.text());
+                                return;
+                            }
                         }
 
                         // Re-fetch canonical user locations from admin API so we render

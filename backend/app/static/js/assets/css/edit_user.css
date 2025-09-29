@@ -464,6 +464,26 @@ body:not(.white-content) .col-12.col-lg-8 #editUserRole * {
 .admin-wrapper.light-mode .user-summary { background: linear-gradient(180deg, #ffffff 0%, #f6f9fc 100%); box-shadow: 0 10px 30px rgba(13,110,253,0.06); color:#1b2330; }
 /* Slightly larger summary name and meta text */
 .user-summary #summaryName { font-size: 1.85rem; font-weight: 800; margin-bottom: .25rem; }
+/* Ensure long display names wrap inside the summary card instead of overflowing.
+   Use a combination of word-break and overflow rules to allow wrapping and, on
+   very narrow layouts, clamp to a reasonable number of lines with an ellipsis. */
+.user-summary #summaryName {
+  word-break: break-word;    /* break long words if needed */
+  overflow-wrap: anywhere;   /* allow breaks at arbitrary points if required */
+  white-space: normal;       /* ensure wrapping (wasn't forced to nowrap) */
+  display: -webkit-box;      /* enable line-clamp for webkit-based browsers */
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;     /* max 3 lines on larger screens */
+  overflow: hidden;          /* hide overflow beyond clamp */
+}
+
+@media (max-width: 767px) {
+  /* On small screens allow slightly more room but still clamp to keep cards compact */
+  .user-summary #summaryName {
+    font-size: 1.6rem;
+    -webkit-line-clamp: 4;   /* allow one extra line on mobile */
+  }
+}
 .user-summary #summaryEmail { font-size: 1rem; color: inherit; }
 .user-summary .small, .user-summary .text-muted { font-size: .98rem; }
 

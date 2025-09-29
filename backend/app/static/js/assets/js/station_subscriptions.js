@@ -111,10 +111,13 @@ function createStationCard(s) {
 	const gridCard = document.createElement('div');
 	gridCard.className = 'station-card new';
 	gridCard.style.setProperty('--station-color', getAQIColor(aqiValue));
+	// Compute a stable display name: prefer nickname, then station_name, then location,
+	// and finally a clear fallback including the station id to avoid ambiguous labels.
+	const displayName = s.nickname || s.station_name || s.location || (`Station ${s.station_id}`);
 	gridCard.innerHTML = `
 		<div class="station-header">
 			<div class="station-name-container">
-				<h4 class="station-name">${escapeHtml(s.nickname || s.location || 'Station')}</h4>
+				<h4 class="station-name">${escapeHtml(displayName)}</h4>
 				<div class="station-id">${escapeHtml(String(s.station_id))}</div>
 				<div class="added-date">${formatTimestamp(s.created_at) || ''}</div>
 			</div>
@@ -152,10 +155,11 @@ function createStationCard(s) {
 	// List item (with AQI display)
 	const listItem = document.createElement('div');
 	listItem.className = 'station-card list-item';
+	const listDisplayName = s.nickname || s.station_name || s.location || (`Station ${s.station_id}`);
 	listItem.innerHTML = `
 		<div class="station-header">
 			<div class="station-name-container">
-				<h4 class="station-name">${escapeHtml(s.nickname || s.station_name || s.location || 'Station')}</h4>
+				<h4 class="station-name">${escapeHtml(listDisplayName)}</h4>
 				<div class="station-id">${escapeHtml(String(s.station_id))}</div>
 				<div class="added-date">${formatTimestamp(s.created_at) || ''}</div>
 			</div>
@@ -258,22 +262,21 @@ async function toggleAlert(el, stationId, subscriptionId) {
 		const isActive = button.classList.contains('active');
 		const newState = !isActive;
 
-		// Update UI immediately
+		// Update UI immediately (only update explicit alert label elements)
 		button.classList.toggle('active', newState);
-		// Update any matching labels; keep previous texts to allow revert on failure
-		const labelEls = Array.from(document.querySelectorAll(`[data-subscription-id="${subscriptionId}"]`));
+		// Only target the alert label elements so we don't accidentally overwrite other
+		// parts of the card that may also carry `data-subscription-id` (e.g. sliders,
+		// threshold displays, or other injected content). This avoids replacing the
+		// station name with a generic fallback like "Station 1583".
+		const labelSelector = [
+			`.alert-label small[data-subscription-id="${subscriptionId}"]`,
+			`.alert-label-small[data-subscription-id="${subscriptionId}"]`
+		].join(',');
+		const labelEls = Array.from(document.querySelectorAll(labelSelector));
 		const prevLabelStates = labelEls.map(l => ({ el: l, text: l.textContent }));
 		labelEls.forEach(l => {
-			// Some labels are small elements; change their text content
-			if (l.tagName === 'SMALL' || l.classList.contains('alert-label-small')) {
-				l.textContent = newState ? 'On' : 'Off';
-			} else if (l.classList.contains('alert-label')) {
-				// inner structure: 'Alerts <small>On/Off'
-				const small = l.querySelector('small');
-				if (small) small.textContent = newState ? 'On' : 'Off';
-			} else if (l.classList.contains('alert-label-small')) {
-				l.textContent = newState ? 'On' : 'Off';
-			}
+			// These elements are the explicit text holders for the alert state.
+			l.textContent = newState ? 'On' : 'Off';
 		});
 
 		// Send update to server
