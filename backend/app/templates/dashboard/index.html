@@ -1611,9 +1611,10 @@
     const ctx = canvasEl.getContext('2d');
 
     // fetch history from API
+    const fetchHours = hours === 12 ? 24 : Math.max(hours, 12);
     let measurements = [];
     try {
-      const resp = await fetchJSON(`/api/aq/history?station_id=${encodeURIComponent(stationId)}&hours=${encodeURIComponent(hours)}`);
+      const resp = await fetchJSON(`/api/aq/history?station_id=${encodeURIComponent(stationId)}&hours=${encodeURIComponent(fetchHours)}`);
       if (resp && Array.isArray(resp.measurements)) {
         measurements = resp.measurements;
       }
@@ -1621,23 +1622,60 @@
       measurements = [];
     }
 
-    // Build labels and AQI series
-    const labels = measurements.map(m => {
+    // Build 12-hour window labels and AQI series aligned to current half-day
+    const now = new Date();
+    const rawHour = now.getHours();
+    const slotCount = Math.max(1, hours);
+    const isAfternoon = rawHour >= 13;
+    const rangeStart = isAfternoon ? 13 : 1;
+    const hourSlots = Array.from({ length: slotCount }, (_, idx) => {
+      const slot = rangeStart + idx;
+      return ((slot - 1) % 24) + 1;
+    });
+
+    const rangeStartDate = new Date(now);
+    rangeStartDate.setMinutes(0, 0, 0);
+    rangeStartDate.setHours(isAfternoon ? 13 : 1, 0, 0, 0);
+    const rangeEndDate = new Date(rangeStartDate);
+    rangeEndDate.setHours(rangeEndDate.getHours() + slotCount);
+
+    const latestByHour = new Map();
+    for (const m of measurements) {
       const d = new Date(m.timestamp);
-      if (isNaN(d.getTime())) return String(m.timestamp);
-      const hh = String(d.getHours()).padStart(2, '0');
-      const mi = String(d.getMinutes()).padStart(2, '0');
-      return `${hh}:${mi}`;
-    });
-    const aqiData = measurements.map(m => {
-      const aqi = m.aqi ?? 0;
-      return (aqi === null || aqi === undefined || isNaN(aqi)) ? 0 : Number(aqi);
-    });
+      if (isNaN(d.getTime())) continue;
+      if (d < rangeStartDate || d >= rangeEndDate) continue;
+      let hour = d.getHours();
+      if (hour === 0) hour = 24;
+      const existing = latestByHour.get(hour);
+      if (!existing) {
+        latestByHour.set(hour, m);
+        continue;
+      }
+      const existingTime = new Date(existing.timestamp);
+      if (!isNaN(existingTime.getTime()) && existingTime < d) {
+        latestByHour.set(hour, m);
+      }
+    }
+
+    const labels = [];
+    const aqiData = [];
+    for (const slot of hourSlots) {
+      const labelHour = slot === 24 ? '24' : String(slot).padStart(2, '0');
+      labels.push(`${labelHour}:00`);
+      const measurement = latestByHour.get(slot);
+      if (measurement && measurement.aqi !== null && measurement.aqi !== undefined && !Number.isNaN(Number(measurement.aqi))) {
+        const value = Number(measurement.aqi);
+        aqiData.push(value < 0 ? 0 : value);
+      } else {
+        aqiData.push(null);
+      }
+    }
 
     console.log('DEBUG: aqiData =', aqiData); // Debug log
 
     // Color per bar
     const barColors = aqiData.map(v => {
+      if (typeof v !== 'number' || Number.isNaN(v)) return 'rgba(0,0,0,0.2)';
       if (v <= 50) return '#00e676';
       if (v <= 100) return '#ffd54f';
       if (v <= 150) return '#ff9800';
@@ -1648,7 +1686,8 @@
 
     if (aqiChart) aqiChart.destroy();
 
-    const avg = aqiData.length ? Math.round(aqiData.reduce((s,v) => s+v, 0) / aqiData.length) : 0;
+    const numericValues = aqiData.filter(v => typeof v === 'number' && !Number.isNaN(v));
+    const avg = numericValues.length ? Math.round(numericValues.reduce((s, v) => s + v, 0) / numericValues.length) : 0;
     const statusObj = getAQIStatus(avg);
     const summaryEl = document.getElementById('aqiTrendSummary');
     if (summaryEl) {
@@ -1662,7 +1701,7 @@
     const isDark = !document.body.classList.contains('white-content');
     
     // Force chart max để tránh auto-scale
-    const validValues = aqiData.filter(v => v > 0);
+    const validValues = aqiData.filter(v => typeof v === 'number' && !Number.isNaN(v) && v > 0);
     const maxValue = validValues.length ? Math.max(...validValues) : 50;
     const chartMax = Math.max(100, Math.ceil(maxValue / 25) * 25); // Round to nearest 25
     
@@ -1671,9 +1710,10 @@
     const forceAqiData = [...aqiData];
     const forceColors = [...barColors];
     
-    // Chỉ thêm điểm ẩn nếu không có giá trị 0 trong data
-    if (forceAqiData.length === 0 || Math.min(...forceAqiData) > 0) {
-      forceLabels.push(''); // Empty label ở cuối
+    // Add an invisible zero bar if no existing values touch the baseline
+    const hasZeroOrBelow = forceAqiData.some(v => typeof v === 'number' && !Number.isNaN(v) && v <= 0);
+    if (!hasZeroOrBelow) {
+      forceLabels.push(''); // Empty label at the end
       forceAqiData.push(0);
       forceColors.push('rgba(0,0,0,0)'); // Transparent
     }
