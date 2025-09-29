@@ -41,9 +41,6 @@
           <a class="nav-link text-white" href="/">
             <i class="fas fa-home me-1"></i>Dashboard
           </a>
-          <a class="nav-link text-white" href="/admin">
-            <i class="fas fa-users me-1"></i>Admin
-          </a>
           <a id="navLogout" class="nav-link text-white" href="/login" onclick="try{ logout(); }catch(e){}; window.location.href='/login'; return false;">
             <i class="fas fa-sign-out-alt me-1"></i>Logout
           </a>
@@ -80,7 +77,7 @@
           <div class="row g-3 align-items-end">
             <div class="col-md-4">
               <label for="userSearch" class="form-label text-white-50">Tìm kiếm người dùng</label>
-              <input type="text" class="form-control" id="userSearch" placeholder="Tên, email hoặc ID...">
+              <input type="text" class="form-control" id="userSearch" placeholder="Vui lòng nhập tên hiển thị">
             </div>
             <!-- Removed status and sort controls to simplify search header -->
             <div class="col-md-2">

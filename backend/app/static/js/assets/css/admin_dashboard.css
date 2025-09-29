@@ -1160,8 +1160,20 @@ body.white-content .admin-wrapper.light-mode .admin-header .text-white-50.me-3,
     z-index: 1050 !important;
     box-shadow: none !important;
     filter: none !important;
-    margin-top: -5px !important;
+    margin-top: -5px !important; /* Adjusted margin for better alignment */
 }
+
+/* Nudge modal close button slightly upward so it sits comfortably within the modal-header */
+.modal .btn-close {
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem; /* slightly higher than default to sit inside header */
+    transform: translateY(0);
+    transition: top 120ms ease, opacity 120ms ease;
+    z-index: 1051; /* above header content but below modal backdrop ordering */
+}
+
+.modal .modal-header { position: relative; padding-right: 3rem; }
 
 .btn-close:hover {
     background: rgba(255, 255, 255, 0.1) !important;
@@ -1628,4 +1640,17 @@ body.white-content .admin-wrapper.light-mode .admin-header .text-white-50.me-3,
 #themeIcon:hover {
     transform: scale(1.1);
     color: #667eea;
+}
+
+/* ------------------------------ */
+/* Overrides to override black-dashboard.min.css specifics */
+/* ------------------------------ */
+/* Override black-dashboard modal close button placement to avoid conflicts */
+.modal-content .modal-header button {
+    position: absolute !important;
+    right: 25px !important;
+    top: 26px !important;
+    outline: 0 !important;
+    padding: 1rem !important;
+    margin: -1rem -1rem -1rem auto !important;
 }

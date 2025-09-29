@@ -176,14 +176,7 @@ class AdminUserManagement {
             }
         });
 
-        // Role change
-        document.addEventListener('change', (e) => {
-            if (e.target.classList.contains('role-select')) {
-                const userId = e.target.dataset.userId;
-                const newRole = e.target.value;
-                this.changeUserRole(userId, newRole);
-            }
-        });
+        // Note: role is displayed as non-editable "Người dùng" in the table (admins cannot be created from this panel)
 
         // Pagination
         document.addEventListener('click', (e) => {
@@ -224,7 +217,11 @@ class AdminUserManagement {
             });
             
             if (searchTerm) {
+                // Prefer searching by display/name only from the admin UI. Keep generic 'search' for
+                // backwards compatibility but also include 'display_name' so server-side handlers
+                // can prioritize name-only matching when available.
                 params.append('search', searchTerm);
+                params.append('display_name', searchTerm);
             }
             
             if (statusFilter === 'active') {
@@ -314,9 +311,7 @@ class AdminUserManagement {
                     ${this.renderUserHeading(user)}
                 </td>
                 <td>
-                    <select class="form-select form-select-sm role-select" data-user-id="${user._id || user.id}">
-                        <option value="user" ${user.role === 'user' ? 'selected' : ''}>User</option>
-                    </select>
+                    <div class="form-control-plaintext">Người dùng</div>
                 </td>
                 <td>
                     <div class="form-check form-switch">
@@ -2234,11 +2229,12 @@ class AdminUserManagement {
             
             // Apply filters to export data
             if (searchTerm) {
-                exportUsers = exportUsers.filter(user => 
-                    user.username.toLowerCase().includes(searchTerm) ||
-                    user.email.toLowerCase().includes(searchTerm) ||
-                    user.fullname.toLowerCase().includes(searchTerm)
-                );
+                // Only filter by display name (fullname/name). Do not include email/ID in
+                // client-side export filtering per admin request.
+                exportUsers = exportUsers.filter(user => {
+                    const name = (user.fullname || user.name || '').toString().toLowerCase();
+                    return name.includes(searchTerm);
+                });
             }
             
             if (statusFilter === 'active') {

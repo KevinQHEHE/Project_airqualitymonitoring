@@ -58,18 +58,24 @@
                       <input type="email" id="email" name="email" class="form-control" placeholder="email@example.com" required>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="mb-3 position-relative">
                       <label for="password" class="form-label">Mật khẩu</label>
-                      <input type="password" id="password" name="password" class="form-control" placeholder="Mật khẩu (ít nhất 8 ký tự)" required>
+                      <div class="input-group">
+                        <input type="password" id="password" name="password" class="form-control password-with-toggle" placeholder="Mật khẩu (ít nhất 8 ký tự)" required>
+                        <!-- Inline toggle placed visually inside the input; size controlled by CSS -->
+                        <button class="btn btn-outline-secondary password-toggle-btn" type="button" id="togglePassword" aria-pressed="false" title="Hiển thị mật khẩu">
+                          <!-- Start with closed-eye (hidden) state: fa-eye-slash = hidden -->
+                          <i class="fas fa-eye-slash" id="togglePasswordIcon" aria-hidden="true"></i>
+                        </button>
+                      </div>
                     </div>
 
                     <div class="row g-3">
                       <div class="col-md-6">
                         <label for="role" class="form-label">Vai trò</label>
-                        <select id="role" name="role" class="form-select">
-                          <option value="user" selected>Người dùng</option>
-                          <option value="admin">Quản trị viên</option>
-                        </select>
+                          <!-- Restricted: Admin creation disabled in this form -->
+                          <input type="hidden" id="role" name="role" value="user">
+                          <div class="form-control-plaintext text-white-50">Người dùng</div>
                       </div>
                       <div class="col-md-6 d-flex align-items-center">
                         <label for="status" class="form-label me-3 mb-0">Trạng thái</label>

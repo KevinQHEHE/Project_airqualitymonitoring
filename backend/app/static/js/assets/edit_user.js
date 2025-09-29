@@ -22,8 +22,12 @@
       body: JSON.stringify(payload)
     });
     if (!res.ok) {
-      const err = await res.json().catch(()=>({message:res.statusText}));
-      throw new Error(err.message || 'Lỗi cập nhật');
+      // parse body if possible and attach it + status to the thrown Error
+      const body = await res.json().catch(()=>({ message: res.statusText }));
+      const error = new Error(body && body.message ? body.message : res.statusText || 'Lỗi cập nhật');
+      error.body = body;
+      error.status = res.status;
+      throw error;
     }
     return await res.json();
   }
@@ -87,7 +91,13 @@
       const nameVal = user.username || user.name || user.email || '';
       document.getElementById('editUserName').value = nameVal;
       document.getElementById('editUserEmail').value = user.email || '';
-      document.getElementById('editUserRole').value = user.role || 'user';
+      // Show localized role labels in the UI (do not change underlying role value)
+      const ROLE_LABELS = {
+        user: 'Người dùng',
+        admin: 'Quản trị viên'
+      };
+      const roleLabel = ROLE_LABELS[user.role] || (user.role || 'Người dùng');
+      document.getElementById('editUserRole').value = roleLabel;
       document.getElementById('editUserStatus').value = (user.status === 'inactive' || user.isActive === false) ? 'inactive' : 'active';
       if (displayUserId) displayUserId.textContent = user.id || user._id || userId;
 
@@ -95,7 +105,7 @@
       if (summaryName) summaryName.textContent = nameVal || '—';
       if (summaryEmail) summaryEmail.textContent = user.email || '—';
       if (roleBadge) {
-        roleBadge.textContent = (user.role || 'user').toUpperCase();
+        roleBadge.textContent = ROLE_LABELS[user.role] || (user.role ? user.role.toString() : 'Người dùng');
         roleBadge.className = 'badge badge-role ' + (user.role === 'admin' ? 'bg-danger' : 'bg-secondary');
       }
       if (createdAtEl) createdAtEl.textContent = user.createdAt || '—';
@@ -118,6 +128,49 @@
     if (saveBtn) {
       saveBtn.addEventListener('click', async function(){
        try {
+        // Clear previous field errors
+        function clearFieldErrors() {
+          try {
+            const nF = document.getElementById('editUserNameFeedback');
+            const eF = document.getElementById('editUserEmailFeedback');
+            const nInput = document.getElementById('editUserName');
+            const eInput = document.getElementById('editUserEmail');
+            if (nF) { nF.style.display = 'none'; nF.textContent = ''; }
+            if (eF) { eF.style.display = 'none'; eF.textContent = ''; }
+            if (nInput) nInput.classList.remove('is-invalid');
+            if (eInput) eInput.classList.remove('is-invalid');
+          } catch (e) { /* noop */ }
+        }
+
+        function showFieldError(fieldId, message) {
+          try {
+            const fb = document.getElementById(fieldId + 'Feedback');
+            const input = document.getElementById(fieldId);
+            if (fb) {
+              fb.textContent = message;
+              fb.style.display = 'block';
+            }
+            if (input) input.classList.add('is-invalid');
+          } catch (e) { /* noop */ }
+        }
+
+        function validateFormData(name, email) {
+          const errors = {};
+          if (!name || String(name).trim().length === 0) {
+            errors.name = 'Tên hiển thị không được để trống.';
+          } else if (String(name).trim().length < 3) {
+            errors.name = 'Tên hiển thị phải ít nhất 3 ký tự.';
+          }
+          if (!email || String(email).trim().length === 0) {
+            errors.email = 'Email không được để trống.';
+          } else {
+            const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!re.test(String(email).toLowerCase())) {
+              errors.email = 'Email không đúng định dạng.';
+            }
+          }
+          return errors;
+        }
         const token = localStorage.getItem('access_token') || '';
         if (!token) {
           if (formAlert) {
@@ -132,12 +185,83 @@
         }
         showSaving(true);
         if (formAlert) { formAlert.style.display = 'none'; }
+        clearFieldErrors();
+        const nameVal = document.getElementById('editUserName').value.trim();
+        const emailVal = document.getElementById('editUserEmail').value.trim();
+        const clientErrors = validateFormData(nameVal, emailVal);
+        if (clientErrors.name) showFieldError('editUserName', clientErrors.name);
+        if (clientErrors.email) showFieldError('editUserEmail', clientErrors.email);
+        if (Object.keys(clientErrors).length > 0) {
+          showSaving(false);
+          return;
+        }
+
         const payload = {
-          username: document.getElementById('editUserName').value.trim(),
-          email: document.getElementById('editUserEmail').value.trim(),
+          username: nameVal,
+          email: emailVal,
           status: document.getElementById('editUserStatus').value
         };
-        await saveUser(userId, payload);
+
+        try {
+          await saveUser(userId, payload);
+        } catch (apiErr) {
+          // Prefer structured body errors when available (set in saveUser)
+          const body = apiErr && apiErr.body ? apiErr.body : null;
+          const status = apiErr && apiErr.status ? apiErr.status : null;
+          let handled = false;
+
+          // If the API provided an errors object: map field keys to feedback
+          if (body && typeof body === 'object') {
+            // Example: { errors: { username: '...', email: '...' } }
+            if (body.errors && typeof body.errors === 'object') {
+              if (body.errors.username) { showFieldError('editUserName', body.errors.username); handled = true; }
+              if (body.errors.name) { showFieldError('editUserName', body.errors.name); handled = true; }
+              if (body.errors.email) { showFieldError('editUserEmail', body.errors.email); handled = true; }
+            }
+
+            // Mongo-like duplicate info: { keyValue: { username: 'trinh16' } }
+            if (!handled && body.keyValue && typeof body.keyValue === 'object') {
+              if (body.keyValue.username) { showFieldError('editUserName', 'Tên này đã tồn tại trong hệ thống.'); handled = true; }
+              if (body.keyValue.email) { showFieldError('editUserEmail', 'Email này đã được sử dụng.'); handled = true; }
+            }
+
+            // Some APIs return { message: '...' } with hint text
+            if (!handled && body.message && /E11000|duplicate|unique|409|Conflict/i.test(body.message)) {
+              if (/username|user|login|name/i.test(body.message)) { showFieldError('editUserName', 'Tên này đã tồn tại trong hệ thống.'); handled = true; }
+              if (/email/i.test(body.message)) { showFieldError('editUserEmail', 'Email này đã được sử dụng.'); handled = true; }
+            }
+          }
+
+          // Fallbacks based on status or message when structured body wasn't helpful
+          if (!handled) {
+            const msg = apiErr && apiErr.message ? apiErr.message : String(apiErr);
+            if (status === 409 || /E11000|duplicate|unique|409|Conflict/i.test(msg)) {
+              // generic conflict - try both
+              showFieldError('editUserName', 'Tên này đã tồn tại trong hệ thống.');
+              showFieldError('editUserEmail', 'Email này đã được sử dụng.');
+              handled = true;
+            }
+            if (!handled && /password|weak[_\- ]?password/i.test(msg)) {
+              if (formAlert) {
+                formAlert.classList.remove('alert-success');
+                formAlert.classList.add('alert-danger');
+                formAlert.style.display = 'block';
+                formAlert.textContent = 'Mật khẩu còn yếu, vui lòng nhập lại mật khẩu.';
+              }
+              handled = true;
+            }
+            if (!handled) {
+              if (formAlert) {
+                formAlert.classList.remove('alert-success');
+                formAlert.classList.add('alert-danger');
+                formAlert.style.display = 'block';
+                formAlert.textContent = 'Lỗi lưu: ' + msg;
+              }
+            }
+          }
+          showSaving(false);
+          return;
+        }
         // show a small success state then navigate
         if (formAlert) {
           formAlert.classList.remove('alert-danger');

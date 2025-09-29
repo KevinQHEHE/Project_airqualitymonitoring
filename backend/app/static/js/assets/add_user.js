@@ -42,15 +42,32 @@
 
   function validateForm(data) {
     const errors = [];
-    if (!data.username || data.username.trim().length < 3) {
+
+    // Username
+    if (!data.username || data.username.trim() === '') {
+      errors.push('Vui lòng nhập tên đăng nhập.');
+    } else if (data.username.trim().length < 3) {
       errors.push('Tên đăng nhập phải có ít nhất 3 ký tự.');
     }
-    if (!data.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(data.email)) {
-      errors.push('Email không hợp lệ.');
+
+    // Email
+    if (!data.email || data.email.trim() === '') {
+      errors.push('Vui lòng nhập email.');
+    } else {
+      const email = data.email.trim();
+      // Basic validation - require an @ and a domain part
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        errors.push('Email không hợp lệ. Vui lòng nhập email hợp lệ (ví dụ: user@gmail.com).');
+      }
     }
-    if (!data.password || data.password.length < 8) {
+
+    // Password
+    if (!data.password || data.password === '') {
+      errors.push('Vui lòng nhập mật khẩu.');
+    } else if (data.password.length < 8) {
       errors.push('Mật khẩu phải có ít nhất 8 ký tự.');
     }
+
     return errors;
   }
 
@@ -65,7 +82,8 @@
       username: document.getElementById('username').value.trim(),
       email: document.getElementById('email').value.trim(),
       password: document.getElementById('password').value,
-      role: document.getElementById('role').value,
+      // Force role to 'user' to prevent creation of admin accounts from this form.
+      role: 'user',
       status: document.getElementById('status').value
     };
 
@@ -97,11 +115,43 @@
       }
 
       // Try parse error response
+      // Default message
       let errText = 'Có lỗi khi tạo người dùng.';
       try {
         const errJson = await res.json();
-        if (errJson && errJson.error) errText = errJson.error;
-        else if (errJson && errJson.message) errText = errJson.message;
+        // Server might return structured field errors
+        if (errJson) {
+          // If backend returns { errors: { field: 'msg' } }
+          if (errJson.errors && typeof errJson.errors === 'object') {
+            const fieldMsgs = [];
+            for (const k of Object.keys(errJson.errors)) {
+              fieldMsgs.push(errJson.errors[k]);
+            }
+            errText = fieldMsgs.join(' ');
+          } else if (errJson.error) {
+            errText = errJson.error;
+          } else if (errJson.message) {
+            errText = errJson.message;
+          } else if (typeof errJson === 'string') {
+            errText = errJson;
+          }
+
+          // Common Mongo duplicate key or backend message heuristics
+          if (/duplicate|unique|E11000/i.test(JSON.stringify(errJson))) {
+            if (/username/i.test(JSON.stringify(errJson))) {
+              errText = 'Trùng tên đăng nhập. Vui lòng chọn tên khác.';
+            } else if (/email/i.test(JSON.stringify(errJson))) {
+              errText = 'Trùng email. Vui lòng sử dụng email khác.';
+            } else {
+              errText = 'Dữ liệu trùng lặp. Vui lòng kiểm tra các trường nhập.';
+            }
+          }
+
+          // Weak password heuristic: map common server messages to friendly text
+          if (/weak[_\- ]?password|password[_\s]?too[_\s]?weak|weak password/i.test(JSON.stringify(errJson)) ) {
+            errText = 'Mật khẩu còn yếu, vui lòng nhập lại mật khẩu với độ mạnh cao hơn.';
+          }
+        }
       } catch (parseErr) {
         errText = `${res.status} ${res.statusText}`;
       }
@@ -110,6 +160,14 @@
         showAlert('error', 'Không có quyền. Hãy đăng nhập lại.');
         // optional: redirect to login after short delay
         setTimeout(() => { window.location.href = '/admin/login'; }, 1000);
+      } else if (res.status === 409) {
+        // Conflict: give a clear username-specific message when possible
+        const uname = payload && payload.username ? payload.username : '';
+        if (uname) {
+          showAlert('error', `Tên đăng nhập "${uname}" đã tồn tại. Vui lòng chọn tên khác.`);
+        } else {
+          showAlert('error', 'Dữ liệu trùng lặp (Conflict). Vui lòng kiểm tra các trường nhập.');
+        }
       } else {
         showAlert('error', errText);
       }
@@ -125,6 +183,41 @@
   document.addEventListener('DOMContentLoaded', function () {
     const form = document.getElementById('addUserForm');
     if (form) form.addEventListener('submit', submitForm);
+
+    // Password visibility toggle (inverted logic):
+    // - default: hidden (input.type === 'password') -> icon = fa-eye-slash
+    // - visible: input.type === 'text' -> icon = fa-eye
+    try {
+      const toggleBtn = document.getElementById('togglePassword');
+      const pwdInput = document.getElementById('password');
+      const icon = document.getElementById('togglePasswordIcon');
+      if (toggleBtn && pwdInput && icon) {
+        // initialize attributes to match the DOM (closed-eye = hidden)
+        toggleBtn.setAttribute('aria-pressed', 'false');
+        toggleBtn.title = 'Hiển thị mật khẩu';
+
+        toggleBtn.addEventListener('click', function () {
+          const isCurrentlyHidden = pwdInput.type === 'password';
+          if (isCurrentlyHidden) {
+            // show
+            pwdInput.type = 'text';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+            toggleBtn.setAttribute('aria-pressed', 'true');
+            toggleBtn.title = 'Ẩn mật khẩu';
+          } else {
+            // hide
+            pwdInput.type = 'password';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+            toggleBtn.setAttribute('aria-pressed', 'false');
+            toggleBtn.title = 'Hiển thị mật khẩu';
+          }
+        });
+      }
+    } catch (e) {
+      console.error('Password toggle init error', e);
+    }
   });
 
 })();

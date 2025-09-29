@@ -141,6 +141,53 @@
   box-shadow: 0 6px 18px rgba(2,6,23,0.12);
 }
 
+/* Password toggle: small inline button inside the input */
+.password-with-toggle { padding-right: 3.2rem; /* room for the inline button */ }
+.password-toggle-btn {
+  position: absolute;
+  right: 0.75rem; /* inside input area */
+  top: 50%;
+  transform: translateY(-50%);
+  height: 1.9rem;
+  min-width: 1.9rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+
+/* Make the inline toggle visually lighter in dark mode */
+.add-user-card .password-toggle-btn {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.9);
+}
+
+.admin-wrapper.light-mode .password-toggle-btn {
+  background: transparent;
+  border: 1px solid #dfe6f3;
+  color: #1b2330;
+}
+
+/* Reduce focus outline for the small inline control */
+.password-toggle-btn:focus { box-shadow: 0 0 0 3px rgba(64,97,246,0.12); outline: none; }
+
+/* Ensure the inline toggle does not translate/move on hover like other outline-secondary buttons */
+.password-toggle-btn,
+.password-toggle-btn:hover,
+.password-toggle-btn:focus {
+  transform: translateY(-50%) !important; /* keep vertically centered */
+  box-shadow: none !important; /* avoid jumpy shadows */
+}
+
+/* Subtle hover background change without movement */
+.password-toggle-btn:hover {
+  background: rgba(255,255,255,0.07);
+}
+
 /* Make sure hover doesn't overlay text in light-mode - explicit color and bg */
 .admin-wrapper.light-mode .add-user-card .btn-outline-secondary {
   /* Light mode: filled-but-subtle secondary button with stable dark text */
