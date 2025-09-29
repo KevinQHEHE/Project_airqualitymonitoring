@@ -1,0 +1,86 @@
+{
+  "export_time": "2025-09-09",
+  "total_vn_stations": 64,
+  "major_cities": [
+    {
+      "city": "Hanoi",
+      "station_id": 1583,
+      "station_name": "Hanoi, Vietnam (Hà Nội)",
+      "aqi": 49,
+      "coordinates": [
+        21.0491,
+        105.8831
+      ],
+      "timezone": "+07:00"
+    },
+    {
+      "city": "Ho Chi Minh City",
+      "station_id": 8767,
+      "station_name": "Ho Chi Minh City US Consulate, Vietnam (Lãnh sự quán Hoa Kỳ, Hồ Chí Minh)",
+      "aqi": "-",
+      "coordinates": [
+        10.782978,
+        106.700711
+      ],
+      "timezone": "+07:00"
+    },
+    {
+      "city": "Da Nang",
+      "station_id": 1584,
+      "station_name": "Da Nang, Vietnam (TP Đà Nẵng)",
+      "aqi": 7,
+      "coordinates": [
+        16.074,
+        108.217
+      ],
+      "timezone": "+07:00"
+    }
+  ],
+  "sample_stations": [
+    {
+      "id": 12975,
+      "name": "Bắc Ninh/Binh Dinh, Vietnam",
+      "coordinates": [
+        21.0353984,
+        106.1025755
+      ],
+      "country": "VN"
+    },
+    {
+      "id": 12976,
+      "name": "Bắc Ninh/Châu Khê, Vietnam",
+      "coordinates": [
+        21.1137452,
+        105.9268934
+      ],
+      "country": "VN"
+    },
+    {
+      "id": 12956,
+      "name": "Bắc Ninh/KCN QUẾ VÕ 1, Vietnam",
+      "coordinates": [
+        21.1527453,
+        106.111371
+      ],
+      "country": "VN"
+    },
+    {
+      "id": 13414,
+      "name": "Bắc Ninh/KCN Tiên Sơn, Vietnam",
+      "coordinates": [
+        21.1194449,
+        105.9896021
+      ],
+      "country": "VN"
+    },
+    {
+      "id": 12961,
+      "name": "Bắc Ninh/TT Quan trắc - phường Suối Hoa - TP Bắc Ninh, Vietnam",
+      "coordinates": [
+        21.1873402,
+        106.0742958
+      ],
+      "country": "VN"
+    }
+  ]
+}
