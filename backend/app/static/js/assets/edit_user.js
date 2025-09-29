@@ -234,13 +234,58 @@
 
           // Fallbacks based on status or message when structured body wasn't helpful
           if (!handled) {
-            const msg = apiErr && apiErr.message ? apiErr.message : String(apiErr);
-            if (status === 409 || /E11000|duplicate|unique|409|Conflict/i.test(msg)) {
-              // generic conflict - try both
-              showFieldError('editUserName', 'Tên này đã tồn tại trong hệ thống.');
-              showFieldError('editUserEmail', 'Email này đã được sử dụng.');
+            // Prefer body.message when available (some APIs attach detailed message there)
+            const msg = (body && body.message) ? body.message : (apiErr && apiErr.message ? apiErr.message : String(apiErr));
+            const lowered = (msg || '').toLowerCase();
+
+            // Detect conflict/duplicate errors but try to attribute to a single field when possible
+            if (status === 409 || /e11000|duplicate|unique|409|conflict/i.test(msg)) {
+              let flagged = false;
+
+              // If message mentions email, mark email only
+              if (/email/i.test(lowered)) {
+                showFieldError('editUserEmail', 'Email này đã được sử dụng.');
+                flagged = true;
+              }
+
+              // If message mentions username/name/login, mark name only
+              if (/(username|user|login|name)/i.test(msg) && /username|user|login|name/.test(lowered)) {
+                showFieldError('editUserName', 'Tên này đã tồn tại trong hệ thống.');
+                flagged = true;
+              }
+
+              // Try to parse index/key name (e.g. "index: email_1") from message
+              if (!flagged) {
+                const idxMatch = String(msg).match(/index:\s*([^\s,]+)/i) || String(msg).match(/dup key.*index:\s*([^\s,]+)/i);
+                if (idxMatch && idxMatch[1]) {
+                  const idx = idxMatch[1].toLowerCase();
+                  if (/email/.test(idx)) {
+                    showFieldError('editUserEmail', 'Email này đã được sử dụng.');
+                    flagged = true;
+                  }
+                  if (/(username|user|name)/.test(idx)) {
+                    showFieldError('editUserName', 'Tên này đã tồn tại trong hệ thống.');
+                    flagged = true;
+                  }
+                }
+              }
+
+              // If we still couldn't determine which field, show a generic form-level message
+              if (!flagged) {
+                if (formAlert) {
+                  formAlert.classList.remove('alert-success');
+                  formAlert.classList.add('alert-danger');
+                  formAlert.style.display = 'block';
+                  formAlert.textContent = 'Xung đột dữ liệu: tên đăng nhập hoặc email có thể đã tồn tại.';
+                } else {
+                  // As a last resort, set a less intrusive field hint on name only
+                  showFieldError('editUserName', 'Tên hoặc email đã tồn tại. Vui lòng kiểm tra.');
+                }
+              }
+
               handled = true;
             }
+
             if (!handled && /password|weak[_\- ]?password/i.test(msg)) {
               if (formAlert) {
                 formAlert.classList.remove('alert-success');
@@ -250,6 +295,7 @@
               }
               handled = true;
             }
+
             if (!handled) {
               if (formAlert) {
                 formAlert.classList.remove('alert-success');
