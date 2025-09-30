@@ -24,11 +24,25 @@ logger = logging.getLogger(__name__)
 forecasts_bp = Blueprint('forecasts', __name__)
 
 
+def _is_signed_int(s: str) -> bool:
+	try:
+		if s is None:
+			return False
+		int(s)
+		return True
+	except Exception:
+		return False
+
+
 def _parse_station_match(station_id: Optional[str]) -> Dict[str, Any]:
-	"""Return a match expression for either numeric or string station_id."""
+	"""Return a match expression for either numeric or string station_id.
+
+	Handles signed integers (negative indices) by attempting int() conversion
+	rather than using str.isdigit() which rejects a leading '-'.
+	"""
 	if not station_id:
 		return {}
-	if station_id.isdigit():
+	if _is_signed_int(station_id):
 		return {'$or': [{'station_id': station_id}, {'meta.station_idx': int(station_id)}]}
 	return {'station_id': station_id}
 

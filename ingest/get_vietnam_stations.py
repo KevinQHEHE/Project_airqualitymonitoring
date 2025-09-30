@@ -15,7 +15,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
-from urllib.parse import urlparse, unquote
+import argparse
+from urllib.parse import urlparse, unquote, parse_qs
 
 try:
     import requests
@@ -98,22 +99,32 @@ class WAQIStationFetcher:
         try:
             # Parse URL path and decode URL-encoded characters
             parsed = urlparse(url)
-            path_parts = [unquote(part) for part in parsed.path.split('/') if part]
-            
+            path = unquote(parsed.path or '')
+
+            # Common feed pattern: /feed/@<id>/ or /feed/<id>/
+            m = re.search(r'/feed/@?([^/]+)/?', path)
+            if m:
+                return m.group(1).lstrip('@')
+
+            # Fallback: split path parts and handle /city/ and /station/
+            path_parts = [p for p in path.split('/') if p]
+
             # Handle /city/ URLs
             if 'city' in path_parts:
                 city_index = path_parts.index('city')
                 location_parts = path_parts[city_index + 1:]
                 station_id = '/'.join(location_parts)
-                return station_id
-            
-            # Handle /station/ URLs  
-            elif 'station' in path_parts:
+                # Normalize: remove any leading '@' if present
+                return station_id.lstrip('@')
+
+            # Handle /station/ URLs
+            if 'station' in path_parts:
                 station_index = path_parts.index('station')
                 if station_index + 1 < len(path_parts):
                     # For station URLs, use the part after 'station'
                     station_id = path_parts[station_index + 1]
-                    return station_id
+                    # Normalize: strip leading '@' and any trailing slashes
+                    return station_id.lstrip('@').strip('/')
             
             logger.warning(f"URL pattern not recognized: {url}")
             return None
@@ -122,7 +133,7 @@ class WAQIStationFetcher:
             logger.warning(f"Failed to extract station ID from URL {url}: {e}")
             return None
 
-    def fetch_station_data(self, station_id: str) -> Optional[Dict]:
+    def fetch_station_data(self, station_id: str, token: Optional[str] = None) -> Optional[Dict]:
         """
         Fetch station data from WAQI API.
         
@@ -133,9 +144,12 @@ class WAQIStationFetcher:
             Station data or None if fetch failed
         """
         try:
-            # Construct API URL for station feed
-            api_url = f"{self.api_url.rstrip('/')}/feed/{station_id}/"
-            params = {'token': self.api_key}
+            # Normalize station id and construct API URL for station feed
+            sid = str(station_id).lstrip('@').strip()
+            api_url = f"{self.api_url.rstrip('/')}/feed/@{sid}/"
+            # allow per-request token override (from CSV), otherwise use configured API key
+            token_to_use = token if token else self.api_key
+            params = {'token': token_to_use}
             
             logger.debug(f"Fetching data for station: {station_id}")
             logger.debug(f"API URL: {api_url}")
@@ -207,6 +221,11 @@ class WAQIStationFetcher:
                     }
                 }
             }
+
+            # Include verbose location/address if provided by the API
+            if city_data.get('location'):
+                # Keep original API string (often full address) under city.location
+                formatted_data["city"]["location"] = city_data.get('location')
             
             # Add timezone if available
             if time_data.get('tz'):
@@ -238,7 +257,7 @@ class WAQIStationFetcher:
             logger.error(f"Error formatting station data: {e}")
             return None
 
-    def read_station_urls(self, csv_file_path: str) -> List[str]:
+    def read_station_urls(self, csv_file_path: str) -> List[Dict[str, Optional[str]]]:
         """
         Read station URLs from CSV file.
         
@@ -248,15 +267,36 @@ class WAQIStationFetcher:
         Returns:
             List of station URLs
         """
-        urls = []
-        
+        urls: List[Dict[str, Optional[str]]] = []
+
         try:
             with open(csv_file_path, 'r', encoding='utf-8') as file:
                 reader = csv.DictReader(file)
                 for row in reader:
                     url = row.get('URL', '').strip()
-                    if url and url.startswith('https://aqicn.org/'):
-                        urls.append(url)
+                    if not url:
+                        continue
+
+                    # accept both api.waqi.info and aqicn.org feed URLs
+                    parsed = urlparse(url)
+                    path_ok = '/feed/' in parsed.path or 'feed' in parsed.path
+                    host_ok = parsed.netloc.endswith('waqi.info') or 'aqicn.org' in parsed.netloc
+                    if not (path_ok or host_ok):
+                        # try lenient check: URL contains '/feed/' somewhere
+                        if '/feed/' not in url:
+                            continue
+
+                    # extract token from query if present (token=...), empty string means use env
+                    qs = parse_qs(parsed.query)
+                    token_list = qs.get('token') or []
+                    token_val = None
+                    if token_list:
+                        # pick first token if non-empty, otherwise leave as None to fallback to env
+                        tok = token_list[0].strip()
+                        if tok:
+                            token_val = tok
+
+                    urls.append({'url': url, 'token': token_val})
                         
             logger.info(f"Read {len(urls)} station URLs from {csv_file_path}")
             return urls
@@ -265,7 +305,7 @@ class WAQIStationFetcher:
             logger.error(f"Error reading CSV file {csv_file_path}: {e}")
             return []
 
-    def fetch_all_stations(self, csv_file_path: str) -> List[Dict]:
+    def fetch_all_stations(self, csv_file_path: str, limit: Optional[int] = None) -> List[Dict]:
         """
         Fetch all station data from URLs in CSV file.
         
@@ -277,20 +317,22 @@ class WAQIStationFetcher:
         """
         urls = self.read_station_urls(csv_file_path)
         stations = []
-        
+
         logger.info(f"Starting to fetch data for {len(urls)} stations")
-        
-        for i, url in enumerate(urls, 1):
+
+        for i, item in enumerate(urls, 1):
+            url = item.get('url')
+            token = item.get('token')
             logger.info(f"Processing station {i}/{len(urls)}: {url}")
-            
+
             # Extract station ID
             station_id = self.extract_station_id_from_url(url)
             if not station_id:
                 logger.warning(f"Could not extract station ID from URL: {url}")
                 continue
             
-            # Fetch station data
-            raw_data = self.fetch_station_data(station_id)
+            # Fetch station data (allow per-URL token override)
+            raw_data = self.fetch_station_data(station_id, token=token)
             if not raw_data:
                 logger.warning(f"Failed to fetch data for station: {station_id}")
                 continue
@@ -315,6 +357,11 @@ class WAQIStationFetcher:
                 sleep_time = max(1.0, 60 / self.rate_limit)  # At least 1 second between requests
                 logger.debug(f"Sleeping for {sleep_time:.2f} seconds")
                 time.sleep(sleep_time)
+
+            # Respect optional processing limit (number of URLs to attempt)
+            if limit and i >= limit:
+                logger.info(f"Reached processing limit of {limit} URLs")
+                break
         
         logger.info(f"Successfully fetched {len(stations)} out of {len(urls)} stations")
         return stations
@@ -363,34 +410,43 @@ class WAQIStationFetcher:
 def main():
     """Main function to fetch and export Vietnam station data."""
     try:
+        parser = argparse.ArgumentParser(description="Fetch Vietnam WAQI stations from CSV of URLs and export JSON")
+        parser.add_argument("-c", "--csv", dest="csv", help="Path to CSV file with station URLs (default: ingest/data_results/stations.csv)")
+        parser.add_argument("-o", "--out", dest="out", help="Output JSON filename (optional). If omitted, a timestamped filename will be used.")
+        parser.add_argument("-l", "--limit", dest="limit", type=int, help="Optional limit on number of URLs to process (for testing)")
+        args = parser.parse_args()
+
         fetcher = WAQIStationFetcher()
-        
-        # Path to CSV file
-        csv_file_path = Path(__file__).parent / 'data_results' / 'stations.csv'
-        
+
+        # Path to CSV file (default)
+        default_csv = Path(__file__).parent / 'data_results' / 'stations.csv'
+        csv_file_path = Path(args.csv) if args.csv else default_csv
+
         if not csv_file_path.exists():
             logger.error(f"CSV file not found: {csv_file_path}")
             return
-        
-        # Fetch all station data
-        stations = fetcher.fetch_all_stations(str(csv_file_path))
+        # Fetch all station data (respect optional limit)
+        stations = fetcher.fetch_all_stations(
+            str(csv_file_path),
+            limit=args.limit if args.limit and args.limit > 0 else None,
+        )
         
         if not stations:
             logger.warning("No station data was successfully fetched")
             return
-        
-        # Export to JSON
-        output_path = fetcher.export_to_json(stations)
-        
+
+        # Export to JSON (allow overriding filename)
+        output_path = fetcher.export_to_json(stations, filename=args.out) if args.out else fetcher.export_to_json(stations)
+
         logger.info(f"Process completed successfully. Output file: {output_path}")
         logger.info(f"Total stations processed: {len(stations)}")
-        
+
         # Print summary
         print(f"\n=== FETCH SUMMARY ===")
         print(f"Total stations fetched: {len(stations)}")
         print(f"Output file: {output_path}")
         print(f"Log file: station_fetch.log")
-        
+
     except Exception as e:
         logger.error(f"Fatal error in main process: {e}")
         raise
