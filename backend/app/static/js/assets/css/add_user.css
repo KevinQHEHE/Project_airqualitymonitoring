@@ -1,0 +1,211 @@
+/*
+  add_user.css
+  Purpose: Styles for admin Add User page. Scoped to admin pages and consistent with existing admin_dashboard.css
+*/
+
+.admin-card { background: var(--card-bg, #0f1724); color: var(--text-color, #fff); }
+.admin-card .card-header h5 { font-weight: 600; font-size: 1.05rem; }
+.admin-card .card-header small { display: block; margin-top: 4px; color: var(--muted, #b9c0d6); }
+
+#addUserForm .form-label { font-weight: 600; color: var(--label, #e6eef8); }
+#addUserForm .form-control { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); color: var(--text-color, #fff); }
+#addUserForm .form-control::placeholder { color: rgba(255,255,255,0.45); }
+#addUserForm .form-select { background: rgba(255,255,255,0.03); color: var(--text-color, #fff); }
+
+#formAlert { margin-bottom: 12px; }
+
+.admin-card .card-body .btn { min-width: 140px; }
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .admin-card { margin-bottom: 16px; }
+}
+
+/* Centered card for add-user page */
+.add-user-card { max-width: 720px; margin: 0 auto; }
+.add-user-card .card-body { padding: 2.25rem; min-height: 520px; }
+
+/* Larger readable typography for form */
+#addUserForm .form-label { font-size: 1.05rem; }
+#addUserForm .form-control { font-size: 1rem; padding: 0.8rem 0.9rem; }
+#addUserForm .form-select { font-size: 1rem; padding: 0.6rem 0.9rem; }
+#addUserForm .btn { font-size: 1rem; padding: 0.6rem 1rem; }
+
+/* Bigger header */
+.add-user-card .card-header h5 { font-size: 1.3rem; }
+.add-user-card .card-header small { font-size: 0.95rem; }
+
+/* Light mode overrides (uses same class as other admin pages) */
+.admin-wrapper.light-mode .admin-card {
+  background: #ffffff;
+  color: #1b2330;
+  border: 1px solid #e9eef5;
+  box-shadow: 0 6px 18px rgba(23, 34, 56, 0.06);
+}
+.admin-wrapper.light-mode #addUserForm .form-control,
+.admin-wrapper.light-mode #addUserForm .form-select {
+  background: #ffffff;
+  color: #1b2330;
+  border-color: #e6e9ef;
+  box-shadow: none;
+}
+.admin-wrapper.light-mode #addUserForm .form-control::placeholder { color: #6c757d; }
+
+/* Prevent navbar brand from being overlapped by the right-side controls */
+.admin-wrapper .navbar .navbar-brand {
+  display: inline-block;
+  max-width: calc(100% - 200px); /* leave room for the back button + theme toggle */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.admin-wrapper .navbar .d-flex.align-items-center.ms-auto {
+  flex: 0 0 auto; /* ensure right controls don't shrink */
+}
+
+@media (max-width: 576px) {
+  .admin-wrapper .navbar .navbar-brand { max-width: calc(100% - 140px); }
+}
+.admin-wrapper.light-mode .admin-card .card-header small { color: #6c757d; }
+
+/* Buttons and alert adjustments for light mode */
+.admin-wrapper.light-mode .admin-card .btn {
+  color: #ffffff;
+}
+.admin-wrapper.light-mode .btn-primary {
+  background-color: #4061f6;
+  border-color: #4061f6;
+}
+.admin-wrapper.light-mode .btn-outline-secondary {
+  color: #495057;
+  border-color: #dfe6f3;
+  background: transparent;
+}
+.admin-wrapper.light-mode #formAlert.alert-danger {
+  background: #fff5f6;
+  color: #7a1f2e;
+  border: 1px solid #ffd6da;
+}
+.admin-wrapper.light-mode #formAlert.alert-success {
+  background: #f3fff7;
+  color: #0b6b32;
+  border: 1px solid #b7f0c9;
+}
+
+/* Make form labels and header text darker and more readable in light mode */
+.admin-wrapper.light-mode #addUserForm .form-label {
+  color: #1f2a37; /* dark slate */
+}
+.admin-wrapper.light-mode .add-user-card .card-header h5 {
+  color: #0f1724; /* near-black for header */
+}
+.admin-wrapper.light-mode .add-user-card .card-header small {
+  color: #495057; /* medium-dark for description */
+}
+
+/* Ensure cancel (outline-secondary) is readable in light-mode inside the add-user card */
+.admin-wrapper.light-mode .add-user-card .btn-outline-secondary {
+  color: #495057; /* dark gray */
+  border-color: #dfe6f3;
+  background: transparent;
+}
+.admin-wrapper.light-mode .add-user-card .btn-outline-secondary:hover,
+.admin-wrapper.light-mode .add-user-card .btn-outline-secondary:focus {
+  color: #212529; /* near-black */
+  background-color: #f1f5fb; /* subtle light hover */
+  border-color: #cfdff0;
+  text-decoration: none;
+}
+
+/* Better default outline-secondary style for add-user card (dark and light friendly) */
+.add-user-card .btn-outline-secondary {
+  border-radius: 8px;
+  padding: 0.5rem 0.85rem;
+  font-weight: 600;
+  transition: background-color 0.12s ease, color 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
+  box-shadow: none;
+}
+
+/* Dark-mode look (default) */
+.add-user-card .btn-outline-secondary {
+  color: rgba(255,255,255,0.95);
+  border: 1px solid rgba(255,255,255,0.12);
+  background: transparent;
+}
+.add-user-card .btn-outline-secondary:hover,
+.add-user-card .btn-outline-secondary:focus {
+  background-color: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.98);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(2,6,23,0.12);
+}
+
+/* Password toggle: small inline button inside the input */
+.password-with-toggle { padding-right: 3.2rem; /* room for the inline button */ }
+.password-toggle-btn {
+  position: absolute;
+  right: 0.75rem; /* inside input area */
+  top: 50%;
+  transform: translateY(-50%);
+  height: 1.9rem;
+  min-width: 1.9rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+
+/* Make the inline toggle visually lighter in dark mode */
+.add-user-card .password-toggle-btn {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.9);
+}
+
+.admin-wrapper.light-mode .password-toggle-btn {
+  background: transparent;
+  border: 1px solid #dfe6f3;
+  color: #1b2330;
+}
+
+/* Reduce focus outline for the small inline control */
+.password-toggle-btn:focus { box-shadow: 0 0 0 3px rgba(64,97,246,0.12); outline: none; }
+
+/* Ensure the inline toggle does not translate/move on hover like other outline-secondary buttons */
+.password-toggle-btn,
+.password-toggle-btn:hover,
+.password-toggle-btn:focus {
+  transform: translateY(-50%) !important; /* keep vertically centered */
+  box-shadow: none !important; /* avoid jumpy shadows */
+}
+
+/* Subtle hover background change without movement */
+.password-toggle-btn:hover {
+  background: rgba(255,255,255,0.07);
+}
+
+/* Make sure hover doesn't overlay text in light-mode - explicit color and bg */
+.admin-wrapper.light-mode .add-user-card .btn-outline-secondary {
+  /* Light mode: filled-but-subtle secondary button with stable dark text */
+  color: #0f1724 !important; /* near-black - keep text stable */
+  background: #f8fafc; /* very light gray */
+  border: 1px solid #e6eef7;
+  box-shadow: none;
+  transform: none;
+}
+.admin-wrapper.light-mode .add-user-card .btn-outline-secondary:hover,
+.admin-wrapper.light-mode .add-user-card .btn-outline-secondary:focus {
+  /* On hover make the label clearly visible: white text with a contrasting background */
+  background-color: #4061f6; /* blue that provides good contrast */
+  color: #ffffff !important; /* white label as requested */
+  border-color: #4061f6;
+  box-shadow: 0 6px 18px rgba(64,97,246,0.14);
+  transform: translateY(-1px);
+}
+
+/* Small helper styles for the guide card */
+.admin-card .card-body.small { font-size: 0.92rem; line-height: 1.45; }

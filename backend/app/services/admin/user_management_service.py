@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 from datetime import datetime, timezone
 from math import ceil
 from typing import Any, Dict, List, Optional, Tuple
@@ -16,7 +17,7 @@ import bcrypt
 from bson import ObjectId
 from pymongo.errors import DuplicateKeyError, PyMongoError
 
-from backend.app.repositories import stations_repo, users_repo
+from backend.app.repositories import stations_repo, users_repo, readings_repo
 from backend.app import db as db_module
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ VALID_ROLES = {"user", "admin"}
 VALID_STATUSES = {"active", "inactive"}
 DEFAULT_SORT_FIELD = "createdAt"
 ALLOWED_SORT_FIELDS = {
+
     "createdAt": "createdAt",
     "updatedAt": "updatedAt",
     "email": "email",
@@ -34,6 +36,88 @@ ALLOWED_SORT_FIELDS = {
     "role": "role",
     "status": "status",
 }
+
+
+_GENERIC_STATION_LABEL_RE = re.compile(r'^\s*(?:TRAM|STATION)(?:[\s\-_/]*)\d+\s*$', re.IGNORECASE)
+
+
+def _normalize_station_label(name: str) -> str:
+    normalized = unicodedata.normalize('NFKD', name)
+    stripped = ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+    stripped = stripped.replace('đ', 'd').replace('Đ', 'D')
+    collapsed = re.sub(r'\s+', ' ', stripped).strip()
+    return collapsed.upper()
+
+
+def _is_generic_station_label(name: Optional[str]) -> bool:
+    if not isinstance(name, str):
+        return True
+    normalized = _normalize_station_label(name)
+    return bool(_GENERIC_STATION_LABEL_RE.match(normalized))
+
+def _normalize_field(value: Optional[str]) -> Optional[str]:
+    if isinstance(value, str):
+        value = value.strip()
+        return value or None
+    return None
+
+def _collect_station_candidates(station: Optional[Dict[str, Any]]) -> List[str]:
+    candidates: List[str] = []
+    if not isinstance(station, dict):
+        return candidates
+
+    def add_values(mapping: Optional[Dict[str, Any]], keys: List[str]):
+        if not isinstance(mapping, dict):
+            return
+        for key in keys:
+            val = mapping.get(key)
+            if isinstance(val, dict):
+                add_values(val, ['name', 'label', 'displayName', 'description'])
+            else:
+                normalized = _normalize_field(val)
+                if normalized:
+                    candidates.append(normalized)
+
+    add_values(station, ['name', 'station_name', 'displayName', 'full_name', 'label', 'description', 'location'])
+    add_values(station.get('meta'), ['name', 'label', 'displayName', 'description'])
+    location = station.get('location')
+    if isinstance(location, dict):
+        add_values(location, ['name', 'displayName', 'label', 'description', 'address'])
+        add_values(location.get('city'), ['name', 'label'])
+        add_values(location.get('region'), ['name', 'label'])
+    else:
+        normalized = _normalize_field(location)
+        if normalized:
+            candidates.append(normalized)
+    add_values(station.get('city'), ['name', 'label'])
+    return candidates
+
+def _resolve_subscription_display_name(sub: Dict[str, Any], station: Optional[Dict[str, Any]], sid: Any) -> Tuple[str, Optional[str]]:
+    metadata = sub.get('metadata') or {}
+    nickname_meta = _normalize_field(metadata.get('nickname'))
+    meta_label = _normalize_field(metadata.get('label'))
+    meta_description = _normalize_field(metadata.get('description'))
+
+    candidates: List[Optional[str]] = [
+        nickname_meta,
+        _normalize_field(sub.get('station_name')),
+        _normalize_field(sub.get('name')),
+        _normalize_field(sub.get('display_name')),
+        meta_label,
+        meta_description,
+    ]
+
+    candidates.extend(_collect_station_candidates(station))
+
+    friendly = next((cand for cand in candidates if cand and not _is_generic_station_label(cand)), None)
+    if not friendly:
+        friendly = next((cand for cand in candidates if cand), None)
+    if not friendly:
+        friendly = f"Station {sid if sid is not None else '(unknown)'}"
+
+    nickname = nickname_meta or friendly
+    return friendly, nickname
+
 
 
 class UserServiceError(Exception):
@@ -275,7 +359,7 @@ def soft_delete_user(user_id: str, *, initiator_id: Optional[str] = None) -> Dic
     return result
 
 
-def get_user_locations(user_id: str, *, initiator_id: Optional[str] = None) -> Dict[str, Any]:
+def get_user_locations(user_id: str, *, initiator_id: Optional[str] = None, include_expired: bool = False) -> Dict[str, Any]:
     """Return favorite locations and alert settings for a user."""
     user = users_repo.find_by_id(user_id)
     if not user:
@@ -287,10 +371,10 @@ def get_user_locations(user_id: str, *, initiator_id: Optional[str] = None) -> D
     # Load active subscriptions for this user and merge with favorites
     try:
         database = db_module.get_db()
-        subs_cursor = database.alert_subscriptions.find({
-            'user_id': ObjectId(user_id),
-            'status': {'$ne': 'expired'}
-        }).sort('createdAt', -1)
+        query = {'user_id': ObjectId(user_id)}
+        if not include_expired:
+            query['status'] = {'$ne': 'expired'}
+        subs_cursor = database.alert_subscriptions.find(query).sort('createdAt', -1)
         subscriptions = list(subs_cursor)
     except PyMongoError as exc:
         logger.error("Failed to load subscriptions for user %s: %s", user.get("_id"), exc)
@@ -309,7 +393,21 @@ def get_user_locations(user_id: str, *, initiator_id: Optional[str] = None) -> D
     # Build map by station_id for quick lookup (station_id can be int or str)
     station_map = {}
     for st in station_docs:
-        station_map[st.get('station_id')] = st
+        sid_val = st.get('station_id')
+        if sid_val is not None:
+            station_map[sid_val] = st
+            try:
+                station_map[int(sid_val)] = st
+            except Exception:
+                pass
+        meta = st.get('meta') or {}
+        meta_idx = meta.get('station_idx') or meta.get('stationId') or meta.get('stationIdStr')
+        if meta_idx is not None:
+            station_map[meta_idx] = st
+            try:
+                station_map[int(meta_idx)] = st
+            except Exception:
+                pass
 
     serialized_subs: List[Dict[str, Any]] = []
     # favorite ids for quick check
@@ -317,27 +415,99 @@ def get_user_locations(user_id: str, *, initiator_id: Optional[str] = None) -> D
     for sub in subscriptions:
         sid = sub.get('station_id')
         st = station_map.get(sid) or station_map.get(str(sid))
-        nickname = (sub.get('metadata') or {}).get('nickname') or (st and (st.get('city') or {}).get('name'))
-        serialized_subs.append(
-            {
-                'id': str(sub.get('_id')),
-                'station_id': sid,
-                'nickname': nickname,
-                'threshold': sub.get('alert_threshold'),
-                'status': sub.get('status'),
-                'alert_enabled': sub.get('status') == 'active',
-                'station_name': (st and ((st.get('city') or {}).get('name'))) if st else None,
-                'is_favorite': sid in fav_ids,
-                'createdAt': _serialize_datetime(sub.get('createdAt')),
-            }
-        )
+        # include any known latest AQI from the station doc to help the UI show current values
+        current_aqi = None
+        if st:
+            lr = st.get('latest_reading')
+            if isinstance(lr, dict):
+                current_aqi = lr.get('aqi')
+            if current_aqi is None and st.get('aqi') is not None:
+                current_aqi = st.get('aqi')
+        # if still missing, try to fetch a latest reading document
+        if current_aqi is None:
+            try:
+                if sid is not None:
+                    readings = readings_repo.find_latest_by_station(str(sid), limit=1)
+                    if readings:
+                        maybe = readings[0]
+                        if isinstance(maybe, dict) and maybe.get('aqi') is not None:
+                            current_aqi = maybe.get('aqi')
+            except Exception:
+                pass
+        # Resolve a stable human-readable station name with fallbacks.
+        friendly_name, nickname_value = _resolve_subscription_display_name(sub, st, sid)
+
+
+        serialized_subs.append({
+                    'id': str(sub.get('_id')),
+                    'subscription_id': str(sub.get('_id')),
+                    'station_id': sid,
+                    'stationId': sid,
+                    'nickname': nickname_value,
+                    'threshold': sub.get('alert_threshold'),
+                    'status': sub.get('status'),
+                    'alert_enabled': sub.get('status') == 'active',
+                    # Prefer explicit station name fields when available; include multiple aliases
+                    'station_name': friendly_name,
+                    'name': friendly_name,
+                    'display_name': friendly_name,
+                    'canonical_display_name': friendly_name,
+                    'is_favorite': sid in fav_ids,
+                    'current_aqi': current_aqi,
+                    'createdAt': _serialize_datetime(sub.get('createdAt')),
+                    'created_at': _serialize_datetime(sub.get('createdAt')),
+        })
+    # Collapse multiple subscription documents that reference the same station
+    # into a single canonical entry. This prevents the admin UI from showing
+    # a generic subscription label when another subscription for the same
+    # station contains a richer human-friendly name.
+    try:
+        canonical_map: Dict[str, Dict[str, Any]] = {}
+        for sub_entry in serialized_subs:
+            sid = sub_entry.get('station_id')
+            key = str(sid) if sid is not None else 'unknown'
+
+            def is_generic(name: Optional[str]) -> bool:
+                return _is_generic_station_label(name)
+
+            current = canonical_map.get(key)
+            if not current:
+                canonical_map[key] = sub_entry
+                continue
+
+            # Prefer an entry with a non-generic name
+            cur_name = current.get('station_name')
+            cand_name = sub_entry.get('station_name')
+
+            cur_generic = is_generic(cur_name)
+            cand_generic = is_generic(cand_name)
+
+            # Prefer non-generic over generic
+            if cur_generic and not cand_generic:
+                canonical_map[key] = sub_entry
+                continue
+
+            # If both are non-generic or both generic, prefer an entry that is a favorite
+            if current.get('is_favorite') and not sub_entry.get('is_favorite'):
+                # keep current
+                continue
+            if sub_entry.get('is_favorite') and not current.get('is_favorite'):
+                canonical_map[key] = sub_entry
+                continue
+
+            # Otherwise keep the existing (which is the most-recent due to query sort), so no-op
+        # Replace subscriptions list with canonicalized values preserving order
+        subscriptions_final: List[Dict[str, Any]] = list(canonical_map.values())
+    except Exception:
+        # If anything goes wrong, fall back to the original list
+        subscriptions_final = serialized_subs
 
     _log_action("get_user_locations", initiator_id, target_id=str(user.get("_id")))
     return {
         "userId": str(user.get("_id")),
         "favoriteLocations": favorites,
         "alertSettings": alert_settings,
-        "subscriptions": serialized_subs,
+        "subscriptions": subscriptions_final,
     }
 
 
@@ -428,14 +598,52 @@ def _build_favorite_locations(user: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     serialized: List[Dict[str, Any]] = []
     for station in stations:
-        serialized.append(
-            {
-                "id": station.get("_id"),
-                "station_id": station.get("station_id"),
-                "name": (station.get("city") or {}).get("name"),
-                "country": station.get("country"),
-            }
-        )
+        # attempt to extract latest AQI from station document
+        current_aqi = None
+        lr = station.get("latest_reading")
+        if isinstance(lr, dict):
+            current_aqi = lr.get("aqi")
+        if current_aqi is None and station.get("aqi") is not None:
+            current_aqi = station.get("aqi")
+
+        # If we still don't have an AQI, try to load the latest reading doc
+        if current_aqi is None:
+            try:
+                sid = station.get('station_id') or station.get('_id')
+                if sid is not None:
+                    readings = readings_repo.find_latest_by_station(str(sid), limit=1)
+                    if readings:
+                        maybe = readings[0]
+                        if isinstance(maybe, dict) and maybe.get('aqi') is not None:
+                            current_aqi = maybe.get('aqi')
+            except Exception:
+                # non-fatal - leave current_aqi as None
+                current_aqi = current_aqi
+
+        # Resolve a stable human-readable station name
+        station_candidates = _collect_station_candidates(station)
+        friendly_station = next((cand for cand in station_candidates if cand and not _is_generic_station_label(cand)), None)
+        if not friendly_station:
+            friendly_station = next((cand for cand in station_candidates if cand), None)
+        if not friendly_station:
+            friendly_station = f"Station {station.get('station_id') or station.get('_id') or '(unknown)'}"
+
+        serialized.append({
+            # canonical ids as strings for stable matching in frontend
+            "id": str(station.get("_id")) if station.get("_id") is not None else None,
+            "station_id": station.get("station_id"),
+            "stationId": station.get("station_id"),
+            # name aliases (keep both "name" and "station_name")
+            "name": friendly_station,
+            "station_name": friendly_station,
+            "display_name": friendly_station,
+            "canonical_display_name": friendly_station,
+
+            "country": station.get("country"),
+            "current_aqi": current_aqi,
+            # preserve createdAt if present under station doc
+            "createdAt": _serialize_datetime(station.get("createdAt"))
+        })
     return serialized
 
 

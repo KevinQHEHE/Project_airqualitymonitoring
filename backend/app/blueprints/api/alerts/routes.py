@@ -315,6 +315,11 @@ def create_subscription():
 			'email_count': 0,
 			'metadata': data.get('metadata', {}),
 		}
+
+		# If callers provided a friendly nickname in metadata, persist it as station_name
+		meta = data.get('metadata') or {}
+		if meta.get('nickname'):
+			doc['station_name'] = meta.get('nickname')
 		res = db.alert_subscriptions.insert_one(doc)
 		return jsonify({'subscription_id': str(res.inserted_id)}), 201
 	except Exception as exc:
@@ -345,7 +350,9 @@ def get_subscription(sub_id: str):
 @alerts_bp.route('/subscriptions/<sub_id>', methods=['PUT'])
 def update_subscription(sub_id: str):
 	data = request.get_json() or {}
-	allowed = {'alert_threshold', 'status', 'metadata'}
+	# Allow updating metadata and optional human-friendly name fields so admin tools
+	# and UIs can persist a display name on the subscription document.
+	allowed = {'alert_threshold', 'status', 'metadata', 'station_name', 'name', 'display_name'}
 	update = {k: data[k] for k in data.keys() if k in allowed}
 	if not update:
 		return jsonify({"error": "no updatable fields provided"}), 400

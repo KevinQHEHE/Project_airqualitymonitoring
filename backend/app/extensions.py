@@ -2,6 +2,7 @@
 
 Includes JWT blocklist checking for logout token revocation.
 """
+import os
 from flask_mail import Mail
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -70,16 +71,29 @@ def init_extensions(app):
     
     # Initialize and start the data ingestion scheduler
     try:
-        print("=== FLASK: Initializing data ingestion scheduler ===")
-        from ingest.streaming import DataIngestionScheduler
-        scheduler = DataIngestionScheduler(app)
-        success = scheduler.start()
-        if success:
-            print("=== FLASK: Data ingestion scheduler started successfully ===")
-            app.logger.info("Data ingestion scheduler started successfully")
+        # Avoid double-starting background schedulers when the Flask
+        # development reloader spawns a parent and child process. The
+        # reloader parent should not start background threads — only the
+        # served child process (WERKZEUG_RUN_MAIN == 'true') should.
+        should_start_scheduler = True
+        # If app.debug is True and we are running under the reloader, only
+        # start in the child process where WERKZEUG_RUN_MAIN is 'true'.
+        if app.debug and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+            should_start_scheduler = False
+
+        if should_start_scheduler:
+            print("=== FLASK: Initializing data ingestion scheduler ===")
+            from ingest.streaming import DataIngestionScheduler
+            scheduler = DataIngestionScheduler(app)
+            success = scheduler.start()
+            if success:
+                print("=== FLASK: Data ingestion scheduler started successfully ===")
+                app.logger.info("Data ingestion scheduler started successfully")
+            else:
+                print("=== FLASK: Failed to start data ingestion scheduler ===")
+                app.logger.error("Failed to start data ingestion scheduler")
         else:
-            print("=== FLASK: Failed to start data ingestion scheduler ===")
-            app.logger.error("Failed to start data ingestion scheduler")
+            app.logger.debug("Skipping data ingestion scheduler startup in reloader parent process")
     except Exception as e:
         print(f"=== FLASK: Error initializing data ingestion scheduler: {e} ===")
         app.logger.error(f"Error initializing data ingestion scheduler: {e}")

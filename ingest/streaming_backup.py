@@ -227,55 +227,6 @@ class DataIngestionScheduler:
         except Exception as e:
             logger.error(f"Error executing forecast ingestion script: {e}")
             raise
-        """
-        if self._shutdown_event.is_set():
-            logger.info("Shutdown event set, skipping station reading job")
-            return
-        
-        try:
-            start_time = datetime.now(timezone.utc)
-            logger.info(f"Starting station reading ingestion at {start_time}")
-            
-            # Prepare command
-            python_executable = sys.executable
-            cmd = [python_executable, self.script_path, '--log-level', 'INFO']
-            
-            # Execute script with timeout
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                cwd=os.path.dirname(self.script_path) if self.script_path else os.getcwd()
-            )
-            
-            try:
-                stdout, stderr = process.communicate(timeout=self.script_timeout_seconds)
-                return_code = process.returncode
-                
-                end_time = datetime.now(timezone.utc)
-                duration = (end_time - start_time).total_seconds()
-                
-                if return_code == 0:
-                    logger.info(f"Station reading script completed successfully in {duration:.1f}s")
-                    if stdout.strip():
-                        logger.debug(f"Script stdout: {stdout.strip()}")
-                else:
-                    logger.error(f"Station reading script failed with code {return_code} after {duration:.1f}s")
-                    if stderr.strip():
-                        logger.error(f"Script stderr: {stderr.strip()}")
-                    if stdout.strip():
-                        logger.error(f"Script stdout: {stdout.strip()}")
-                        
-            except subprocess.TimeoutExpired:
-                logger.error(f"Station reading script timed out after {self.script_timeout_seconds}s")
-                process.kill()
-                process.communicate()  # Clean up
-                raise
-                
-        except Exception as e:
-            logger.error(f"Error executing station reading script: {e}")
-            raise
     
     def start(self):
         """

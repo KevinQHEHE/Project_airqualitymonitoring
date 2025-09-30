@@ -41,13 +41,7 @@
           <a class="nav-link text-white" href="/">
             <i class="fas fa-home me-1"></i>Dashboard
           </a>
-          <a class="nav-link text-white" href="/reports">
-            <i class="fas fa-chart-bar me-1"></i>Reports  
-          </a>
-          <a class="nav-link text-white" href="/admin">
-            <i class="fas fa-users me-1"></i>Admin
-          </a>
-          <a class="nav-link text-white" href="/login">
+          <a id="navLogout" class="nav-link text-white" href="/login" onclick="try{ logout(); }catch(e){}; window.location.href='/login'; return false;">
             <i class="fas fa-sign-out-alt me-1"></i>Logout
           </a>
         </div>
@@ -60,9 +54,20 @@
         <!-- Header -->
         <div class="admin-header">
           <div class="row">
-            <div class="col-12">
+            <div class="col-8">
               <h1><i class="fas fa-users me-2"></i>User Management</h1>
               <p class="mb-0">Quản lý người dùng và hệ thống</p>
+            </div>
+            <div class="col-4 text-end">
+              <!-- Simple auth section for API testing -->
+              <div class="d-flex align-items-center justify-content-end">
+                <small id="authStatus" class="text-white-50 me-3">Chưa đăng nhập</small>
+                <a id="createUserBtn" class="btn btn-sm btn-success me-2" href="/admin/users/add" title="Tạo người dùng mới">
+                  <i class="fas fa-user-plus me-1"></i> Tạo người dùng
+                </a>
+                <!-- login button removed as requested -->
+                <!-- Logout button removed per request -->
+              </div>
             </div>
           </div>
         </div>
@@ -71,37 +76,12 @@
         <div class="search-header">
           <div class="row g-3 align-items-end">
             <div class="col-md-4">
-              <label for="searchUser" class="form-label text-white-50">Tìm kiếm người dùng</label>
-              <input type="text" class="form-control" id="searchUser" placeholder="Tên, email hoặc ID...">
+              <label for="userSearch" class="form-label text-white-50">Tìm kiếm người dùng</label>
+              <input type="text" class="form-control" id="userSearch" placeholder="Vui lòng nhập tên hiển thị">
             </div>
+            <!-- Removed status and sort controls to simplify search header -->
             <div class="col-md-2">
-              <label for="filterStatus" class="form-label text-white-50">Trạng thái</label>
-              <select class="form-select" id="filterStatus">
-                <option value="">Tất cả</option>
-                <option value="active">Hoạt động</option>
-                <option value="inactive">Không hoạt động</option>
-                <option value="suspended">Tạm khóa</option>
-              </select>
-            </div>
-            <div class="col-md-2">
-              <label for="filterRole" class="form-label text-white-50">Vai trò</label>
-              <select class="form-select" id="filterRole">
-                <option value="">Tất cả</option>
-                <option value="admin">Admin</option>
-                <option value="user">User</option>
-              </select>
-            </div>
-            <div class="col-md-2">
-              <label for="sortBy" class="form-label text-white-50">Sắp xếp</label>
-              <select class="form-select" id="sortBy">
-                <option value="created_desc">Mới nhất</option>
-                <option value="created_asc">Cũ nhất</option>
-                <option value="name_asc">Tên A-Z</option>
-                <option value="name_desc">Tên Z-A</option>
-              </select>
-            </div>
-            <div class="col-md-2">
-              <button type="button" class="btn btn-primary w-100" onclick="applyFilters()">
+              <button type="button" class="btn btn-primary w-100" id="searchBtn">
                 <i class="fas fa-search me-1"></i>Tìm kiếm
               </button>
             </div>
@@ -118,14 +98,8 @@
                   <span id="selectedCount">0</span> người dùng được chọn
                 </div>
                 <div class="btn-group">
-                  <button class="btn btn-outline-light btn-sm bulk-action-btn" onclick="bulkActivate()">
-                    <i class="fas fa-check me-1"></i>Kích hoạt
-                  </button>
-                  <button class="btn btn-outline-light btn-sm bulk-action-btn" onclick="bulkDeactivate()">
-                    <i class="fas fa-times me-1"></i>Vô hiệu hóa
-                  </button>
-                  <button class="btn btn-outline-danger btn-sm bulk-action-btn" onclick="bulkDelete()">
-                    <i class="fas fa-trash me-1"></i>Xóa
+                  <button class="btn btn-outline-light btn-sm bulk-action-btn" onclick="bulkChangeStatus()">
+                    <i class="fas fa-exchange-alt me-1"></i>Chuyển trạng thái
                   </button>
                   <button class="btn btn-outline-light btn-sm bulk-action-btn" onclick="bulkExport()">
                     <i class="fas fa-download me-1"></i>Xuất dữ liệu
@@ -135,18 +109,16 @@
             </div>
 
             <div class="table-responsive">
-              <table class="table table-dark table-hover mb-0">
+              <table id="userTable" class="table table-dark table-hover mb-0">
                 <thead>
                   <tr>
                     <th scope="col" width="5%">
-                      <input class="form-check-input" type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                      <!-- selectAllUsers checkbox removed -->
                     </th>
-                    <th scope="col" width="10%">Avatar</th>
-                    <th scope="col" width="20%">Thông tin</th>
-                    <th scope="col" width="15%">Trạng thái</th>
+                    <th scope="col" width="30%">Thông tin</th>
                     <th scope="col" width="15%">Vai trò</th>
-                    <th scope="col" width="15%">Ngày tham gia</th>
-                    <th scope="col" width="10%">Hoạt động</th>
+                    <th scope="col" width="15%">Trạng thái</th>
+                    <th scope="col" width="20%">Ngày tham gia / Đăng nhập</th>
                     <th scope="col" width="10%">Thao tác</th>
                   </tr>
                 </thead>
@@ -157,15 +129,9 @@
             </div>
 
             <!-- Pagination -->
-            <div class="d-flex justify-content-between align-items-center p-3">
-              <div class="showing-info text-white-50">
-                Hiển thị <span id="showingStart">1</span> - <span id="showingEnd">10</span> trong tổng số <span id="totalUsers">0</span> người dùng
-              </div>
-              <nav aria-label="User pagination">
-                <ul class="pagination mb-0" id="paginationNav">
-                  <!-- Pagination will be generated by JavaScript -->
-                </ul>
-              </nav>
+                  <div class="d-flex justify-content-between align-items-center p-3">
+              <div id="showingInfo" class="showing-info text-white-50">Hiển thị 0 người dùng</div>
+              <div id="paginationContainer"></div>
             </div>
           </div>
         </div>
@@ -189,18 +155,8 @@
                     </button>
                   </li>
                   <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="locations-tab" data-bs-toggle="tab" data-bs-target="#locations" type="button" role="tab">
-                      <i class="fas fa-map-marker-alt me-1"></i>Địa điểm yêu thích
-                    </button>
-                  </li>
-                  <li class="nav-item" role="presentation">
                     <button class="nav-link" id="alerts-tab" data-bs-toggle="tab" data-bs-target="#alerts" type="button" role="tab">
                       <i class="fas fa-bell me-1"></i>Cảnh báo
-                    </button>
-                  </li>
-                  <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="activity-tab" data-bs-toggle="tab" data-bs-target="#activity" type="button" role="tab">
-                      <i class="fas fa-chart-line me-1"></i>Hoạt động
                     </button>
                   </li>
                 </ul>
@@ -228,19 +184,11 @@
                     </div>
                   </div>
 
-                  <!-- Activity Tab -->
-                  <div class="tab-pane fade" id="activity" role="tabpanel">
-                    <div id="activityContent">
-                      <!-- Content loaded by JavaScript -->
-                    </div>
-                  </div>
+                  <!-- (Removed Subscriptions & Activity panes per admin simplification) -->
                 </div>
               </div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-outline-primary" data-bs-dismiss="modal">Đóng</button>
-                <button type="button" class="btn btn-primary" onclick="editUser()" id="editUserBtn">
-                  <i class="fas fa-edit me-1"></i>Chỉnh sửa
-                </button>
               </div>
             </div>
           </div>
@@ -271,7 +219,6 @@
                       <label for="editUserRole" class="form-label">Vai trò</label>
                       <select class="form-select" id="editUserRole" required>
                         <option value="user">User</option>
-                        <option value="admin">Admin</option>
                       </select>
                     </div>
                     <div class="col-md-6">
@@ -279,7 +226,7 @@
                       <select class="form-select" id="editUserStatus" required>
                         <option value="active">Hoạt động</option>
                         <option value="inactive">Không hoạt động</option>
-                        <option value="suspended">Tạm khóa</option>
+                        <!-- suspended option removed -->
                       </select>
                     </div>
                     <div class="col-12">
@@ -356,7 +303,58 @@
   <!-- Admin class-based script (optional) -->
   <script src="{{ url_for('static', filename='js/assets/admin_user_management.js') }}"></script>
 
+  <!-- Small theme initializer: active script so admin theme toggle works even though
+       the older inline logic is intentionally disabled elsewhere. Keeps behavior
+       consistent with other pages (stores 'adminTheme' in localStorage). -->
   <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const adminWrapper = document.querySelector('.admin-wrapper');
+        const bodyEl = document.body;
+        if (!themeToggle || !themeIcon || !adminWrapper || !bodyEl) return;
+
+        const savedTheme = localStorage.getItem('adminTheme');
+        const applyLight = (savedTheme === 'light');
+        if (applyLight) {
+          adminWrapper.classList.add('light-mode');
+          bodyEl.classList.add('white-content');
+          themeToggle.checked = false;
+          themeIcon.className = 'fas fa-moon';
+        } else {
+          adminWrapper.classList.remove('light-mode');
+          bodyEl.classList.remove('white-content');
+          themeToggle.checked = true;
+          themeIcon.className = 'fas fa-sun';
+        }
+
+        themeToggle.addEventListener('change', function() {
+          if (this.checked) {
+            // dark mode
+            adminWrapper.classList.remove('light-mode');
+            bodyEl.classList.remove('white-content');
+            themeIcon.className = 'fas fa-sun';
+            localStorage.setItem('adminTheme', 'dark');
+          } else {
+            // light mode
+            adminWrapper.classList.add('light-mode');
+            bodyEl.classList.add('white-content');
+            themeIcon.className = 'fas fa-moon';
+            localStorage.setItem('adminTheme', 'light');
+          }
+        });
+      } catch (e) {
+        console.error('Theme init error:', e);
+      }
+    });
+  </script>
+
+  <script>
+    // ===== USE ADMIN CLASS ONLY - INLINE SCRIPT DISABLED =====
+    // All mock data and table functions moved to AdminUserManagement class
+    
+    if (false) { // This entire block is disabled
     // Mock Data - Beautiful sample users
     const mockUsers = [
       {
@@ -442,7 +440,7 @@
         name: "Võ Minh Quang",
         email: "quang.vo@tech.vn",
         avatar: null,
-        status: "suspended",
+        status: "inactive",
         role: "user",
         created_at: "2024-05-20T16:30:00Z",
         last_login: "2025-09-10T14:15:00Z",
@@ -531,7 +529,8 @@
       
       // Filter dropdowns
       document.getElementById('filterStatus').addEventListener('change', applyFilters);
-      document.getElementById('filterRole').addEventListener('change', applyFilters);
+  const filterRoleEl = document.getElementById('filterRole');
+  if (filterRoleEl) filterRoleEl.addEventListener('change', applyFilters);
       document.getElementById('sortBy').addEventListener('change', applyFilters);
     }
 
@@ -550,7 +549,7 @@
     function applyFilters() {
       const searchTerm = document.getElementById('searchUser').value.toLowerCase();
       const statusFilter = document.getElementById('filterStatus').value;
-      const roleFilter = document.getElementById('filterRole').value;
+  const roleFilter = (document.getElementById('filterRole') && document.getElementById('filterRole').value) || '';
       const sortBy = document.getElementById('sortBy').value;
 
       // Filter users
@@ -611,18 +610,18 @@
     function createUserRow(user) {
       const row = document.createElement('tr');
       
-      // Status badge
+  // Status badge
+  // Normalize to only two visible states: 'active' and 'inactive'
+  const normalizedStatus = user.status === 'active' ? 'active' : 'inactive';
       const statusClass = {
         'active': 'bg-success',
-        'inactive': 'bg-warning text-dark',
-        'suspended': 'bg-danger'
-      }[user.status] || 'bg-secondary';
+        'inactive': 'bg-warning text-dark'
+      }[normalizedStatus] || 'bg-secondary';
 
       const statusText = {
         'active': 'Hoạt động',
-        'inactive': 'Không hoạt động',
-        'suspended': 'Tạm khóa'
-      }[user.status] || 'Không xác định';
+        'inactive': 'Không hoạt động'
+      }[normalizedStatus] || 'Không xác định';
 
       // Role badge
       const roleClass = {
@@ -647,9 +646,6 @@
           <input class="form-check-input user-checkbox" type="checkbox" value="${user.id}" onchange="toggleUserSelection(${user.id})">
         </td>
         <td>
-          <div class="avatar-title">${initials}</div>
-        </td>
-        <td>
           <div>
             <strong class="text-white">${user.name}</strong>
             <br>
@@ -657,31 +653,19 @@
           </div>
         </td>
         <td>
-          <span class="badge ${statusClass}">${statusText}</span>
-          <br>
-          <small class="text-white-50">Đăng nhập: ${lastLoginDate}</small>
-        </td>
-        <td>
           <span class="badge ${roleClass}">${roleText}</span>
         </td>
         <td>
-          <span class="text-white">${createdDate}</span>
-          <br>
-          <small class="text-white-50">${user.login_count} lần đăng nhập</small>
+          <span class="badge ${statusClass}">${statusText}</span>
         </td>
         <td>
-          <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" ${user.status === 'active' ? 'checked' : ''} onchange="toggleUserStatus(${user.id})">
-            <label class="form-check-label text-white-50">Kích hoạt</label>
-          </div>
+          <span class="text-white">${createdDate}</span>
         </td>
+        
         <td>
           <div class="btn-group">
             <button class="btn btn-outline-primary btn-sm" onclick="viewUserDetails(${user.id})" title="Xem chi tiết">
               <i class="fas fa-eye"></i>
-            </button>
-            <button class="btn btn-outline-danger btn-sm" onclick="deleteUser(${user.id})" title="Xóa người dùng">
-              <i class="fas fa-trash"></i>
             </button>
           </div>
         </td>
@@ -735,7 +719,7 @@
     }
 
     function toggleSelectAll() {
-      const selectAll = document.getElementById('selectAll');
+      const selectAll = document.getElementById('selectAllUsers');
       const checkboxes = document.querySelectorAll('.user-checkbox');
       
       selectedUsers.clear();
@@ -758,7 +742,7 @@
       }
       
       // Update select all checkbox
-      const selectAll = document.getElementById('selectAll');
+  const selectAll = document.getElementById('selectAllUsers');
       const checkboxes = document.querySelectorAll('.user-checkbox');
       selectAll.checked = selectedUsers.size === checkboxes.length;
       selectAll.indeterminate = selectedUsers.size > 0 && selectedUsers.size < checkboxes.length;
@@ -779,42 +763,8 @@
     }
 
     function deleteUser(userId) {
-      console.log('deleteUser called with userId:', userId);
-      
-      const user = mockUsers.find(u => u.id === userId);
-      console.log('Found user:', user);
-      
-      if (!user) {
-        showToast('Không tìm thấy người dùng!', 'error');
-        return;
-      }
-
-      // Confirm delete
-      if (confirm(`Bạn có chắc chắn muốn xóa người dùng "${user.name}"?\n\nHành động này không thể hoàn tác!`)) {
-        console.log('User confirmed single delete');
-        
-        // Remove user from mockUsers array
-        const index = mockUsers.findIndex(u => u.id === userId);
-        console.log('User index in array:', index);
-        
-        if (index !== -1) {
-          mockUsers.splice(index, 1);
-          console.log('User removed, new array length:', mockUsers.length);
-          
-          // Remove from selected users if it was selected
-          selectedUsers.delete(userId);
-          updateBulkActions();
-          
-          // Refresh table
-          renderUserTable();
-          
-          showToast(`Đã xóa thành công người dùng "${user.name}"`, 'success');
-        } else {
-          showToast('Có lỗi xảy ra khi xóa người dùng!', 'error');
-        }
-      } else {
-        console.log('User cancelled single delete');
-      }
+      // Deletion is disabled in this UI. Use admin API or backend tools for permanent deletion.
+      alert('Chức năng xóa người dùng đã bị tắt trong giao diện. Vui lòng sử dụng API hoặc công cụ quản trị để xóa người dùng.');
     }
 
     function viewUserDetails(userId) {
@@ -829,13 +779,10 @@
       document.getElementById('userDetailModalLabel').innerHTML = 
         `<i class="fas fa-user me-2"></i>Chi tiết: ${user.name}`;
 
-      // Load basic info
-      loadBasicInfo(user);
-      
-      // Load other tabs (will be loaded when clicked)
-      loadUserLocations(user);
-      loadUserAlerts(user);
-      loadUserActivity(user);
+  // Load basic info
+  loadBasicInfo(user);
+  // Load alerts (will include subscriptions and threshold bars)
+  loadUserAlerts(user);
 
       // Show modal
       const modalInstance = new bootstrap.Modal(modal);
@@ -844,11 +791,12 @@
 
     function loadBasicInfo(user) {
       const content = document.getElementById('basicInfoContent');
+      // Use normalized status so UI only displays the two allowed states
+      const normalizedStatus = user.status === 'active' ? 'active' : 'inactive';
       const statusText = {
         'active': 'Hoạt động',
-        'inactive': 'Không hoạt động', 
-        'suspended': 'Tạm khóa'
-      }[user.status];
+        'inactive': 'Không hoạt động'
+      }[normalizedStatus];
 
       const roleText = {
         'admin': 'Quản trị viên',
@@ -899,12 +847,7 @@
               <div class="user-info-value">${new Date(user.last_login).toLocaleDateString('vi-VN')}</div>
             </div>
           </div>
-          <div class="col-md-6">
-            <div class="user-info-row">
-              <div class="user-info-label fw-bold">Số lần đăng nhập:</div>
-              <div class="user-info-value">${user.login_count}</div>
-            </div>
-          </div>
+          <!-- Số lần đăng nhập removed per admin simplification -->
         </div>
       `;
     }
@@ -952,145 +895,108 @@
 
     function loadUserAlerts(user) {
       const content = document.getElementById('alertsContent');
-      
-      if (!user.alert_settings || user.alert_settings.length === 0) {
-        content.innerHTML = `
+
+      // Get user subscriptions from favorite locations
+      const subscriptions = user.favorite_locations || [];
+
+      let html = '';
+
+      // User info header
+      html += `<div class="mb-3">
+        <h6 class="mb-0"><i class="fas fa-user me-2"></i><strong>Thông tin người dùng:</strong> ${user.name}</h6>
+      </div>`;
+
+      // Show per-subscription list with admin toggles
+      if (!subscriptions || subscriptions.length === 0) {
+        html += `
           <div class="text-center py-4">
-            <i class="fas fa-bell-slash fa-3x text-muted mb-3"></i>
-            <p class="text-white-50">Người dùng chưa thiết lập cảnh báo nào</p>
-          </div>
-        `;
-        return;
+            <i class="fas fa-map-pin fa-3x text-muted mb-3"></i>
+            <p class="text-muted">Người dùng chưa đăng ký trạm nào</p>
+          </div>`;
+      } else {
+        subscriptions.forEach((location, index) => {
+          // Mock data for each subscription
+          const registrationDate = new Date(2025, 8, 22 + index).toLocaleDateString('vi-VN');
+          const currentAQI = Math.floor(Math.random() * 200) + 50; // Mock AQI 50-250
+          const threshold = user.alert_settings?.[0]?.threshold || 100;
+          const alertEnabled = index % 2 === 0; // Mock some enabled, some disabled
+
+          html += `
+            <div class="card mb-3 subscription-card">
+              <div class="card-body py-3">
+                <div class="d-flex align-items-center">
+                  <div class="subscription-info flex-grow-1">
+                    <h6 class="mb-1">${location}</h6>
+                    <div class="subscription-meta small text-muted">
+                      <span class="me-3"><strong>Đăng ký:</strong> ${registrationDate}</span>
+                      <span class="me-3"><strong>AQI:</strong> <span class="badge ${currentAQI > 100 ? 'bg-danger' : currentAQI > 50 ? 'bg-warning text-dark' : 'bg-success'}">${currentAQI}</span></span>
+                      <span><strong>Ngưỡng:</strong> <span class="text-nowrap">${threshold}</span></span>
+                    </div>
+                  </div>
+
+                  <div class="subscription-control text-end ms-3">
+                    <div class="form-check form-switch">
+       <input class="form-check-input alert-toggle-inline-mock" type="checkbox" 
+         ${alertEnabled ? 'checked' : ''} 
+         data-user-id="${user.id}" 
+         data-station="${location ? location.replace(/"/g, '&quot;') : ''}"
+         data-station-id=""
+         data-sub-id=""
+         id="alertToggleInline${index}">
+                      <label class="form-check-label" for="alertToggleInline${index}">
+                        <i class="fas ${alertEnabled ? 'fa-bell' : 'fa-bell-slash'} me-1"></i>
+                        <span class="ms-1 alert-label-text">${alertEnabled ? 'Bật' : 'Tắt'}</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+
+        // Add event listeners for alert toggles (inline version)
+        setTimeout(() => {
+          document.querySelectorAll('.alert-toggle-inline-mock').forEach(toggle => {
+            toggle.addEventListener('change', function(event) {
+              const toggle = event.target;
+              const userId = toggle.dataset.userId;
+              const stationName = toggle.dataset.station;
+              const isEnabled = toggle.checked;
+              
+              // Update the label and icon immediately for better UX
+              const label = toggle.nextElementSibling;
+              const icon = label.querySelector('i');
+              icon.className = `fas ${isEnabled ? 'fa-bell' : 'fa-bell-slash'} me-1`;
+              const textSpan = label.querySelector('.alert-label-text');
+              if (textSpan) {
+                textSpan.textContent = isEnabled ? 'Bật' : 'Tắt';
+              } else {
+                label.innerHTML = `<i class="fas ${isEnabled ? 'fa-bell' : 'fa-bell-slash'} me-1"></i><span class="ms-1 alert-label-text">${isEnabled ? 'Bật' : 'Tắt'}</span>`;
+              }
+
+              // Show toast notification (mock behavior only)
+              showToast(`Đã ${isEnabled ? 'bật' : 'tắt'} cảnh báo cho trạm ${stationName} (Mock)`, 'info');
+            });
+          });
+        }, 100);
       }
 
-      let html = '<div class="row g-3">';
-      user.alert_settings.forEach(alert => {
-        html += `
-          <div class="col-md-6">
-            <div class="admin-card p-3">
-              <div class="d-flex justify-content-between align-items-center">
-                <div>
-                  <h6 class="text-white mb-1">
-                    <i class="fas fa-bell text-warning me-2"></i>
-                    ${alert.type}
-                  </h6>
-                  <p class="text-white-50 small mb-0">
-                    Ngưỡng: ${alert.threshold}
-                  </p>
-                </div>
-                <span class="badge ${alert.enabled ? 'bg-success' : 'bg-secondary'}">
-                  ${alert.enabled ? 'Đã bật' : 'Đã tắt'}
-                </span>
-              </div>
-            </div>
-          </div>
-        `;
-      });
-      html += '</div>';
-      
       content.innerHTML = html;
-    }
-
-    function loadUserActivity(user) {
-      const content = document.getElementById('activityContent');
-      
-      content.innerHTML = `
-        <div class="row g-4">
-          <div class="col-md-6">
-            <div class="admin-card p-3 text-center">
-              <i class="fas fa-sign-in-alt fa-2x text-primary mb-2"></i>
-              <h4 class="text-white mb-1">${user.login_count}</h4>
-              <p class="text-white-50 mb-0">Lần đăng nhập</p>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="admin-card p-3 text-center">
-              <i class="fas fa-chart-bar fa-2x text-success mb-2"></i>
-              <h4 class="text-white mb-1">${user.reports_generated}</h4>
-              <p class="text-white-50 mb-0">Báo cáo tạo</p>
-            </div>
-          </div>
-          <div class="col-12">
-            <div class="admin-card p-3">
-              <h6 class="text-white mb-3">
-                <i class="fas fa-clock text-info me-2"></i>
-                Hoạt động gần đây
-              </h6>
-              <div class="text-center py-3">
-                <i class="fas fa-history fa-2x text-muted mb-2"></i>
-                <p class="text-white-50 mb-0">Dữ liệu hoạt động chi tiết sẽ được hiển thị ở đây</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
     }
 
     // Bulk actions
     function bulkActivate() {
-      showToast('Đã kích hoạt ' + selectedUsers.size + ' người dùng', 'success');
-      selectedUsers.clear();
-      document.getElementById('selectAll').checked = false;
-      updateBulkActions();
-      renderUserTable();
+      alert('Chức năng Kích hoạt hàng loạt đã được thay thế. Vui lòng dùng "Chuyển trạng thái" để cập nhật trạng thái người dùng.');
     }
 
     function bulkDeactivate() {
-      showToast('Đã vô hiệu hóa ' + selectedUsers.size + ' người dùng', 'warning');
-      selectedUsers.clear();
-      document.getElementById('selectAll').checked = false;
-      updateBulkActions();
-      renderUserTable();
+      alert('Chức năng Vô hiệu hóa hàng loạt đã được thay thế. Vui lòng dùng "Chuyển trạng thái" để cập nhật trạng thái người dùng.');
     }
 
     function bulkDelete() {
-      console.log('bulkDelete called, selectedUsers.size:', selectedUsers.size);
-      console.log('selectedUsers contents:', Array.from(selectedUsers));
-      
-      if (selectedUsers.size === 0) {
-        showToast('Vui lòng chọn ít nhất một người dùng để xóa!', 'warning');
-        return;
-      }
-
-      const selectedCount = selectedUsers.size; // Store count before clearing
-
-      // Confirm delete
-      if (confirm(`Bạn có chắc chắn muốn xóa ${selectedCount} người dùng đã chọn?\n\nHành động này không thể hoàn tác!`)) {
-        console.log('User confirmed delete');
-        
-        // Get selected user names for confirmation message
-        const selectedUserNames = mockUsers
-          .filter(user => selectedUsers.has(user.id))
-          .map(user => user.name)
-          .slice(0, 3); // Show max 3 names
-        
-        console.log('Users to delete:', selectedUserNames);
-        
-        // Remove selected users from mockUsers array
-        for (let userId of selectedUsers) {
-          const index = mockUsers.findIndex(user => user.id === userId);
-          console.log(`Deleting user ID ${userId}, found at index:`, index);
-          if (index !== -1) {
-            mockUsers.splice(index, 1);
-          }
-        }
-        
-        console.log('mockUsers after delete:', mockUsers.length);
-        
-        // Clear selection
-        selectedUsers.clear();
-        document.getElementById('selectAll').checked = false;
-        updateBulkActions();
-        renderUserTable();
-        
-        // Show success message
-        const message = selectedUserNames.length > 0 
-          ? `Đã xóa thành công ${selectedUserNames.join(', ')}${selectedUserNames.length === 3 ? '...' : ''}` 
-          : `Đã xóa thành công ${selectedCount} người dùng`;
-        showToast(message, 'success');
-      } else {
-        console.log('User cancelled delete');
-      }
+      // Bulk delete disabled in UI
+      alert('Xóa hàng loạt đã bị vô hiệu hóa trong giao diện. Vui lòng sử dụng API hoặc công cụ quản trị để xóa.');
     }
 
     function bulkExport() {
@@ -1220,6 +1126,98 @@
         this.style.display = 'none';
       });
     }
+    
+    } // End of disabled inline script block
+
+    // Simple authentication functions for API testing
+    function showLoginForm() {
+      const email = prompt('Nhập email admin:');
+      const password = prompt('Nhập mật khẩu:');
+      
+      if (email && password) {
+        login(email, password);
+      }
+    }
+
+    async function login(email, password) {
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, password })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Store token
+          localStorage.setItem('access_token', data.access_token);
+          
+          // Update UI
+          updateAuthStatus(true, email);
+          showToast('Đăng nhập thành công!', 'success');
+          
+          // Reload user data
+          if (window.__adminUserManagement) {
+            window.__adminUserManagement.loadUsers();
+          }
+        } else {
+          const error = await response.json();
+          showToast('Lỗi đăng nhập: ' + (error.message || 'Thông tin không hợp lệ'), 'error');
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        showToast('Lỗi kết nối: ' + error.message, 'error');
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('access_token');
+      sessionStorage.removeItem('access_token');
+      updateAuthStatus(false);
+      showToast('Đã đăng xuất', 'info');
+      
+      // Reload with mock data
+      if (window.__adminUserManagement) {
+        window.__adminUserManagement.loadMockData();
+      }
+    }
+
+    function updateAuthStatus(isLoggedIn, email = '') {
+      const authStatus = document.getElementById('authStatus');
+      const loginBtn = document.getElementById('loginBtn');
+      const logoutBtn = document.getElementById('logoutBtn');
+
+      // Defensive: guard against missing elements (some admin pages may not include all controls)
+      try {
+        if (isLoggedIn) {
+          if (authStatus) authStatus.textContent = `Đã đăng nhập: ${email}`;
+          if (loginBtn) loginBtn.style.display = 'none';
+          if (logoutBtn) logoutBtn.style.display = 'inline-block';
+        } else {
+          if (authStatus) authStatus.textContent = 'Chưa đăng nhập';
+          if (loginBtn) loginBtn.style.display = 'inline-block';
+          if (logoutBtn) logoutBtn.style.display = 'none';
+        }
+      } catch (e) {
+        // If anything unexpected happens (for example, a non-HTMLElement), just log and continue
+        console.warn('updateAuthStatus: failed to update UI elements', e);
+      }
+    }
+
+    // Check auth status on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        try {
+          updateAuthStatus(true, 'Admin');
+        } catch (e) {
+          console.warn('Could not update auth status on DOMContentLoaded', e);
+        }
+      }
+    });
   </script>
 
   <!-- Defensive wiring: delegated listeners and fallback export -->
@@ -1276,7 +1274,7 @@
 
       // Delegated listener for Select All (header checkbox)
       document.addEventListener('change', function(e) {
-        if (e.target && e.target.id === 'selectAll') {
+    if (e.target && e.target.id === 'selectAllUsers') {
           const checked = e.target.checked;
           const checkboxes = document.querySelectorAll('.user-checkbox');
           checkboxes.forEach(cb => { cb.checked = checked; });
