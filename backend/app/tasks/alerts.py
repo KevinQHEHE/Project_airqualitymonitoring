@@ -26,6 +26,43 @@ from backend.app import db as db_module
 logger = logging.getLogger(__name__)
 
 
+def _to_int_or_none(val) -> Optional[int]:
+    """Safely convert common AQI/threshold representations to int.
+
+    Handles ints, floats, numeric strings, and nested dicts like {'v': ...}.
+    Returns None when conversion is not possible.
+    """
+    if val is None:
+        return None
+    try:
+        # nested object (e.g. {'v': 12})
+        if isinstance(val, dict):
+            # try common keys
+            for k in ('v', 'value', 'aqi'):
+                if k in val:
+                    return _to_int_or_none(val.get(k))
+            return None
+        if isinstance(val, (int,)):
+            return int(val)
+        if isinstance(val, float):
+            return int(val)
+        if isinstance(val, str):
+            s = val.strip()
+            if s == '':
+                return None
+            try:
+                return int(s)
+            except Exception:
+                try:
+                    return int(float(s))
+                except Exception:
+                    return None
+        # last resort
+        return int(val)
+    except Exception:
+        return None
+
+
 def _get_users_with_notifications() -> List[Dict[str, Any]]:
     """Return users who have notification preferences enabled and have favorites OR active subscriptions."""
     # Simple query: users where notifications.enabled == true AND have favorites OR subscriptions
@@ -81,7 +118,11 @@ def _latest_aqi_for_station(station_id: any) -> Optional[int]:
         for sid in query_ids:
             readings = readings_repo.find_latest_by_station(sid, limit=1)
             if readings:
-                return readings[0].get('aqi')
+                aqi_raw = readings[0].get('aqi')
+                aqi_val = _to_int_or_none(aqi_raw)
+                if aqi_val is None:
+                    logger.debug('Latest AQI for station %s could not be parsed to int: %r', station_id, aqi_raw)
+                return aqi_val
         return None
     except Exception as exc:
         logger.exception('Failed to load latest reading for station %s: %s', station_id, exc)
@@ -282,7 +323,11 @@ def monitor_favorite_stations():
             # Process subscriptions first (new system)
             for sub in subscriptions:
                 station_id = sub['station_id']
-                threshold = sub.get('alert_threshold', 100)
+                # Normalize threshold to int in case it gets stored as string
+                try:
+                    threshold = int(sub.get('alert_threshold', 100))
+                except Exception:
+                    threshold = 100
                 subscription_id = sub['_id']
                 
                 logger.debug('Checking subscription %s for user %s: station=%s threshold=%s', 
@@ -301,7 +346,7 @@ def monitor_favorite_stations():
                         logger.exception('Failed to log notification_logs entry for no_data for user %s station %s', user_id, station_id)
                     continue
                     
-                if current_aqi >= threshold:
+                if current_aqi is not None and current_aqi >= threshold:
                     logger.debug('Station %s AQI %s >= threshold %s for subscription %s — evaluating rate limit', 
                                 station_id, current_aqi, threshold, subscription_id)
                     
@@ -401,7 +446,7 @@ def monitor_favorite_stations():
                             logger.exception('Failed to log notification_logs entry for no_data for user %s station %s', user.get('_id'), station_id)
                         continue
 
-                    if current_aqi >= threshold:
+                    if current_aqi is not None and current_aqi >= threshold:
                         logger.debug('Station %s AQI %s >= threshold %s for user %s — evaluating rate limit', 
                                     station_id, current_aqi, threshold, user.get('email'))
                         
@@ -466,7 +511,7 @@ def monitor_user_notifications(user: Dict[str, Any]) -> None:
                     logger.exception('Failed to log no_data for user %s station %s', user_id, station_id)
                 continue
 
-            if current_aqi >= threshold:
+            if current_aqi is not None and current_aqi >= threshold:
                 if _sent_recently(user_id, station_id, days=1):
                     try:
                         _log_notification_entry(subscription_id=subscription_id, user_id=user_id,
@@ -539,7 +584,7 @@ def monitor_user_notifications(user: Dict[str, Any]) -> None:
                         logger.exception('Failed to log no_data for user %s station %s', user_id, station_id)
                     continue
 
-                if current_aqi >= threshold:
+                if current_aqi is not None and current_aqi >= threshold:
                     if _sent_recently(user_id, station_id, days=1):
                         try:
                             _log_notification_entry(subscription_id=None, user_id=user_id,

@@ -25,6 +25,17 @@ logger = logging.getLogger(__name__)
 air_quality_bp = Blueprint('air_quality', __name__)
 
 
+def _is_signed_int(s: str) -> bool:
+    """Return True if string s can be parsed as an integer (handles leading +/-, None safe)."""
+    try:
+        if s is None:
+            return False
+        int(s)
+        return True
+    except Exception:
+        return False
+
+
 def _timestamp_to_vn_iso(val):
     """Convert a datetime or ISO string to Vietnam timezone (+07:00) ISO string.
 
@@ -71,9 +82,20 @@ def build_latest_per_station_pipeline(station_id: Optional[str], limit: int) -> 
     """
     match_stage = None
     # Support matching either the stored `station_id` (legacy) or `meta.station_idx` (numeric)
+    def _is_signed_int(s: str) -> bool:
+        try:
+            if s is None:
+                return False
+            int(s)
+            return True
+        except Exception:
+            return False
+
     if station_id:
-        # If station_id looks numeric, match numeric meta.station_idx as well
-        if station_id.isdigit():
+        # If station_id can be parsed as an integer (including negative values),
+        # include a numeric meta.station_idx match as well. Use int() parsing so
+        # negative indices like "-469825" are handled correctly.
+        if _is_signed_int(station_id):
             match_stage = {'$or': [
                 {'station_id': station_id},
                 {'meta.station_idx': int(station_id)}
@@ -286,7 +308,7 @@ def get_history():
         # Build aggregation pipeline: filter by station and timestamp >= start_ts, project required fields, sort ascending
         # Support station_id numeric vs string similar to latest pipeline
         match_stage = None
-        if station_id.isdigit():
+        if _is_signed_int(station_id):
             match_stage = {'$or': [ {'station_id': station_id}, {'meta.station_idx': int(station_id)} ]}
         else:
             match_stage = {'station_id': station_id}

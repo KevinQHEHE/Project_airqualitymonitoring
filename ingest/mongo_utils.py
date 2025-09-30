@@ -411,7 +411,12 @@ def bulk_upsert_stations(
             raise ValueError("Station must contain '_id' field")
         if 'city' not in station:
             raise ValueError("Station must contain 'city' field")
-        
+        # Ensure station_id field exists and is not None to satisfy unique index
+        # Some exports omit station_id; use _id as a stable fallback so unique
+        # index on station_id does not receive null values which break bulk ops.
+        if station.get('station_id') is None:
+            station['station_id'] = station['_id']
+
         operation = UpdateOne(
             {'_id': station['_id']},
             {'$set': station},

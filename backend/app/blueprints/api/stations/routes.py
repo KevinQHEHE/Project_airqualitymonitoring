@@ -23,6 +23,16 @@ logger = logging.getLogger(__name__)
 stations_bp = Blueprint('stations', __name__)
 
 
+def _is_signed_int(s: str) -> bool:
+    try:
+        if s is None:
+            return False
+        int(s)
+        return True
+    except Exception:
+        return False
+
+
 def haversine_distance_km(a, b):
     """Calculate great-circle distance between two (lat, lng) pairs in km."""
     lat1, lon1 = a
@@ -461,7 +471,32 @@ def get_stations():
         # Build filter criteria
         filter_criteria = {}
         if city:
-            filter_criteria['city.name'] = {"$regex": city, "$options": "i"}
+            # If city looks like a signed integer (users sometimes paste station ids
+            # into the city search box), support searching by station_id/_id as well
+            # so negative indices are matched correctly.
+            if _is_signed_int(city):
+                try:
+                    sid_int = int(city)
+                except Exception:
+                    sid_int = None
+                or_clauses = []
+                # match station_id as string
+                or_clauses.append({'station_id': str(city)})
+                # match station_id as numeric (some docs use numeric station_id)
+                if sid_int is not None:
+                    or_clauses.append({'station_id': sid_int})
+                    or_clauses.append({'_id': sid_int})
+                # fallback: also match city.name and city.location regex (some station docs
+                # include a human-readable address in city.location). Keep case-insensitive.
+                or_clauses.append({'city.name': {"$regex": city, "$options": "i"}})
+                or_clauses.append({'city.location': {"$regex": city, "$options": "i"}})
+                filter_criteria['$or'] = or_clauses
+            else:
+                # Match either the city name or the city.location (address) field
+                filter_criteria['$or'] = [
+                    {'city.name': {"$regex": city, "$options": "i"}},
+                    {'city.location': {"$regex": city, "$options": "i"}}
+                ]
         if country:
             filter_criteria['country'] = country.upper()
 
