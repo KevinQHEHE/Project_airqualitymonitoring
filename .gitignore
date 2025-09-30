@@ -75,3 +75,4 @@ backup_data/
 # ssh keys
 *.pem
 *.key
+.git-wip-backups/
