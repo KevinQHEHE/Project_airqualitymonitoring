@@ -147,7 +147,9 @@ def get_admin_user_locations(user_id: str):
     admin_id = str(claims.get("sub")) if claims.get("sub") is not None else None
 
     try:
-        result = svc.get_user_locations(user_id, initiator_id=admin_id)
+        # allow admins to optionally request expired subscriptions by passing ?include_expired=1
+        include_expired = request.args.get('include_expired') in ('1', 'true', 'True')
+        result = svc.get_user_locations(user_id, initiator_id=admin_id, include_expired=include_expired)
         return jsonify(result), 200
     except UserServiceError as error:
         return _service_error_response(error)

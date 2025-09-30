@@ -332,8 +332,14 @@ class DataIngestionScheduler:
             except Exception:
                 alert_enabled = True
                 alert_interval = 15
+            # If Celery is configured for alerts, avoid running the in-process
+            # alerts monitor to prevent duplicate deliveries. Operators can also
+            # explicitly disable the in-process monitor with
+            # IN_PROCESS_ALERT_MONITOR=false.
+            celery_configured = bool(os.environ.get('CELERY_BROKER_URL'))
+            in_process_alerts_allowed = os.environ.get('IN_PROCESS_ALERT_MONITOR', 'true').lower() in ['true', '1', 'on', 'yes']
 
-            if alert_enabled and monitor_favorite_stations is not None:
+            if alert_enabled and monitor_favorite_stations is not None and in_process_alerts_allowed and not celery_configured:
                 # Ensure the monitor runs inside the Flask application context
                 def _alerts_job_wrapper():
                     try:

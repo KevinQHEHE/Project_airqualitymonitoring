@@ -1003,23 +1003,81 @@ def get_station(station_id):
         JSON: Station details or error message
     """
     try:
-        # Try to find by station_id first (string identifier)
-        station = stations_repo.find_by_station_id(station_id)
+        # Try common lookup strategies in order of likelihood:
+        # 1) explicit station_id string
+        # 2) flexible find_by_station_ids helper (handles numeric/string mix)
+        # 3) numeric id lookup
+        # 4) direct _id ObjectId lookup
+        station = None
 
+        # direct station_id string match
+        try:
+            station = stations_repo.find_by_station_id(station_id)
+        except Exception:
+            station = None
+
+        # repository helper that accepts mixed id types (tries _id and station_id)
         if not station:
-            # If not found, try numeric lookup for backwards compatibility
+            try:
+                results = stations_repo.find_by_station_ids([station_id])
+                if results:
+                    station = results[0]
+            except Exception:
+                station = None
+
+        # try numeric id (some station documents store numeric ids)
+        if not station:
             try:
                 numeric_id = int(station_id)
-                station = stations_repo.find_one({"id": numeric_id})
-            except ValueError:
+                results = stations_repo.find_by_station_ids([numeric_id])
+                if results:
+                    station = results[0]
+            except (ValueError, TypeError):
                 pass
+
+        # try ObjectId _id lookup as a last resort
+        if not station:
+            try:
+                station = stations_repo.find_one({'_id': ObjectId(station_id)})
+            except Exception:
+                station = None
 
         if not station:
             return jsonify({"error": "Station not found"}), 404
 
-        # Convert ObjectId to string for JSON serialization
+        # At this point `station` may be a raw DB document. To ensure
+        # clients always receive a normalized shape (including an attached
+        # latest_reading when available) reuse the same normalizer used by
+        # the nearest/list endpoints: `_build_station_item` + `prepare_response`.
+        try:
+            database = db.get_db()
+        except Exception:
+            database = None
+
+        try:
+            # Use lat/lng from query params for distance computation when present
+            try:
+                lat = float(request.args.get('lat')) if request.args.get('lat') is not None else 0.0
+                lng = float(request.args.get('lng')) if request.args.get('lng') is not None else 0.0
+            except Exception:
+                lat = 0.0
+                lng = 0.0
+
+            if isinstance(station, dict) and database is not None:
+                station_item = _build_station_item(station, database, lat, lng)
+                response = {'station': station_item}
+                return jsonify(prepare_response(response)), 200
+        except Exception:
+            # If normalization fails for any reason, fall back to returning
+            # the raw station document (but ensure _id is JSON-serializable).
+            pass
+
+        # Convert ObjectId to string for JSON serialization when returning raw doc
         if '_id' in station:
-            station['_id'] = str(station['_id'])
+            try:
+                station['_id'] = str(station['_id'])
+            except Exception:
+                pass
 
         return jsonify(station), 200
 
