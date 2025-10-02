@@ -140,7 +140,7 @@ function createStationCard(s) {
 						<div>Threshold</div>
 							<div class="threshold-value" data-subscription-id="${s.id}">${s.threshold ?? s.current_aqi ?? 100}</div>
 					</div>
-						<input data-subscription-id="${s.id}" type="range" min="0" max="500" value="${s.threshold ?? s.current_aqi ?? 100}" class="threshold-slider" oninput="onThresholdChange(event, '${s.station_id}', '${s.id}')">
+						<input data-subscription-id="${s.id}" type="range" min="0" max="500" value="${s.threshold ?? s.current_aqi ?? 100}" class="threshold-slider" oninput="onThresholdInput(event, '${s.station_id}', '${s.id}')" onchange="onThresholdCommit(event, '${s.station_id}', '${s.id}')">
 				</div>
 			</div>
 			<div class="station-controls">
@@ -367,42 +367,65 @@ async function toggleAlert(el, stationId, subscriptionId) {
 	}
 }
 
-async function onThresholdChange(e, stationId, subscriptionId) {
+function onThresholdInput(e, stationId, subscriptionId) {
+	// Live preview while dragging: update visible displays and other sliders only.
 	const val = e.target.value;
-	// Try multiple strategies to find the nearest .threshold-value element
-	// Find all elements (displays and sliders) that belong to this subscription id and update them
 	const subId = subscriptionId || e.target.getAttribute('data-subscription-id');
 	if (subId) {
-		// Update all display elements
 		const displays = document.querySelectorAll(`.threshold-value[data-subscription-id="${subId}"]`);
 		displays.forEach(d => d.textContent = val);
 
-		// Update other sliders for the same subscription (e.g., grid vs list)
 		const sliders = document.querySelectorAll(`input[type=range][data-subscription-id="${subId}"]`);
 		sliders.forEach(s => {
 			if (s !== e.target) s.value = val;
 		});
 	} else {
-		// Fallback: try to update nearby display
-		let display = null;
-		display = e.target.parentElement?.querySelector('.threshold-value') || null;
+		let display = e.target.parentElement?.querySelector('.threshold-value') || null;
 		if (!display) {
 			const header = e.target.closest('.station-header');
 			display = header?.querySelector('.threshold-value') || null;
 		}
 		if (display) display.textContent = val;
 	}
+}
 
-	console.log(`Threshold slider changed to ${val} for station ${stationId} (subscriptionId=${subscriptionId})`);
+function onThresholdCommit(e, stationId, subscriptionId) {
+	// Commit handler: user finished dragging (onchange). Apply optimistic cache
+	// update, render both views, and send the debounced server update.
+	const val = e.target.value;
+	console.log(`Threshold commit to ${val} for station ${stationId} (subscriptionId=${subscriptionId})`);
 
-	// Debounced update to backend (per-subscription)
 	window.thresholdUpdateTimeouts = window.thresholdUpdateTimeouts || {};
 	const key = subscriptionId || e.target.getAttribute('data-subscription-id') || stationId;
 	clearTimeout(window.thresholdUpdateTimeouts[key]);
+
+	// Save previous cache value so we can revert on failure
+	window.thresholdPrevCache = window.thresholdPrevCache || {};
+	if (cachedSubscriptions && cachedSubscriptions.length) {
+		const idx = cachedSubscriptions.findIndex(c => String(c.id) === String(key) || String(c.station_id) === String(stationId));
+		if (idx !== -1) {
+			window.thresholdPrevCache[key] = { ...cachedSubscriptions[idx] };
+			cachedSubscriptions[idx] = { ...cachedSubscriptions[idx], threshold: parseInt(val) };
+			renderSubscriptions(cachedSubscriptions);
+		}
+	}
+
 	window.thresholdUpdateTimeouts[key] = setTimeout(async () => {
-		console.log(`Sending threshold update: ${val} for station ${stationId} (subscriptionId=${key})`);
-		await updateThreshold(stationId, parseInt(val), key);
-	}, 1000);
+		try {
+			await updateThreshold(stationId, parseInt(val), key);
+			if (window.thresholdPrevCache && window.thresholdPrevCache[key]) delete window.thresholdPrevCache[key];
+		} catch (err) {
+			console.error('Threshold commit failed, reverting UI/cache', err);
+			if (window.thresholdPrevCache && window.thresholdPrevCache[key] && cachedSubscriptions && cachedSubscriptions.length) {
+				const idx2 = cachedSubscriptions.findIndex(c => String(c.id) === String(key) || String(c.station_id) === String(stationId));
+				if (idx2 !== -1) {
+					cachedSubscriptions[idx2] = window.thresholdPrevCache[key];
+					renderSubscriptions(cachedSubscriptions);
+				}
+			}
+			alert('Failed to update threshold: ' + (err.message || err));
+		}
+	}, 300); // shorter debounce for commit
 }
 
 async function updateThreshold(stationId, threshold, subscriptionId) {
@@ -463,6 +486,20 @@ async function updateThreshold(stationId, threshold, subscriptionId) {
 		const responseData = await updateResp.json().catch(() => ({}));
 		console.log('Threshold update response:', responseData);
 		console.log(`✅ Threshold updated to ${threshold} for station ${stationId} (subscription ${subId})`);
+
+		// If server returned the updated subscription, update our cache
+		try {
+			if (responseData && responseData.subscription && cachedSubscriptions && cachedSubscriptions.length) {
+				const updated = responseData.subscription;
+				const idx = cachedSubscriptions.findIndex(c => String(c.id) === String(updated.id) || String(c.station_id) === String(updated.station_id));
+				if (idx !== -1) {
+					cachedSubscriptions[idx] = { ...cachedSubscriptions[idx], ...updated };
+					renderSubscriptions(cachedSubscriptions);
+				}
+			}
+		} catch (e) {
+			console.warn('Failed to merge server subscription into cache', e);
+		}
 
 	} catch (e) {
 		console.error('Update threshold error:', e);
