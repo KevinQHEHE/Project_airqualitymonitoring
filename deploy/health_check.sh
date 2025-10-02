@@ -21,9 +21,31 @@ for arg in "$@"; do
     esac
 done
 
-# Load environment variables
+# Load environment variables from .env safely
+# This parser ignores comments/blank lines, trims whitespace around keys/values
+# and removes surrounding single/double quotes from values.
 if [ -f .env ]; then
-    export $(cat .env | grep -v '^#' | grep -v '^\s*$' | xargs)
+    while IFS='=' read -r raw_key raw_val || [ -n "$raw_key" ]; do
+        # Skip comments and empty lines
+        if [[ "$raw_key" =~ ^\s*# ]] || [[ -z "$raw_key" ]]; then
+            continue
+        fi
+
+        # Trim whitespace from key and value
+        key="$(echo "$raw_key" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        val="$(echo "$raw_val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+
+        # Remove surrounding quotes if present
+        val="${val%\"}"
+        val="${val#\"}"
+        val="${val%\'}"
+        val="${val#\'}"
+
+        # Only export non-empty keys
+        if [ -n "$key" ]; then
+            export "$key=$val"
+        fi
+    done < <(grep -v '^[[:space:]]*#' .env | grep -v '^[[:space:]]*$' || true)
 else
     echo -e "${RED}Error: .env file not found${NC}"
     exit 1
@@ -74,12 +96,28 @@ echo ""
 
 # 2. Check if service is listening on port
 echo -e "${YELLOW}[2] Checking port binding...${NC}"
-if sudo netstat -tlnp | grep -q ":$SERVICE_PORT"; then
-    mark_passed "Service is listening on port $SERVICE_PORT"
-    
-    if [ "$VERBOSE" = true ]; then
-        sudo netstat -tlnp | grep ":$SERVICE_PORT"
+PORT_LISTENING=false
+# Prefer ss (modern) then fall back to netstat if available
+if command -v ss >/dev/null 2>&1; then
+    if sudo ss -tlnp | grep -q ":$SERVICE_PORT"; then
+        PORT_LISTENING=true
+        if [ "$VERBOSE" = true ]; then
+            sudo ss -tlnp | grep ":$SERVICE_PORT"
+        fi
     fi
+elif command -v netstat >/dev/null 2>&1; then
+    if sudo netstat -tlnp | grep -q ":$SERVICE_PORT"; then
+        PORT_LISTENING=true
+        if [ "$VERBOSE" = true ]; then
+            sudo netstat -tlnp | grep ":$SERVICE_PORT"
+        fi
+    fi
+else
+    mark_warning "Neither ss nor netstat available to check listening ports"
+fi
+
+if [ "$PORT_LISTENING" = true ]; then
+    mark_passed "Service is listening on port $SERVICE_PORT"
 else
     mark_failed "Service is NOT listening on port $SERVICE_PORT"
 fi
