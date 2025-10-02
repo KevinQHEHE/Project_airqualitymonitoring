@@ -256,14 +256,31 @@ gunicorn backend.app.wsgi:app --bind 0.0.0.0:8000
 ### Port already in use
 
 ```bash
-# Find what's using the port
-sudo netstat -tlnp | grep :8000
+# Find what's using the port (prefer ss, fallback to netstat)
+sudo ss -tlnp | grep :8000 || sudo netstat -tlnp | grep :8000
 
-# Kill the process
-sudo kill <PID>
+# If the process is a leftover gunicorn run outside systemd, stop the managed
+# service, mask it (prevents systemd from auto-starting), kill the leftover
+# processes, then unmask and start the systemd-managed service. This sequence
+# avoids a race where two different processes try to bind the same port.
+sudo systemctl stop gunicorn-aqi
+sudo systemctl mask gunicorn-aqi
 
-# Or restart the service
-sudo systemctl restart gunicorn-aqi
+# Kill gunicorn processes owned by the project (be careful with pkill)
+ps aux | grep -E 'gunicorn.*backend.app.wsgi' | grep -v grep
+sudo pkill -f 'gunicorn.*backend.app.wsgi' || true
+
+# Confirm port is free
+sudo ss -tlnp | grep :8000 || echo "port 8000 is free"
+
+# Now re-enable and start the managed service
+sudo systemctl unmask gunicorn-aqi
+sudo systemctl daemon-reload
+sudo systemctl start gunicorn-aqi
+
+# Check status and logs
+sudo systemctl status gunicorn-aqi --no-pager
+sudo journalctl -u gunicorn-aqi -n 200 --no-pager
 ```
 
 ### Memory issues
@@ -395,6 +412,40 @@ crontab -e
 ```
 
 ## Performance Tuning
+## Notes on common issues observed
+
+1) .env lines with inline comments
+
+If a value in your `.env` file contains an inline comment, for example:
+
+```
+STATION_POLLING_INTERVAL_MINUTES=1440 # Default 24 hours
+```
+
+Older code would try to parse the whole string and raise ValueError when
+casting to int. The application now strips inline comments when reading
+environment variables. If you see parsing warnings in logs, remove the inline
+comment or move the comment to its own line starting with `#`.
+
+2) Backup collision errors
+
+The health check recently reported `FileExistsError` from the backup task:
+
+```
+FileExistsError: [Errno 17] File exists: '/home/azureuser/air-quality-monitoring/backup_dtb/backup_20251002_153126'
+```
+
+This indicates a scheduled backup attempted to create a folder that already
+exists. Quick remediation:
+
+- Inspect `backup_dtb/` for partial or duplicate folders and remove any stale
+   incomplete entries.
+- Ensure only one scheduler is enabled (see `ENABLE_STATION_SCHEDULER` and any
+   external cron jobs). Restart the application after cleanup.
+
+If these issues persist, collect the relevant log excerpts and share them for
+further analysis.
+
 
 ### For higher traffic
 

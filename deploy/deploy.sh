@@ -12,9 +12,31 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Load environment variables
+# Load environment variables from .env safely
+# This parser ignores comments/blank lines, trims whitespace around keys/values
+# and removes surrounding single/double quotes from values.
 if [ -f .env ]; then
-    export $(cat .env | grep -v '^#' | grep -v '^\s*$' | xargs)
+    while IFS='=' read -r raw_key raw_val || [ -n "$raw_key" ]; do
+        # Skip comments and empty lines
+        if [[ "$raw_key" =~ ^\s*# ]] || [[ -z "$raw_key" ]]; then
+            continue
+        fi
+
+        # Trim whitespace from key and value
+        key="$(echo "$raw_key" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        val="$(echo "$raw_val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+
+        # Remove surrounding quotes if present
+        val="${val%\"}"
+        val="${val#\"}"
+        val="${val%\'}"
+        val="${val#\'}"
+
+        # Only export non-empty keys
+        if [ -n "$key" ]; then
+            export "$key=$val"
+        fi
+    done < <(grep -v '^\s*#' .env | grep -v '^\s*$' || true)
 else
     echo -e "${RED}Error: .env file not found${NC}"
     exit 1
@@ -184,9 +206,15 @@ RestartSec=10
 WantedBy=multi-user.target
 EOF
 
-# Create logs directory
+# Create logs directory and set ownership (use sudo if not root)
 mkdir -p "$PROJECT_DIR/logs"
-chown -R "$SERVICE_USER:www-data" "$PROJECT_DIR/logs"
+if [ "$(id -u)" -eq 0 ]; then
+    chown -R "$SERVICE_USER":www-data "$PROJECT_DIR/logs" || echo "Warning: chown failed"
+else
+    # Try with sudo; if sudo fails, warn but continue
+    sudo chown -R "$SERVICE_USER":www-data "$PROJECT_DIR/logs" 2>/dev/null || \
+        echo "Warning: unable to change ownership of $PROJECT_DIR/logs (sudo may be required)"
+fi
 
 sudo systemctl daemon-reload
 echo -e "${GREEN}✓ Systemd service configured${NC}"
