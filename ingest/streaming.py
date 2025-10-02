@@ -38,6 +38,27 @@ except Exception:
 
 logger = logging.getLogger(__name__)
 
+
+def _parse_int_env_from_env(name: str, default: int) -> int:
+    """Read an environment variable, strip inline comments/quotes, and parse an int.
+
+    Falls back to default and logs a warning on parse failure.
+    """
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    # Remove inline comments and surrounding whitespace
+    val = raw.split('#', 1)[0].strip()
+    if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+        val = val[1:-1]
+    if val == '':
+        return default
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        logger.warning("Invalid integer for %s: %r, falling back to %s", name, raw, default)
+        return default
+
 class DataIngestionScheduler:
     """
     Background scheduler for periodic station reading and forecast data ingestion.
@@ -60,17 +81,16 @@ class DataIngestionScheduler:
         self.scheduler: Optional[BackgroundScheduler] = None
         self.is_running = False
         self._shutdown_event = threading.Event()
-        
         # Station reading configuration
-        self.station_polling_interval_minutes = int(os.environ.get('STATION_POLLING_INTERVAL_MINUTES', '60'))
-        self.station_script_timeout_seconds = int(os.environ.get('STATION_SCRIPT_TIMEOUT_SECONDS', '300'))
+        self.station_polling_interval_minutes = _parse_int_env_from_env('STATION_POLLING_INTERVAL_MINUTES', 60)
+        self.station_script_timeout_seconds = _parse_int_env_from_env('STATION_SCRIPT_TIMEOUT_SECONDS', 300)
         self.enable_station_scheduler = os.environ.get('ENABLE_STATION_SCHEDULER', 'true').lower() in ['true', '1', 'on', 'yes']
-        
+
         # Forecast ingestion configuration
         forecast_env_value = os.environ.get('STATION_FORECAST_INTERVAL_MINUTES', '1440')
         print(f"=== DEBUG: STATION_FORECAST_INTERVAL_MINUTES environment value = '{forecast_env_value}' ===")
-        self.forecast_polling_interval_minutes = int(forecast_env_value)  # Default 24 hours
-        self.forecast_script_timeout_seconds = int(os.environ.get('FORECAST_SCRIPT_TIMEOUT_SECONDS', '600'))
+        self.forecast_polling_interval_minutes = _parse_int_env_from_env('STATION_FORECAST_INTERVAL_MINUTES', 1440)  # Default 24 hours
+        self.forecast_script_timeout_seconds = _parse_int_env_from_env('FORECAST_SCRIPT_TIMEOUT_SECONDS', 600)
         self.enable_forecast_scheduler = os.environ.get('ENABLE_FORECAST_SCHEDULER', 'true').lower() in ['true', '1', 'on', 'yes']
         print(f"=== DEBUG: Forecast scheduler will run every {self.forecast_polling_interval_minutes} minutes ===")
         
@@ -328,7 +348,7 @@ class DataIngestionScheduler:
             # Add alerts monitor job if available and enabled
             try:
                 alert_enabled = os.environ.get('ALERT_MONITOR_ENABLED', 'true').lower() in ['true', '1', 'on', 'yes']
-                alert_interval = int(os.environ.get('ALERT_MONITOR_INTERVAL_MINUTES', '15'))
+                alert_interval = _parse_int_env_from_env('ALERT_MONITOR_INTERVAL_MINUTES', 15)
             except Exception:
                 alert_enabled = True
                 alert_interval = 15
