@@ -117,8 +117,9 @@
       // Try parse error response
       // Default message
       let errText = 'Có lỗi khi tạo người dùng.';
+      let errJson = null;
       try {
-        const errJson = await res.json();
+        errJson = await res.json();
         // Server might return structured field errors
         if (errJson) {
           // If backend returns { errors: { field: 'msg' } }
@@ -136,7 +137,8 @@
             errText = errJson;
           }
 
-          // Common Mongo duplicate key or backend message heuristics
+          // Common Mongo duplicate key or backend message heuristics (set errText but we will
+          // choose which field to show below prioritizing username then email)
           if (/duplicate|unique|E11000/i.test(JSON.stringify(errJson))) {
             if (/username/i.test(JSON.stringify(errJson))) {
               errText = 'Trùng tên đăng nhập. Vui lòng chọn tên khác.';
@@ -161,13 +163,9 @@
         // optional: redirect to login after short delay
         setTimeout(() => { window.location.href = '/admin/login'; }, 1000);
       } else if (res.status === 409) {
-        // Conflict: give a clear username-specific message when possible
-        const uname = payload && payload.username ? payload.username : '';
-        if (uname) {
-          showAlert('error', `Tên đăng nhập "${uname}" đã tồn tại. Vui lòng chọn tên khác.`);
-        } else {
-          showAlert('error', 'Dữ liệu trùng lặp (Conflict). Vui lòng kiểm tra các trường nhập.');
-        }
+        // Conflict: show a generic collision message to avoid revealing which field
+        // specifically caused the conflict and to prevent race-condition confusion.
+        showAlert('error', 'Tên đăng nhập hoặc email đã có trên hệ thống. Vui lòng kiểm tra và thử lại.');
       } else {
         showAlert('error', errText);
       }

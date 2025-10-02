@@ -40,15 +40,16 @@ class FavoriteLocationsManager {
             // User chose "never" - use default Hanoi location
             console.log('[LocationManager] Using default Hanoi location (user disabled location access)');
             this.currentLocation = this.defaultLocation;
-            // Auto-load nearest station for Hanoi
-            this.autoLoadNearestStation();
+            // Auto-load station for default Hanoi (explicit selection: Use Hanoi)
+            this.autoLoadNearestStation({ explicit: true });
             return;
         } else if (locationPreference === 'always' && savedLocation) {
             // User chose "always" - auto-load nearest station
             console.log('[LocationManager] Auto-loading nearest station based on saved location');
             try {
                 this.currentLocation = JSON.parse(savedLocation);
-                this.autoLoadNearestStation();
+                // Auto-load station based on the user's saved location (explicit)
+                this.autoLoadNearestStation({ explicit: true });
             } catch (error) {
                 console.error('[LocationManager] Error parsing saved location:', error);
                 // Show modal if saved location is corrupted
@@ -245,7 +246,7 @@ class FavoriteLocationsManager {
         });
     }
 
-    async autoLoadNearestStation() {
+    async autoLoadNearestStation(options = {}) {
         try {
             console.log('[LocationManager] Auto-loading nearest station...');
             const stations = await this.fetchNearestStations(this.currentLocation);
@@ -257,8 +258,11 @@ class FavoriteLocationsManager {
                 localStorage.setItem(this.favoriteStationKey, JSON.stringify(nearestStation));
                 this.loadFavoriteStation(nearestStation);
                 
-                // Show success toast
-                this.showToast(`Auto-loaded nearest station: ${nearestStation.name || nearestStation.station_id}`, 'success');
+                // Show success toast. If this auto-load was triggered from a saved/default location
+                // (i.e. the user explicitly chose a saved/default), show a slightly different message.
+                const explicit = options && options.explicit === true;
+                const toastPrefix = explicit ? 'Auto-loaded station' : 'Auto-loaded nearest station';
+                this.showToast(`${toastPrefix}: ${nearestStation.name || nearestStation.station_id}`, 'success');
             } else {
                 console.warn('[LocationManager] No stations found for auto-load');
                 this.showToast('No monitoring stations found nearby', 'warning');

@@ -60,6 +60,84 @@
       font-family: 'Poppins', sans-serif;
       font-size: 16px;
     }
+    /* NAVBAR ACTIONS: normalize admin button, user pill and theme toggle so they look consistent */
+    .navbar-nav .nav-item { display: flex; align-items: center; }
+
+    /* Admin nav item: hidden by default, only shown via JS for admin users */
+    #adminNavItem { display: none !important; }
+    #adminNavItem.show-admin { display: flex !important; }
+
+    /* User pill */
+    .user-pill {
+      display: inline-flex;
+      align-items: center;
+      height: 40px;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.03);
+      transition: background .15s ease, transform .12s ease;
+      box-shadow: 0 6px 18px rgba(6,8,20,0.06);
+      min-width: 72px;
+    }
+    .user-pill:hover { background: rgba(255,255,255,0.06); transform: translateY(-1px); }
+
+    .user-initial { width:32px; height:32px; border-radius:50%; background:#667eea; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.95rem; }
+    .user-name { color: #fff; font-weight:600; margin-left:8px; font-size:0.95rem; }
+
+    /* Admin button - match height, padding and visual weight */
+    #adminNavItem .btn, #adminNavItem a.btn {
+      height: 40px;
+      padding: 0 14px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 18px rgba(6,8,20,0.06);
+      font-weight:600;
+      white-space: nowrap; /* prevent label wrapping */
+      min-width: 92px;
+      font-size: larger;     /* ensure button has enough room for "Quản trị" */
+    }
+    /* Slightly nudge the icon/text to sit visually centered within the control */
+    #adminNavItem .btn i.fas,
+    #adminNavItem .btn i.fa {
+      display: inline-block;
+      transform: translateY(2px);
+    }
+    #adminNavItem .btn { line-height: 1; }
+
+    /* Theme toggle - square button matching other controls */
+    .theme-toggle {
+      width: 40px;
+      height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      margin-left: 12px;
+      background: transparent;
+      transition: background .12s ease;
+    }
+    .theme-toggle:hover { background: rgba(255,255,255,0.04); }
+
+    /* Light mode / white-content adjustments: make text dark and add subtle border so pill is visible */
+    body.white-content .user-name,
+    [data-theme="light"] .user-name { color: #222 !important; }
+    body.white-content .user-pill,
+    [data-theme="light"] .user-pill {
+      background: #ffffff !important;
+      border: 1px solid rgba(34,34,34,0.06);
+      box-shadow: 0 6px 18px rgba(6,8,20,0.04);
+    }
+    body.white-content .user-initial,
+    [data-theme="light"] .user-initial { background: #5b6bd6; color: #fff; }
+
+    /* Mobile: hide username text and shrink spacing */
+    @media (max-width: 767px) {
+      .user-name { display: none !important; }
+      .theme-toggle { margin-left: 8px; }
+      #adminNavItem .btn, #adminNavItem a.btn { padding: 0 10px; min-width: 76px; }
+    }
   </style>
 </head>
 <body class="">
@@ -69,11 +147,7 @@
     <div class="loading-text">Checking authentication...</div>
   </div>
 
-  <!-- Admin shortcut (visible only to admin users) -->
-  <a id="adminBackBtn" href="/admin" class="btn btn-sm btn-primary" 
-     style="position:fixed; top:1rem; right:1rem; z-index:1200; display:none;">
-    <i class="fas fa-user-shield me-1"></i>Quản trị
-  </a>
+  <!-- Admin shortcut no longer fixed here; navbar contains a nav-item for it (hidden by default) -->
 
   <!-- Authentication Check Script -->
   <script>
@@ -206,17 +280,61 @@
       }
     }
 
-    // Reveal admin button when DOM ready if current user is admin
+    // Consolidated DOMContentLoaded: populate user pill, attach logout, and handle admin nav visibility
     document.addEventListener('DOMContentLoaded', function() {
       try {
-        const token = localStorage.getItem('access_token') || '';
-        const role = decodeJwtRole(token);
-        const adminBtn = document.getElementById('adminBackBtn');
-        if (role && String(role).toLowerCase() === 'admin' && adminBtn) {
-          adminBtn.style.display = 'inline-block';
+        // Get user info and populate user pill
+        const userInfo = localStorage.getItem('user_info');
+        let username = 'User';
+        if (userInfo) {
+          try { username = JSON.parse(userInfo).username || username; } catch(e) { }
         }
-      } catch (e) {
-        // noop
+        const nameEl = document.getElementById('navbar-username');
+        const initialEl = document.getElementById('userInitial');
+        if (nameEl) nameEl.textContent = username;
+        if (initialEl) initialEl.textContent = (username && username[0]) ? username[0].toUpperCase() : 'U';
+
+        // Attach logout handler
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) logoutBtn.addEventListener('click', function(e) { e.preventDefault(); logout(); });
+
+        // Handle admin nav visibility: check token role and explicitly show/hide
+        const token = localStorage.getItem('access_token') || '';
+        let role = decodeJwtRole(token);
+        // Fallback: if decodeJwtRole couldn't find a role, try localStorage user_info
+        if (!role) {
+          try {
+            const ui = localStorage.getItem('user_info');
+            if (ui) {
+              const parsed = JSON.parse(ui);
+              if (parsed && parsed.role) role = parsed.role;
+            }
+          } catch (e) {
+            // ignore parse errors
+          }
+        }
+
+        const adminNav = document.getElementById('adminNavItem');
+        // Debugging: log role so we can see why admin nav might appear
+        try { console.debug('[dashboard] decoded role:', role); } catch (e) {}
+
+        if (adminNav) {
+          if (role && String(role).toLowerCase() === 'admin') {
+            // User is admin: show the admin nav item (use class + explicit style)
+            adminNav.classList.add('show-admin');
+            try { adminNav.style.setProperty('display','flex','important'); } catch(e){}
+          } else {
+            // User is not admin or no valid role: explicitly hide the admin nav item using !important
+            adminNav.classList.remove('show-admin');
+            try { adminNav.style.setProperty('display','none','important'); } catch(e){}
+          }
+        }
+        
+      } catch (err) {
+        console.error('Dashboard init failed', err);
+        // On error, ensure admin nav is hidden for safety
+        const adminNav = document.getElementById('adminNavItem');
+        if (adminNav) adminNav.classList.remove('show-admin');
       }
     });
   </script>
@@ -280,43 +398,25 @@
           </button>
           <div class="collapse navbar-collapse" id="navigation">
             <ul class="navbar-nav ml-auto">
+              <!-- Admin button placeholder: shown only for admin users -->
+              <li id="adminNavItem" class="nav-item d-flex align-items-center" style="display:none; margin-right:8px;">
+                <a id="adminBackBtn" href="/admin" class="btn btn-sm btn-primary">
+                  <i class="fas fa-user-shield me-1"></i>Quản trị
+                </a>
+              </li>
+              <li class="nav-item">
+                <!-- Re-designed user pill: no external avatar image, responsive name display -->
+                <div id="userPill" class="d-flex align-items-center user-pill" style="gap:10px; cursor:pointer;">
+                  <div id="userInitial" class="user-initial" aria-hidden="true">U</div>
+                  <div id="navbar-username" class="user-name d-none d-md-inline-block">User</div>
+                </div>
+              </li>
               <li class="input-group d-flex align-items-center mb-0">
-                <!-- Theme toggle button (replaces checkbox switch) -->
+                <!-- Theme toggle button (moved to right of user pill) -->
                 <button id="themeToggle" class="theme-toggle btn btn-link p-0" type="button" aria-pressed="false" aria-label="Toggle theme">
                   <i class="fas fa-moon"></i>
                   <i class="fas fa-sun" style="display:none"></i>
                 </button>
-              </li>
-              <li class="search-bar input-group">
-                <button class="btn btn-link" id="search-button" data-toggle="modal" data-target="#searchModal">
-                  <i class="tim-icons icon-zoom-split"></i>
-                  <span class="d-lg-none d-md-block">Search</span>
-                </button>
-              </li>
-              <li class="dropdown nav-item">
-                <a href="#" class="dropdown-toggle nav-link" data-toggle="dropdown">
-                  <i class="tim-icons icon-sound-wave"></i>
-                  <p class="d-lg-none">Notifications</p>
-                </a>
-                <ul class="dropdown-menu dropdown-menu-right dropdown-navbar">
-                  <li class="nav-link"><a href="#" class="nav-item dropdown-item">Demo notification</a></li>
-                  <li class="nav-link"><a href="#" class="nav-item dropdown-item">Another one</a></li>
-                </ul>
-              </li>
-              <li class="dropdown nav-item">
-                <a href="#" class="dropdown-toggle nav-link" data-toggle="dropdown" id="user-dropdown">
-                  <div class="photo">
-                    <img src="assets/img/anime3.png" alt="Profile Photo">
-                  </div>
-                  <span id="navbar-username" class="d-none d-lg-block">User</span>
-                  <b class="caret d-none d-lg-block d-xl-block"></b>
-                  <p class="d-lg-none">User Menu</p>
-                </a>
-                <ul class="dropdown-menu dropdown-navbar">
-                  <li class="nav-link"><a href="#" class="nav-item dropdown-item">Profile</a></li>
-                  <li class="dropdown-divider"></li>
-                  <li class="nav-link"><a href="#" class="nav-item dropdown-item" id="logout-btn">Logout</a></li>
-                </ul>
               </li>
               <li class="separator d-lg-none"></li>
             </ul>

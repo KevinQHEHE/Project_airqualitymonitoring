@@ -24,6 +24,7 @@ from backend.app.repositories import (
     BaseRepository,  # type: ignore
 )
 from backend.app import db as db_module
+import bcrypt
 
 
 class PasswordResetsRepository(BaseRepository):
@@ -335,6 +336,33 @@ def reset_password_with_token(token: str, new_password_hash: str) -> bool:
         password_resets_repo.mark_used(token_hash)
         return True
     return False
+
+
+def check_password_reuse(token: str, new_password: str) -> bool:
+    """Return True if the provided new_password matches the user's current password.
+
+    This safely checks (bcrypt) against the stored password hash for the user
+    referenced by the valid reset token. If the token is invalid, return False.
+    """
+    if not token or not new_password:
+        return False
+    token_hash = _hash_token(token)
+    doc = password_resets_repo.find_valid_by_token_hash(token_hash)
+    if not doc:
+        return False
+
+    try:
+        user_id = doc.get('user_id')
+        user = users_repo.find_by_id(user_id)
+        if not user:
+            return False
+        current_hash = user.get('passwordHash')
+        if not current_hash:
+            return False
+        # bcrypt expects bytes
+        return bcrypt.checkpw(new_password.encode('utf-8'), current_hash.encode('utf-8'))
+    except Exception:
+        return False
 
 
 def validate_reset_token(token: str) -> bool:

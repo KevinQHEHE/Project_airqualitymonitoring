@@ -7,6 +7,9 @@
 
 let currentView = 'grid';
 let subscriptionsInitialized = false;
+// Cache fetched subscriptions so we can re-render grid/list views without
+// refetching from the server on every view switch or optimistic UI update.
+let cachedSubscriptions = [];
 
 // Initialize subscriptions only when explicitly called
 function initializeSubscriptions() {
@@ -36,6 +39,12 @@ function setView(view) {
 	document.getElementById('listViewBtn').classList.toggle('active', view === 'list');
 	document.getElementById('subscriptionsGrid').style.display = view === 'grid' ? 'grid' : 'none';
 	document.getElementById('subscriptionsList').style.display = view === 'list' ? 'block' : 'none';
+
+	// Re-render from cache so toggles/thresholds reflect the current state
+	// immediately when switching between grid and list without a full reload.
+	if (cachedSubscriptions && cachedSubscriptions.length) {
+		renderSubscriptions(cachedSubscriptions);
+	}
 }
 
 async function refreshSubscriptions() {
@@ -60,10 +69,12 @@ async function refreshSubscriptions() {
 			throw new Error('Failed to fetch subscriptions');
 		}
 		
-		const data = await resp.json();
+	const data = await resp.json();
 		console.log('API Data received:', data);
 		
-		const subs = data.subscriptions || [];
+	const subs = data.subscriptions || [];
+	// update cache
+	cachedSubscriptions = subs;
 		console.log('Subscriptions count:', subs.length);
 		console.log('First subscription:', subs[0]);
 		
@@ -77,22 +88,8 @@ async function refreshSubscriptions() {
 			console.log(`Full object:`, sub);
 		});
 
-		countEl.textContent = String(subs.length || 0);
-
-		if (!subs.length) {
-			console.log('No subscriptions - showing empty state');
-			emptyState.style.display = 'block';
-			return;
-		} else {
-			emptyState.style.display = 'none';
-		}
-
-		subs.forEach((s, index) => {
-			console.log(`Creating card ${index}:`, s);
-			const card = createStationCard(s);
-			containerGrid.appendChild(card.grid);
-			containerList.appendChild(card.list);
-		});
+		// render from cache
+		renderSubscriptions(subs);
 
 	} catch (e) {
 		console.error('Error loading subscriptions', e);
@@ -189,6 +186,38 @@ function createStationCard(s) {
 	return { grid: gridCard, list: listItem };
 }
 
+// Render subscriptions into both grid and list containers from an array of
+// subscription objects. This allows us to update UI based on cached data when
+// switching views or applying optimistic updates without refetching.
+function renderSubscriptions(subs) {
+	const containerGrid = document.getElementById('subscriptionsGrid');
+	const containerList = document.getElementById('subscriptionsList');
+	const emptyState = document.getElementById('emptyState');
+
+	containerGrid.innerHTML = '';
+	containerList.innerHTML = '';
+
+	const countEl = document.getElementById('subscriptionCount');
+	countEl.textContent = String(subs.length || 0);
+
+	if (!subs.length) {
+		emptyState.style.display = 'block';
+		return;
+	} else {
+		emptyState.style.display = 'none';
+	}
+
+	subs.forEach((s, index) => {
+		try {
+			const card = createStationCard(s);
+			containerGrid.appendChild(card.grid);
+			containerList.appendChild(card.list);
+		} catch (e) {
+			console.error('Error rendering subscription item', e, s);
+		}
+	});
+}
+
 function getAQIColor(aqi) {
 	if (aqi <= 50) return '#00e676';
 	if (aqi <= 100) return '#ffd54f';
@@ -264,6 +293,21 @@ async function toggleAlert(el, stationId, subscriptionId) {
 
 		// Update UI immediately (only update explicit alert label elements)
 		button.classList.toggle('active', newState);
+
+		// Optimistically update our in-memory cache so that switching between
+		// grid/list views reflects the new state immediately without reload.
+		let reverted = false;
+		let prevCacheState = null;
+		if (cachedSubscriptions && cachedSubscriptions.length) {
+			const idx = cachedSubscriptions.findIndex(c => String(c.id) === String(subscriptionId));
+			if (idx !== -1) {
+				prevCacheState = { ...cachedSubscriptions[idx] };
+				cachedSubscriptions[idx] = { ...cachedSubscriptions[idx], alert_enabled: newState };
+				// Re-render from cache
+				renderSubscriptions(cachedSubscriptions);
+			}
+		}
+
 		// Only target the alert label elements so we don't accidentally overwrite other
 		// parts of the card that may also carry `data-subscription-id` (e.g. sliders,
 		// threshold displays, or other injected content). This avoids replacing the
@@ -288,17 +332,29 @@ async function toggleAlert(el, stationId, subscriptionId) {
 
 		if (!resp.ok) {
 			const txt = await resp.text().catch(() => 'no body');
+			// revert optimistic cache update if present
+			if (prevCacheState && cachedSubscriptions) {
+				const idx2 = cachedSubscriptions.findIndex(c => String(c.id) === String(subscriptionId));
+				if (idx2 !== -1) cachedSubscriptions[idx2] = prevCacheState;
+				renderSubscriptions(cachedSubscriptions);
+				reverted = true;
+			}
 			throw new Error(`Server responded ${resp.status}: ${txt}`);
 		}
 
 		console.log(`Alert ${newState ? 'enabled' : 'disabled'} for subscription ${subscriptionId}`);
-
 	} catch (err) {
 		console.error('Failed to toggle alert:', err);
 		// Revert optimistic UI
 		if (el && el.classList) el.classList.toggle('active');
-		// Revert label texts if we captured previous states
+		// Revert cache update if it was applied
 		try {
+			if (typeof prevCacheState !== 'undefined' && prevCacheState && cachedSubscriptions) {
+				const idx3 = cachedSubscriptions.findIndex(c => String(c.id) === String(prevCacheState.id));
+				if (idx3 !== -1) cachedSubscriptions[idx3] = prevCacheState;
+				renderSubscriptions(cachedSubscriptions);
+			}
+
 			if (typeof prevLabelStates !== 'undefined' && Array.isArray(prevLabelStates)) {
 				prevLabelStates.forEach(item => {
 					try { item.el.textContent = item.text; } catch (e) { /* ignore */ }
