@@ -13,6 +13,66 @@
   <link href="{{ url_for('static', filename='js/assets/css/black-dashboard.min.css') }}" rel="stylesheet" />
   <link href="{{ url_for('static', filename='js/assets/css/two-column-auth.css') }}" rel="stylesheet" />
   <link href="{{ url_for('static', filename='js/assets/css/auth-overrides.css') }}" rel="stylesheet" />
+  
+  <style>
+    /* Normalize browser autocomplete/autofill appearance and selection styling */
+    /* Remove harsh autofill background colors - adapt to theme */
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus,
+    input:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 30px rgba(255,255,255,0.05) inset !important;
+      -webkit-text-fill-color: inherit !important;
+      caret-color: inherit !important;
+      transition: background-color 5000s ease-in-out 0s !important;
+    }
+
+    /* Theme-specific autocomplete styling */
+    [data-theme="light"] input:-webkit-autofill,
+    [data-theme="light"] input:-webkit-autofill:hover,
+    [data-theme="light"] input:-webkit-autofill:focus,
+    [data-theme="light"] input:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 30px #ffffff inset !important;
+      -webkit-text-fill-color: #333333 !important;
+      background-color: #ffffff !important;
+    }
+
+    [data-theme="dark"] input:-webkit-autofill,
+    [data-theme="dark"] input:-webkit-autofill:hover,
+    [data-theme="dark"] input:-webkit-autofill:focus,
+    [data-theme="dark"] input:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 30px #2c2c2c inset !important;
+      -webkit-text-fill-color: #ffffff !important;
+      background-color: #2c2c2c !important;
+    }
+
+    /* Hide autocomplete dropdown arrow */
+    input::-webkit-calendar-picker-indicator,
+    input::-webkit-clear-button,
+    input::-webkit-search-cancel-button,
+    input::-webkit-search-decoration {
+      display: none !important;
+      -webkit-appearance: none !important;
+    }
+
+    /* Selection styling for dark/light themes */
+    input::selection {
+      background: rgba(255, 77, 166, 0.3) !important;
+      color: inherit !important;
+    }
+
+    /* Focus styling normalization */
+    input:focus {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+
+    /* Autocomplete suggestion list styling override */
+    input[autocomplete]::-webkit-contacts-auto-fill-button {
+      visibility: hidden !important;
+      display: none !important;
+    }
+  </style>
 </head>
 
 <body class="login-page">
@@ -109,6 +169,20 @@
         showAlert('An error occurred while verifying the token. Please try again.');
       }
     });
+  </script>
+  <script>
+    // Ensure English validation message for verify token input
+    (function enforceVerifyValidation() {
+      const tokenInput = document.getElementById('tokenInput');
+      if (!tokenInput) return;
+      tokenInput.setAttribute('required', '');
+      function msg() {
+        if (!tokenInput.value) tokenInput.setCustomValidity('Please enter the token you received');
+        else tokenInput.setCustomValidity('');
+      }
+      tokenInput.addEventListener('input', msg, false);
+      tokenInput.addEventListener('invalid', msg, false);
+    })();
   </script>
   <script>
     // Robust theme toggle: toggles [data-theme] on documentElement and syncs legacy classes

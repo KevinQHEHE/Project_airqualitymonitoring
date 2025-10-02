@@ -687,6 +687,15 @@ def reset_password():
             }), 400
 
         pw_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        # Prevent users from reusing their current password when resetting
+        try:
+            from backend.app.services.auth.reset_password import check_password_reuse
+            if check_password_reuse(token, new_password):
+                return jsonify({"error": "password_reuse", "message": "New password cannot be the same as the current password"}), 400
+        except Exception:
+            # If check fails for any reason, allow reset to continue (do not block)
+            pass
+
         success = reset_password_with_token(token, pw_hash)
         if not success:
             return jsonify({"error": "invalid_or_expired_token"}), 400

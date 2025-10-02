@@ -18,6 +18,96 @@
 
   <link href="{{ url_for('static', filename='js/assets/css/two-column-auth.css') }}" rel="stylesheet" />
   <link href="{{ url_for('static', filename='js/assets/css/auth-overrides.css') }}" rel="stylesheet" />
+  <style>
+    /* Normalize browser autocomplete/autofill appearance and selection styling (match register page)
+       This reduces the harsh default highlight when a datalist option or autofill is applied. */
+    input[list]::-webkit-calendar-picker-indicator,
+    input[list]::-webkit-clear-button,
+    input[list]::-webkit-outer-spin-button,
+    input[list]::-webkit-inner-spin-button {
+      display: none !important;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    /* Specifically hide the clear/dropdown arrow in WebKit/Blink */
+    input[list]::-webkit-search-cancel-button,
+    input[list]::-webkit-search-decoration { display: none !important; }
+
+    /* Firefox (uses a built-in dropmarker) */
+    input[list]::-moz-focus-inner { border: 0; }
+    input[list]::-moz-drop-down-button { display: none; }
+
+    /* As a fallback, hide an explicit background image if present */
+    input[list] { background-image: none !important; }
+
+    /* Normalize browser autofill styles so the field doesn't get a harsh yellow/blue box */
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus,
+    input:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 30px rgba(255,255,255,0.03) inset !important;
+      -webkit-text-fill-color: inherit !important;
+      caret-color: inherit !important;
+      transition: background-color 5000s ease-in-out 0s !important;
+    }
+
+    /* Theme-specific autocomplete styling */
+    [data-theme="light"] input:-webkit-autofill,
+    [data-theme="light"] input:-webkit-autofill:hover,
+    [data-theme="light"] input:-webkit-autofill:focus,
+    [data-theme="light"] input:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 30px #ffffff inset !important;
+      -webkit-text-fill-color: #333333 !important;
+      background-color: #ffffff !important;
+    }
+
+    [data-theme="dark"] input:-webkit-autofill,
+    [data-theme="dark"] input:-webkit-autofill:hover,
+    [data-theme="dark"] input:-webkit-autofill:focus,
+    [data-theme="dark"] input:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 30px #2c2c2c inset !important;
+      -webkit-text-fill-color: #ffffff !important;
+      background-color: #2c2c2c !important;
+    }
+
+    /* Hide other picker controls */
+    input::-webkit-calendar-picker-indicator,
+    input::-webkit-clear-button,
+    input::-webkit-search-cancel-button,
+    input::-webkit-search-decoration { display: none !important; -webkit-appearance: none !important; }
+
+    /* Selection styling for dark/light themes */
+    input::selection { background: rgba(255, 77, 166, 0.3) !important; color: inherit !important; }
+
+    /* Focus styling normalization */
+    input:focus { outline: none !important; box-shadow: none !important; }
+
+    /* Autocomplete suggestion list styling override */
+    input[autocomplete]::-webkit-contacts-auto-fill-button { visibility: hidden !important; display: none !important; }
+  </style>
+  <style>
+    /* Ensure password toggle is absolutely positioned inside its wrapper and top is honored.
+       Use a specific selector and !important to override bootstrap or other rules that may
+       reset positioning in some browsers or stylesheets. */
+    .input-inline .password-toggle,
+    .form-group .password-toggle {
+      position: absolute !important;
+      right: 8px !important;
+      top: 46% !important;
+      transform: translateY(-46%) !important;
+      height: 32px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 0 8px !important;
+      color: inherit !important;
+      background: transparent !important;
+      border: none !important;
+    }
+    /* make sure parent is a positioning context */
+    .input-inline { position: relative; }
+  </style>
 </head>
 
 <body class="login-page">
@@ -55,16 +145,18 @@
                       <label class="text-white" style="font-weight:600;">Username</label>
                       <div class="input-inline" style="background:rgba(255,255,255,0.02);border-radius:12px;display:flex;align-items:center;padding:0 1rem;height:56px;">
                         <span class="input-left" style="color:#ff4da6;font-size:1.25rem;display:flex;align-items:center;margin-right:12px;"><i class="tim-icons icon-single-02"></i></span>
-                        <input type="text" class="form-control border-0 bg-transparent" name="username" id="username" placeholder="Enter your username" required style="padding-left:0;box-shadow:none;height:100%;font-size:1.08rem;flex:1;">
+                        <!-- Added datalist for remembered usernames -->
+                        <input list="rememberedUsernames" type="text" class="form-control border-0 bg-transparent" name="username" id="username" placeholder="Enter your username" required style="padding-left:0;box-shadow:none;height:100%;font-size:1.08rem;flex:1;">
+                        <datalist id="rememberedUsernames"></datalist>
                       </div>
                     </div>
 
                     <div class="form-group mb-3 w-100" style="max-width:400px;">
                       <label class="text-white" style="font-weight:600;">Password</label>
-                      <div class="input-inline" style="background:rgba(255,255,255,0.02);border-radius:12px;display:flex;align-items:center;padding:0 0.75rem;height:56px;">
+                      <div class="input-inline" style="background:rgba(255,255,255,0.02);border-radius:12px;display:flex;align-items:center;padding:0 0.75rem;height:56px;position:relative;">
                         <span class="input-left" style="color:#ff4da6;font-size:1.25rem;display:flex;align-items:center;margin-right:12px;"><i class="tim-icons icon-lock-circle"></i></span>
-                        <input type="password" class="form-control border-0 bg-transparent" name="password" id="password" placeholder="Enter your password" required style="padding-left:0;box-shadow:none;height:100%;font-size:1.08rem;flex:1;">
-                        <button type="button" class="btn btn-link password-toggle" aria-label="Toggle password visibility" style="color:rgba(255,255,255,0.7);font-size:1.05rem;padding:0 8px;margin-left:6px;">
+                        <input type="password" class="form-control border-0 bg-transparent" name="password" id="password" placeholder="Enter your password" required style="padding-left:0;box-shadow:none;height:100%;font-size:1.08rem;flex:1;padding-right:40px;">
+                        <button type="button" class="btn btn-link password-toggle" aria-label="Toggle password visibility" style="color:rgba(255,255,255,0.9);font-size:1.05rem;padding:0 8px;position:absolute;right:8px;top:46%;transform:translateY(-46%);height:32px;display:flex;align-items:center;justify-content:center;">
                           <i class="fas fa-eye-slash" aria-hidden="true"></i>
                         </button>
                       </div>
@@ -173,6 +265,22 @@
         alertContainer.find('.alert').fadeOut();
       }, 5000);
     }
+    // JS fallback: ensure inline styles applied with high specificity so devtools doesn't cross out `top`
+    (function forcePasswordTogglePosition() {
+      const els = document.querySelectorAll('.password-toggle');
+      els.forEach(el => {
+        // Use CSSOM to set style priority via setProperty
+        el.style.setProperty('position', 'absolute', 'important');
+        el.style.setProperty('right', '8px', 'important');
+        el.style.setProperty('top', '46%', 'important');
+        el.style.setProperty('transform', 'translateY(-46%)', 'important');
+        el.style.setProperty('height', '32px', 'important');
+        el.style.setProperty('display', 'flex', 'important');
+        el.style.setProperty('align-items', 'center', 'important');
+        el.style.setProperty('justify-content', 'center', 'important');
+        el.style.setProperty('padding', '0 8px', 'important');
+      });
+    })();
 
     async function verifyToken(token) {
       try {
@@ -213,6 +321,144 @@
           }
         });
       }
+    });
+
+    // ==========================
+    // Remember Me client logic
+    // Stores a map of remembered credentials in localStorage under key 'remembered_credentials'
+    // Each entry is { username: string, password: base64String }
+    // Warning: storing passwords in localStorage is sensitive. This implements the user's requested behavior
+    // but stores passwords only encoded with base64 (not secure encryption). Consider using more secure storage.
+    // ==========================
+
+    function getRemembered() {
+      try {
+        const raw = localStorage.getItem('remembered_credentials');
+        return raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        console.error('Failed to parse remembered_credentials', e);
+        return {};
+      }
+    }
+
+    function saveRemembered(obj) {
+      localStorage.setItem('remembered_credentials', JSON.stringify(obj));
+    }
+
+    function encodePwd(pwd) {
+      return btoa(unescape(encodeURIComponent(pwd)));
+    }
+
+    function decodePwd(encoded) {
+      try {
+        return decodeURIComponent(escape(atob(encoded)));
+      } catch (e) {
+        return '';
+      }
+    }
+
+    // Prefill username/password and populate datalist
+    document.addEventListener('DOMContentLoaded', function() {
+      const usernameInput = document.getElementById('username');
+      const passwordInput = document.getElementById('password');
+      const rememberCheckbox = document.getElementById('rememberMe');
+      const datalist = document.getElementById('rememberedUsernames');
+
+      const remembered = getRemembered();
+
+      // Populate datalist
+      function refreshDatalist() {
+        datalist.innerHTML = '';
+        Object.keys(remembered).forEach(u => {
+          const opt = document.createElement('option');
+          opt.value = u;
+          datalist.appendChild(opt);
+        });
+      }
+      refreshDatalist();
+
+      // If there's a last remembered username, prefill it and check the box
+      const last = localStorage.getItem('last_remembered_username');
+      if (last && remembered[last]) {
+        usernameInput.value = last;
+        passwordInput.value = decodePwd(remembered[last]);
+        rememberCheckbox.checked = true;
+      } else if (last) {
+        // if last is stored but not present in remembered map, clear last
+        localStorage.removeItem('last_remembered_username');
+      }
+
+      // When username input changes (including via datalist selection), if it's a remembered user autofill password
+      usernameInput.addEventListener('input', function() {
+        const val = usernameInput.value;
+        if (remembered[val]) {
+          passwordInput.value = decodePwd(remembered[val]);
+          rememberCheckbox.checked = true;
+        } else {
+          // clear password when input doesn't match
+          passwordInput.value = '';
+          // leave checkbox as-is
+        }
+        // Clear any custom validity message when user types
+        usernameInput.setCustomValidity('');
+      });
+
+      // Provide English custom validation messages (override browser localized text)
+      function setEnglishValidationMessages() {
+        if (usernameInput) {
+          usernameInput.addEventListener('invalid', function(e) {
+            // Only set message when required constraint fails
+            if (!usernameInput.value) {
+              usernameInput.setCustomValidity('Please enter your username.');
+            }
+          });
+          usernameInput.addEventListener('input', function() { usernameInput.setCustomValidity(''); });
+        }
+        if (passwordInput) {
+          passwordInput.addEventListener('invalid', function(e) {
+            if (!passwordInput.value) {
+              passwordInput.setCustomValidity('Please enter your password.');
+            }
+          });
+          passwordInput.addEventListener('input', function() { passwordInput.setCustomValidity(''); });
+        }
+      }
+      setEnglishValidationMessages();
+
+      // When remember checkbox is unchecked, remove the currently shown username from remembered
+      rememberCheckbox.addEventListener('change', function() {
+        const u = usernameInput.value;
+        if (!rememberCheckbox.checked && u && remembered[u]) {
+          delete remembered[u];
+          saveRemembered(remembered);
+          refreshDatalist();
+          // if this was last, remove last_remembered_username
+          const lastU = localStorage.getItem('last_remembered_username');
+          if (lastU === u) localStorage.removeItem('last_remembered_username');
+        }
+      });
+
+      // On form submit, if remember is checked, save creds; otherwise ensure removal
+      $('#loginForm').on('submit.remember', function(e) {
+        // This handler runs alongside the main submit handler defined later.
+        const u = usernameInput.value;
+        const p = passwordInput.value;
+        if (u && rememberCheckbox.checked) {
+          remembered[u] = encodePwd(p || '');
+          saveRemembered(remembered);
+          localStorage.setItem('last_remembered_username', u);
+          refreshDatalist();
+        } else if (u && !rememberCheckbox.checked) {
+          if (remembered[u]) {
+            delete remembered[u];
+            saveRemembered(remembered);
+            refreshDatalist();
+          }
+          // clear last if it matches
+          const lastU = localStorage.getItem('last_remembered_username');
+          if (lastU === u) localStorage.removeItem('last_remembered_username');
+        }
+      });
     });
 
     $('#loginForm').on('submit', async function(e) {

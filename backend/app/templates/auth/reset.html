@@ -19,6 +19,118 @@
 
   <link href="{{ url_for('static', filename='js/assets/css/two-column-auth.css') }}" rel="stylesheet" />
   <link href="{{ url_for('static', filename='js/assets/css/auth-overrides.css') }}" rel="stylesheet" />
+  
+  <style>
+    .password-rules {
+      font-size: 0.8rem;
+      margin-top: 10px;
+    }
+    .password-rules .rule {
+      margin-bottom: 5px;
+    }
+    .rule-valid {
+      color: #00d4aa;
+    }
+    .rule-invalid {
+      color: #fd5d93;
+    }
+
+    /* Password toggle positioning */
+    .form-group .password-toggle,
+    .input-inline .password-toggle {
+      position: absolute !important;
+      right: 8px !important;
+      top: 46% !important;
+      transform: translateY(-46%) !important;
+      height: 32px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 0 8px !important;
+      color: inherit !important;
+      background: transparent !important;
+      border: none !important;
+    }
+    /* ensure parent creating positioning context */
+    .form-group > div { position: relative; }
+
+    /* Normalize browser autocomplete/autofill appearance and selection styling */
+    /* Remove harsh autofill background colors - adapt to theme */
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus,
+    input:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 30px rgba(255,255,255,0.05) inset !important;
+      -webkit-text-fill-color: inherit !important;
+      caret-color: inherit !important;
+      transition: background-color 5000s ease-in-out 0s !important;
+    }
+
+    /* Theme-specific autocomplete styling */
+    [data-theme="light"] input:-webkit-autofill,
+    [data-theme="light"] input:-webkit-autofill:hover,
+    [data-theme="light"] input:-webkit-autofill:focus,
+    [data-theme="light"] input:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 30px #ffffff inset !important;
+      -webkit-text-fill-color: #333333 !important;
+      background-color: #ffffff !important;
+    }
+
+    [data-theme="dark"] input:-webkit-autofill,
+    [data-theme="dark"] input:-webkit-autofill:hover,
+    [data-theme="dark"] input:-webkit-autofill:focus,
+    [data-theme="dark"] input:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 30px #2c2c2c inset !important;
+      -webkit-text-fill-color: #ffffff !important;
+      background-color: #2c2c2c !important;
+    }
+
+    /* Hide autocomplete dropdown arrow */
+    input::-webkit-calendar-picker-indicator,
+    input::-webkit-clear-button,
+    input::-webkit-search-cancel-button,
+    input::-webkit-search-decoration {
+      display: none !important;
+      -webkit-appearance: none !important;
+    }
+
+    /* Selection styling for dark/light themes */
+    input::selection {
+      background: rgba(255, 77, 166, 0.3) !important;
+      color: inherit !important;
+    }
+
+    /* Focus styling normalization */
+    input:focus {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+
+    /* Autocomplete suggestion list styling override */
+    input[autocomplete]::-webkit-contacts-auto-fill-button {
+      visibility: hidden !important;
+      display: none !important;
+    }
+   /* Polished compact alert used on auth pages (prevents layout shift) */
+   /* The container is absolutely positioned inside the form wrapper so alerts overlay
+     and do not push or reflow the surrounding layout. On small screens we fall back
+     to normal flow and center the alert below the form. */
+   #alertContainer { position: absolute; top: 24px; right: 24px; z-index: 80; }
+   .aqm-alert-wrapper { display:block; }
+    .aqm-alert { max-width:420px; width:100%; border-radius:12px; padding:10px 14px; display:flex; gap:10px; align-items:center; box-shadow:0 8px 24px rgba(4,10,25,0.08); font-size:0.98rem; }
+    .aqm-alert .aqm-icon { flex:0 0 36px; height:36px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; color:#fff; }
+    .aqm-alert .aqm-body { flex:1 1 auto; }
+    .aqm-alert .aqm-close { background:transparent; border:none; color:inherit; font-size:1.05rem; }
+    .aqm-alert-success { background:#e8fff7; color:#055b46; }
+    .aqm-alert-success .aqm-icon { background:#00d4aa; }
+    .aqm-alert-danger { background:#fff1f5; color:#7a0b2b; }
+    .aqm-alert-danger .aqm-icon { background:#fd5d93; }
+    /* Responsive: on small viewports don't overlay (avoid clipping) */
+    @media (max-width: 767px) {
+      #alertContainer { position: static; margin-top: 18px; display:flex; justify-content:center; }
+      .aqm-alert { margin: 0 12px; }
+    }
+  </style>
 </head>
 
 <body class="login-page">
@@ -183,21 +295,26 @@
     });
 
     function showAlert(message, type = 'danger') {
-      const alertContainer = $('#alertContainer');
-      const alertHTML = `
-        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
-          <span class="alert-text">${message}</span>
-          <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-      `;
-      alertContainer.html(alertHTML);
-      
-      // Auto hide after 5 seconds
-      setTimeout(() => {
-        alertContainer.find('.alert').fadeOut();
-      }, 5000);
+      const container = document.getElementById('alertContainer');
+      if (!container) return;
+      const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const wrapper = document.createElement('div');
+      wrapper.className = 'aqm-alert-wrapper';
+      wrapper.innerHTML = `\n        <div class="aqm-alert aqm-alert-${type === 'success' ? 'success' : 'danger'}" role="status" aria-live="polite">\n          <div class="aqm-icon" aria-hidden="true">${type === 'success' ? '<i class="fas fa-check"></i>' : '<i class="fas fa-exclamation-triangle"></i>'}</div>\n          <div class="aqm-body">${esc(message)}</div>\n          <button class="aqm-close" aria-label="Dismiss">&times;</button>\n        </div>\n      `;
+      container.innerHTML = '';
+      container.appendChild(wrapper);
+
+      const alertEl = container.querySelector('.aqm-alert');
+      const closeBtn = container.querySelector('.aqm-close');
+      function removeAlert() {
+        if (!alertEl) return;
+        alertEl.style.transition = 'opacity 160ms ease, transform 160ms ease';
+        alertEl.style.opacity = '0';
+        alertEl.style.transform = 'translateY(6px)';
+        setTimeout(() => { if (container) container.innerHTML = ''; }, 180);
+      }
+      if (closeBtn) closeBtn.addEventListener('click', removeAlert);
+      setTimeout(removeAlert, 5000);
     }
 
     function validatePassword() {
@@ -256,6 +373,29 @@
         showAlert('Password does not meet requirements');
         return;
       }
+
+      // Check if new password is same as old password
+      try {
+        const checkResponse = await fetch('/api/auth/check-password-reuse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            token: token, 
+            new_password: newPassword 
+          })
+        });
+
+        if (checkResponse.ok) {
+          const checkData = await checkResponse.json();
+          if (checkData.is_same) {
+            showAlert('New password cannot be the same as your current password.');
+            return;
+          }
+        }
+      } catch (error) {
+        console.log('Password reuse check failed:', error);
+        // Continue with reset if check fails - don't block user
+      }
       
       // Disable button during submission
       const submitBtn = $('#resetBtn');
@@ -301,6 +441,87 @@
         submitBtn.prop('disabled', false).text(originalText);
       }
     });
+
+    // Ensure English validation messages for reset form (passwords)
+    (function enforceResetValidation() {
+      const newPwd = document.getElementById('new_password');
+      const confirmPwd = document.getElementById('confirm_password');
+      if (!newPwd || !confirmPwd) return;
+
+      // Store old password hash/check - we'll validate against server
+      let isCheckingOldPassword = false;
+
+      async function checkIfSameAsOldPassword(newPassword) {
+        if (!newPassword || isCheckingOldPassword) return false;
+        
+        try {
+          isCheckingOldPassword = true;
+          const token = $('#token').val().trim();
+          if (!token) return false;
+
+          const response = await fetch('/api/auth/check-password-reuse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              token: token, 
+              new_password: newPassword 
+            })
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            return data.is_same || false;
+          }
+        } catch (error) {
+          console.log('Password reuse check failed:', error);
+        } finally {
+          isCheckingOldPassword = false;
+        }
+        return false;
+      }
+
+      async function setPwdMessages() {
+        // Clear previous
+        newPwd.setCustomValidity('');
+        confirmPwd.setCustomValidity('');
+
+        // Required checks
+        if (!newPwd.value) {
+          newPwd.setCustomValidity('Please enter a new password.');
+          return;
+        }
+        if (!confirmPwd.value) {
+          confirmPwd.setCustomValidity('Please confirm your new password.');
+          return;
+        }
+
+        // Check if same as old password
+        if (newPwd.value && await checkIfSameAsOldPassword(newPwd.value)) {
+          newPwd.setCustomValidity('New password cannot be the same as your current password.');
+          return;
+        }
+
+        // Match check
+        if (newPwd.value && confirmPwd.value && newPwd.value !== confirmPwd.value) {
+          confirmPwd.setCustomValidity('Passwords do not match.');
+        }
+      }
+
+      newPwd.setAttribute('required', '');
+      confirmPwd.setAttribute('required', '');
+
+      // Debounce password checks to avoid too many API calls
+      let debounceTimer;
+      function debouncedSetPwdMessages() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(setPwdMessages, 500);
+      }
+
+      newPwd.addEventListener('input', debouncedSetPwdMessages, false);
+      confirmPwd.addEventListener('input', setPwdMessages, false);
+      newPwd.addEventListener('invalid', setPwdMessages, false);
+      confirmPwd.addEventListener('invalid', setPwdMessages, false);
+    })();
 
     // Password visibility toggles (support multiple toggle buttons)
     document.addEventListener('DOMContentLoaded', function() {
