@@ -218,6 +218,20 @@
     background-color: rgba(255,255,255,0.1); /* Dark theme hover */
 }
 
+/* Small UX tweaks requested: nudge the users icon and paragraph slightly to the right
+   Use specific selectors to avoid changing fa-users globally in other contexts. */
+.admin-header h1 > i.fas.fa-users:before {
+    /* keep the icon glyph but create spacing to the right so label aligns nicely */
+    content: "\f0c0"; /* fontawesome users glyph */
+    padding-right: 10px;
+    margin-left: 15px;
+}
+
+.admin-header .mb-0 {
+    /* small left offset for the subtitle paragraph */
+    margin-left: 15px;
+}
+
 .user-table tbody tr:last-child td {
     border-bottom: none;
 }
@@ -1023,7 +1037,8 @@ body {
    and !important to ensure the label is visible on light backgrounds. */
 body.white-content .admin-wrapper.light-mode .admin-header .text-white-50.me-3,
 .admin-wrapper.light-mode .admin-header .text-white-50.me-3 {
-    color: #1d253b !important; /* dark slate for readable contrast in light mode */
+    color: #1d253b !important;
+    margin-right: 10px; /* dark slate for readable contrast in light mode */
 }
 
 .admin-wrapper.light-mode .modal-content {
@@ -1306,6 +1321,7 @@ body.white-content .admin-wrapper.light-mode .admin-header .text-white-50.me-3,
     border: none !important;
     color: white !important;
     font-weight: 500 !important;
+    margin-right: 15px !important;
 }
 
 .admin-wrapper.light-mode .btn-success:hover {
