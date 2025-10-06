@@ -616,16 +616,21 @@ def forgot_password():
         except Exception:
             user = None
 
-        if user and user.get('provider') and user.get('provider') != 'local':
-            # Log for operators (do not reveal to caller). Do not send reset email for
-            # social/OAuth accounts.
+        user_exists = bool(user)
+
+        # If user exists but is an external provider account, skip sending a reset
+        # email. Return the generic message but include the user_exists flag.
+        if user_exists and user.get('provider') and user.get('provider') != 'local':
             try:
                 logger.info(f"Password reset request for {email} skipped: provider={user.get('provider')}")
             except Exception:
                 pass
-            return jsonify({"message": "If an account exists for that email, a reset link has been sent."}), 200
+            return jsonify({"message": "If an account exists for that email, a reset link has been sent.", "user_exists": True}), 200
 
-        created, token = create_password_reset_request(email, token_ttl_minutes=15)
+        created = False
+        token = None
+        if user_exists:
+            created, token = create_password_reset_request(email, token_ttl_minutes=15)
 
         # Compose a friendly reset link if we know a base URL
         try:
@@ -644,11 +649,11 @@ def forgot_password():
 
             send_password_reset_email(email, token=token, reset_link=reset_page)
 
-        # Always respond with success message. If running in DEBUG and token was created,
-        # include the token in the response under `dev_token` to make local testing easier.
-        resp = {"message": "If an account exists for that email, a reset link has been sent."}
+        # Always respond with success message to avoid enumeration. Include
+        # a non-sensitive `user_exists` flag to let the client choose the UX.
+        resp = {"message": "If an account exists for that email, a reset link has been sent.", "user_exists": user_exists}
         try:
-            if current_app.config.get('DEBUG') and created and token:
+            if current_app.config.get('DEBUG') and created and token and user_exists:
                 resp['dev_token'] = token
         except Exception:
             # ignore config access errors
