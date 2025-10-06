@@ -976,15 +976,15 @@ def get_nearest_stations():
         return jsonify({"error": "Internal server error", "code": error_code}), 500
 
 
-@stations_bp.route('/health', methods=['GET'])
-def health():
-    """Lightweight health endpoint returning DB connectivity and basic server info."""
-    try:
-        status = db.health_check()
-        return jsonify(status), 200 if status.get('status') == 'healthy' else 503
-    except Exception as e:
-        logger.exception("Health check failed: %s", e)
-        return jsonify({"status": "unhealthy", "error": "Health check failed"}), 503
+# @stations_bp.route('/health', methods=['GET'])
+# def health():
+#     """Lightweight health endpoint returning DB connectivity and basic server info."""
+#     try:
+#         status = db.health_check()
+#         return jsonify(status), 200 if status.get('status') == 'healthy' else 503
+#     except Exception as e:
+#         logger.exception("Health check failed: %s", e)
+#         return jsonify({"status": "unhealthy", "error": "Health check failed"}), 503
 
 
 @stations_bp.route('/by_meta_idx/<int:meta_idx>', methods=['GET'])
@@ -1121,39 +1121,39 @@ def get_station(station_id):
         return jsonify({"error": "Internal server error"}), 500
 
 
-@stations_bp.route('/', methods=['POST'])
-def create_station():
-    """Create a new monitoring station.
+# @stations_bp.route('/', methods=['POST'])
+# def create_station():
+#     """Create a new monitoring station.
 
-    Expected JSON body:
-    {
-        "name": "Station Name",
-        "city": "City Name",
-        "country": "Country Code",
-        "latitude": 12.345,
-        "longitude": 67.890
-    }
+#     Expected JSON body:
+#     {
+#         "name": "Station Name",
+#         "city": "City Name",
+#         "country": "Country Code",
+#         "latitude": 12.345,
+#         "longitude": 67.890
+#     }
 
-    Returns:
-        JSON: Created station info or error message
-    """
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "JSON data required"}), 400
+#     Returns:
+#         JSON: Created station info or error message
+#     """
+#     try:
+#         data = request.get_json()
+#         if not data:
+#             return jsonify({"error": "JSON data required"}), 400
 
-        required_fields = ['name', 'city', 'country', 'latitude', 'longitude']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({"error": f"Missing required field: {field}"}), 400
+#         required_fields = ['name', 'city', 'country', 'latitude', 'longitude']
+#         for field in required_fields:
+#             if field not in data:
+#                 return jsonify({"error": f"Missing required field: {field}"}), 400
 
-        # TODO: Implement station creation in MongoDB
-        return jsonify({
-            "message": "Station created successfully",
-            "station": data
-        }), 201
+#         # TODO: Implement station creation in MongoDB
+#         return jsonify({
+#             "message": "Station created successfully",
+#             "station": data
+#         }), 201
 
-    except Exception as e:
-        logger.error(f"Create station error: {str(e)}")
-        return jsonify({"error": "Internal server error"}), 500
+#     except Exception as e:
+#         logger.error(f"Create station error: {str(e)}")
+#         return jsonify({"error": "Internal server error"}), 500
 
