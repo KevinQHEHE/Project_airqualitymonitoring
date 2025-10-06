@@ -152,11 +152,6 @@ def update_user_favorites(user_id: str):
 
 	return jsonify({"message": "favorites updated", "favoriteStations": favs}), 200
 
-
-
-# --- alert_subscriptions CRUD -------------------------------------------------
-
-
 @alerts_bp.route('/subscriptions', methods=['GET'])
 def list_subscriptions():
 	"""List alert subscriptions.
