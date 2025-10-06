@@ -238,23 +238,8 @@ def register():
             "username": username.lower(),
             "email": email.lower(),
             "passwordHash": pw_hash,
-            # Do not write a top-level `email_verified` field because the
-            # MongoDB users collection enforces a strict schema. Store
-            # verification status under `preferences` instead when needed.
-            # NOTE: Email verification emails are currently disabled by
-            # configuration above. Do not write verification flags here to
-            # avoid introducing fields that older code may not expect.
             "role": "user",
-            # Optionally write a top-level status field on registration when
-            # configuration requests it. This is disabled by default to
-            # preserve compatibility with deployments that manage status
-            # through admin APIs or expect the field to be absent.
             **({"status": "active"} if current_app.config.get('REGISTER_SET_STATUS_ON_REGISTRATION') else {}),
-            # NOTE: Do not write a top-level `status` field here to avoid
-            # MongoDB document validation failures on deployments that use a
-            # stricter users collection schema. Login checks default to
-            # "active" when the field is absent, so omitting it here is
-            # safe and keeps the registration flow compatible.
             "createdAt": datetime.now(timezone.utc),
             "updatedAt": datetime.now(timezone.utc),
         }
@@ -351,9 +336,6 @@ def login():
                 pass
             return jsonify({"error": "invalid credentials"}), 401
 
-        # Email verification enforcement removed: do not block login based on
-        # any email verification flags. This simplifies UX for now and avoids
-        # 403 responses when accounts lack verification fields.
 
         identity = str(user.get('_id') or '')
         claims = {
@@ -747,13 +729,21 @@ def logout_access():
         sub = get_jwt().get("sub")
         ttype = get_jwt().get("type", "access")
         database = db_module.get_db()
-        database.jwt_blocklist.insert_one({
+        result = database.jwt_blocklist.insert_one({
             "jti": jti,
             "user_id": sub,
             "token_type": ttype,
             "revokedAt": datetime.now(timezone.utc),
         })
-        return jsonify({"message": "Logged out (access token revoked)"}), 200
+        try:
+            logger.info("Revoked access token stored in jwt_blocklist: %s (db=%s)", str(result.inserted_id), current_app.config.get('MONGO_DB'))
+        except Exception:
+            pass
+        resp = {"message": "Logged out (access token revoked)"}
+        if current_app.config.get('DEBUG'):
+            # Include minimal debug info to help developers find where the document was written
+            resp['_debug'] = {"inserted_id": str(result.inserted_id), "db": current_app.config.get('MONGO_DB')}
+        return jsonify(resp), 200
     except Exception as e:
         logger.error(f"Logout error: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -770,13 +760,20 @@ def logout_refresh():
         jti = get_jwt().get("jti")
         sub = get_jwt().get("sub")
         database = db_module.get_db()
-        database.jwt_blocklist.insert_one({
+        result = database.jwt_blocklist.insert_one({
             "jti": jti,
             "user_id": sub,
             "token_type": "refresh",
             "revokedAt": datetime.now(timezone.utc),
         })
-        return jsonify({"message": "Refresh token revoked"}), 200
+        try:
+            logger.info("Revoked refresh token stored in jwt_blocklist: %s (db=%s)", str(result.inserted_id), current_app.config.get('MONGO_DB'))
+        except Exception:
+            pass
+        resp = {"message": "Refresh token revoked"}
+        if current_app.config.get('DEBUG'):
+            resp['_debug'] = {"inserted_id": str(result.inserted_id), "db": current_app.config.get('MONGO_DB')}
+        return jsonify(resp), 200
     except Exception as e:
         logger.error(f"Logout refresh error: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -797,3 +794,4 @@ def verify_access_token():
     except Exception as e:
         logger.info(f"Token verification failed: {e}")
         return jsonify({"error": "NOT FOUND"}), 404
+ 
