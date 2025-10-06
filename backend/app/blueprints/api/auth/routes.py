@@ -449,60 +449,6 @@ def check_email():
         logger.error(f"Check email error: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
-
-@auth_bp.route('/check-email-debug', methods=['GET'])
-@limiter.limit("5 per minute")
-def check_email_debug():
-    """Dev-only endpoint: return the raw email validation payload.
-
-    Only available when the Flask app is running in DEBUG mode. Use this to
-    inspect the full ValidationResult returned by the registration validator
-    without changing cached values or global settings.
-    Query param: ?email=foo@example.com
-    """
-    try:
-        # Only allow in debug to avoid leaking provider/internal details in prod
-        if not current_app.config.get('DEBUG'):
-            return jsonify({"error": "not_found"}), 404
-
-        email = (request.args.get('email') or '').strip()
-        if not email:
-            return jsonify({"error": "email is required"}), 400
-        if not _validate_email(email):
-            return jsonify({"error": "invalid_format", "message": "invalid email format"}), 400
-
-        # Check existing account
-        try:
-            user = users_repo.find_by_email(email)
-        except Exception:
-            user = None
-        if user:
-            return jsonify({"available": False, "checked": True, "reason": "exists", "debug": {"note": "user exists"}}), 200
-
-        try:
-            allowed, validation_result = validate_registration_email(email)
-        except Exception as e:
-            body = {"available": True, "checked": False, "debug": {"error": str(e)}}
-            return jsonify(body), 200
-
-        body = {"available": bool(allowed), "checked": True}
-        try:
-            if validation_result is not None:
-                # ValidationResult is an object with attributes; expose its dict for debug only
-                body['debug'] = {'email_validation': validation_result.__dict__}
-                reason = getattr(validation_result, 'reason', None)
-                if reason:
-                    body['reason'] = reason
-        except Exception:
-            # ignore debug serialization errors
-            pass
-
-        return jsonify(body), 200
-    except Exception as e:
-        logger.error(f"Check email debug error: {e}")
-        return jsonify({"error": "Internal server error"}), 500
-
-
 # Flask-Limiter will raise a 429; return JSON rather than HTML
 @auth_bp.errorhandler(429)
 def ratelimit_handler(e):
@@ -634,12 +580,8 @@ def forgot_password():
         # Always respond with success message to avoid enumeration. Include
         # a non-sensitive `user_exists` flag to let the client choose the UX.
         resp = {"message": "If an account exists for that email, a reset link has been sent.", "user_exists": user_exists}
-        try:
-            if current_app.config.get('DEBUG') and created and token and user_exists:
-                resp['dev_token'] = token
-        except Exception:
-            # ignore config access errors
-            pass
+        # Do not return tokens in responses even in DEBUG. Developers can
+        # inspect logs or run local debug tooling to retrieve test tokens.
         return jsonify(resp), 200
     except Exception as e:
         logger.error(f"Forgot password error: {e}")
@@ -740,9 +682,8 @@ def logout_access():
         except Exception:
             pass
         resp = {"message": "Logged out (access token revoked)"}
-        if current_app.config.get('DEBUG'):
-            # Include minimal debug info to help developers find where the document was written
-            resp['_debug'] = {"inserted_id": str(result.inserted_id), "db": current_app.config.get('MONGO_DB')}
+        # Never include internal DB identifiers in responses. Use server logs
+        # (already logged above) for debugging purposes.
         return jsonify(resp), 200
     except Exception as e:
         logger.error(f"Logout error: {e}")
@@ -771,8 +712,7 @@ def logout_refresh():
         except Exception:
             pass
         resp = {"message": "Refresh token revoked"}
-        if current_app.config.get('DEBUG'):
-            resp['_debug'] = {"inserted_id": str(result.inserted_id), "db": current_app.config.get('MONGO_DB')}
+        # Do not expose internal debug fields in API responses.
         return jsonify(resp), 200
     except Exception as e:
         logger.error(f"Logout refresh error: {e}")

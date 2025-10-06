@@ -101,51 +101,6 @@ def trigger_monitor():
 		current_app.logger.exception('Trigger monitor failed: %s', exc)
 		return jsonify({"error": "monitor_failed", "details": str(exc)}), 500
 
-
-@alerts_bp.route('/debug/send_test', methods=['POST'])
-def debug_send_test():
-	"""Attempt a single alert send to a user/station for testing (DEBUG only).
-
-	Body JSON: { "user_id": "..." } or { "email": "..." }, optional "station_id".
-	Returns send result for quick verification.
-	"""
-	if not current_app.config.get('DEBUG'):
-		return jsonify({"error": "not_allowed"}), 403
-
-	data = request.get_json(silent=True) or {}
-	user = None
-	if 'user_id' in data:
-		user = users_repo.find_by_id(data.get('user_id'))
-	elif 'email' in data:
-		user = users_repo.find_by_email(data.get('email'))
-	if not user:
-		return jsonify({"error": "user_not_found"}), 404
-
-	station_id = data.get('station_id') or data.get('station')
-	db = __import__('backend.app.db', fromlist=['get_db']).get_db()
-	station = None
-	if station_id is not None:
-		try:
-			station_doc = db.waqi_stations.find_one({'station_id': int(station_id)})
-		except Exception:
-			station_doc = db.waqi_stations.find_one({'station_id': str(station_id)})
-		if station_doc:
-			station = station_doc
-	if not station:
-		station = {'station_id': station_id or 'unknown', 'name': f'Station {station_id or "unknown"}'}
-
-	# Import the send helper from tasks to reuse mail sending logic
-	try:
-		from backend.app.tasks.alerts import _send_alert_email
-	except Exception as exc:
-		current_app.logger.exception('Could not import _send_alert_email: %s', exc)
-		return jsonify({"error": "internal_error", "details": str(exc)}), 500
-
-	sent, message_id, response = _send_alert_email(user, station, int(data.get('aqi', 150)))
-	return jsonify({"sent": sent, "message_id": message_id, "response": response}), 200
-
-
-
 @alerts_bp.route('/user/<user_id>/favorites', methods=['PUT'])
 def update_user_favorites(user_id: str):
 	"""Update a user's favorite stations list.
