@@ -26,18 +26,18 @@ logger = logging.getLogger(__name__)
 alerts_bp = Blueprint('alerts', __name__, url_prefix='/api/alerts')
 
 
-@alerts_bp.route('/user/<user_id>/notifications', methods=['GET'])
-def get_user_notifications(user_id: str):
-	"""Return the user's notification preferences.
+# @alerts_bp.route('/user/<user_id>/notifications', methods=['GET'])
+# def get_user_notifications(user_id: str):
+# 	"""Return the user's notification preferences.
 
-	Returns 404 if user not found. Response shape mirrors stored
-	`preferences.notifications` object.
-	"""
-	user = users_repo.find_by_id(user_id)
-	if not user:
-		return jsonify({"error": "user not found"}), 404
-	prefs = (user.get('preferences') or {}).get('notifications') or {}
-	return jsonify({"userId": str(user.get('_id')), "notifications": prefs}), 200
+# 	Returns 404 if user not found. Response shape mirrors stored
+# 	`preferences.notifications` object.
+# 	"""
+# 	user = users_repo.find_by_id(user_id)
+# 	if not user:
+# 		return jsonify({"error": "user not found"}), 404
+# 	prefs = (user.get('preferences') or {}).get('notifications') or {}
+# 	return jsonify({"userId": str(user.get('_id')), "notifications": prefs}), 200
 
 
 @alerts_bp.route('/user/<user_id>/notifications', methods=['PUT'])
@@ -67,90 +67,6 @@ def update_user_notifications(user_id: str):
 
 	return jsonify({"message": "notifications updated", "notifications": data}), 200
 
-
-@alerts_bp.route('/health', methods=['GET'])
-def health():
-	return jsonify({"status": "ok"}), 200
-
-
-
-@alerts_bp.route('/trigger', methods=['POST'])
-def trigger_monitor():
-	"""Admin/test endpoint: trigger the favorite-stations monitor.
-
-	Protection: requires a key provided via header `X-ALERT-TEST-KEY` or
-	query param `key` that must match the `ALERT_TEST_KEY` environment
-	variable. This endpoint exists to help QA/development safely invoke
-	the monitor over HTTP. It should NOT be enabled in production without
-	proper authentication.
-	"""
-	# Check provided key
-	provided = request.headers.get('X-ALERT-TEST-KEY') or request.args.get('key')
-	secret = os.environ.get('ALERT_TEST_KEY')
-	if not secret:
-		return jsonify({"error": "ALERT_TEST_KEY not configured on server"}), 503
-	if not provided or provided != secret:
-		return jsonify({"error": "forbidden"}), 403
-
-	# Run monitor (import inside handler to avoid circular imports at module load)
-	try:
-		from backend.app.tasks.alerts import monitor_favorite_stations
-		monitor_favorite_stations()
-		return jsonify({"message": "monitor invoked"}), 200
-	except Exception as exc:
-		current_app.logger.exception('Trigger monitor failed: %s', exc)
-		return jsonify({"error": "monitor_failed", "details": str(exc)}), 500
-
-@alerts_bp.route('/user/<user_id>/favorites', methods=['PUT'])
-def update_user_favorites(user_id: str):
-	"""Update a user's favorite stations list.
-
-	Authentication: requires a valid JWT. Users may only update their own
-	favorites; admins may update any user. The request body should be JSON
-	with a `favoriteStations` array (list of station ids — numeric or string).
-	"""
-	try:
-		# Ensure a JWT is present and get claims
-		verify_jwt_in_request()
-		claims = get_jwt() or {}
-	except Exception:
-		return jsonify({"error": "authorization_required"}), 401
-
-	# Only allow the owning user or admins
-	subject = str(claims.get('sub')) if claims.get('sub') is not None else None
-	role = claims.get('role')
-	if subject != str(user_id) and role != 'admin':
-		return jsonify({"error": "forbidden"}), 403
-
-	data = request.get_json(silent=True) or {}
-	favs = data.get('favoriteStations') or data.get('favorites')
-	if favs is None:
-		return jsonify({"error": "favoriteStations is required"}), 400
-	if not isinstance(favs, list):
-		return jsonify({"error": "favoriteStations must be an array"}), 400
-
-	user = users_repo.find_by_id(user_id)
-	if not user:
-		return jsonify({"error": "user not found"}), 404
-
-	# Normalize favoriteStations: convert numeric-like entries to ints when possible
-	normalized = []
-	for s in favs:
-		try:
-			normalized.append(int(s))
-		except Exception:
-			normalized.append(s)
-
-	preferences = user.get('preferences') or {}
-	preferences['favoriteStations'] = normalized
-	now = datetime.now(timezone.utc)
-	try:
-		users_repo.update_user_by_id(ObjectId(user.get('_id')), {'$set': {'preferences': preferences, 'updatedAt': now}})
-	except Exception as exc:
-		current_app.logger.exception('Failed to update favorites for user %s: %s', user_id, exc)
-		return jsonify({"error": "failed_to_update"}), 500
-
-	return jsonify({"message": "favorites updated", "favoriteStations": favs}), 200
 
 @alerts_bp.route('/subscriptions', methods=['GET'])
 def list_subscriptions():
@@ -227,7 +143,90 @@ def update_subscription(sub_id: str):
 	except Exception as exc:
 		current_app.logger.exception('Failed to update subscription: %s', exc)
 		return jsonify({"error": "internal"}), 500
-	
+
+# @alerts_bp.route('/health', methods=['GET'])
+# def health():
+# 	return jsonify({"status": "ok"}), 200
+
+#@alerts_bp.route('/trigger', methods=['POST'])
+# def trigger_monitor():
+# 	"""Admin/test endpoint: trigger the favorite-stations monitor.
+
+# 	Protection: requires a key provided via header `X-ALERT-TEST-KEY` or
+# 	query param `key` that must match the `ALERT_TEST_KEY` environment
+# 	variable. This endpoint exists to help QA/development safely invoke
+# 	the monitor over HTTP. It should NOT be enabled in production without
+# 	proper authentication.
+# 	"""
+# 	# Check provided key
+# 	provided = request.headers.get('X-ALERT-TEST-KEY') or request.args.get('key')
+# 	secret = os.environ.get('ALERT_TEST_KEY')
+# 	if not secret:
+# 		return jsonify({"error": "ALERT_TEST_KEY not configured on server"}), 503
+# 	if not provided or provided != secret:
+# 		return jsonify({"error": "forbidden"}), 403
+
+# 	# Run monitor (import inside handler to avoid circular imports at module load)
+# 	try:
+# 		from backend.app.tasks.alerts import monitor_favorite_stations
+# 		monitor_favorite_stations()
+# 		return jsonify({"message": "monitor invoked"}), 200
+# 	except Exception as exc:
+# 		current_app.logger.exception('Trigger monitor failed: %s', exc)
+# 		return jsonify({"error": "monitor_failed", "details": str(exc)}), 500
+
+# @alerts_bp.route('/user/<user_id>/favorites', methods=['PUT'])
+# def update_user_favorites(user_id: str):
+# 	"""Update a user's favorite stations list.
+
+# 	Authentication: requires a valid JWT. Users may only update their own
+# 	favorites; admins may update any user. The request body should be JSON
+# 	with a `favoriteStations` array (list of station ids — numeric or string).
+# 	"""
+# 	try:
+# 		# Ensure a JWT is present and get claims
+# 		verify_jwt_in_request()
+# 		claims = get_jwt() or {}
+# 	except Exception:
+# 		return jsonify({"error": "authorization_required"}), 401
+
+# 	# Only allow the owning user or admins
+# 	subject = str(claims.get('sub')) if claims.get('sub') is not None else None
+# 	role = claims.get('role')
+# 	if subject != str(user_id) and role != 'admin':
+# 		return jsonify({"error": "forbidden"}), 403
+
+# 	data = request.get_json(silent=True) or {}
+# 	favs = data.get('favoriteStations') or data.get('favorites')
+# 	if favs is None:
+# 		return jsonify({"error": "favoriteStations is required"}), 400
+# 	if not isinstance(favs, list):
+# 		return jsonify({"error": "favoriteStations must be an array"}), 400
+
+# 	user = users_repo.find_by_id(user_id)
+# 	if not user:
+# 		return jsonify({"error": "user not found"}), 404
+
+# 	# Normalize favoriteStations: convert numeric-like entries to ints when possible
+# 	normalized = []
+# 	for s in favs:
+# 		try:
+# 			normalized.append(int(s))
+# 		except Exception:
+# 			normalized.append(s)
+
+# 	preferences = user.get('preferences') or {}
+# 	preferences['favoriteStations'] = normalized
+# 	now = datetime.now(timezone.utc)
+# 	try:
+# 		users_repo.update_user_by_id(ObjectId(user.get('_id')), {'$set': {'preferences': preferences, 'updatedAt': now}})
+# 	except Exception as exc:
+# 		current_app.logger.exception('Failed to update favorites for user %s: %s', user_id, exc)
+# 		return jsonify({"error": "failed_to_update"}), 500
+
+# 	return jsonify({"message": "favorites updated", "favoriteStations": favs}), 200
+
+
 # @alerts_bp.route('/subscriptions', methods=['POST'])
 # def create_subscription():
 # 	"""Create a new alert subscription.

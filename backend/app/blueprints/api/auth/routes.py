@@ -689,36 +689,6 @@ def logout_access():
         logger.error(f"Logout error: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
-
-@auth_bp.route('/logout_refresh', methods=['POST'])
-@jwt_required(refresh=True)
-def logout_refresh():
-    """Revoke the presented refresh token.
-
-    Requires Authorization: Bearer <refresh_token>
-    """
-    try:
-        jti = get_jwt().get("jti")
-        sub = get_jwt().get("sub")
-        database = db_module.get_db()
-        result = database.jwt_blocklist.insert_one({
-            "jti": jti,
-            "user_id": sub,
-            "token_type": "refresh",
-            "revokedAt": datetime.now(timezone.utc),
-        })
-        try:
-            logger.info("Revoked refresh token stored in jwt_blocklist: %s (db=%s)", str(result.inserted_id), current_app.config.get('MONGO_DB'))
-        except Exception:
-            pass
-        resp = {"message": "Refresh token revoked"}
-        # Do not expose internal debug fields in API responses.
-        return jsonify(resp), 200
-    except Exception as e:
-        logger.error(f"Logout refresh error: {e}")
-        return jsonify({"error": "Internal server error"}), 500
-
-
 @auth_bp.route('/verify', methods=['GET'])
 @jwt_required()
 def verify_access_token():
@@ -735,3 +705,30 @@ def verify_access_token():
         logger.info(f"Token verification failed: {e}")
         return jsonify({"error": "NOT FOUND"}), 404
  
+# @auth_bp.route('/logout_refresh', methods=['POST'])
+# @jwt_required(refresh=True)
+# def logout_refresh():
+#     """Revoke the presented refresh token.
+
+#     Requires Authorization: Bearer <refresh_token>
+#     """
+#     try:
+#         jti = get_jwt().get("jti")
+#         sub = get_jwt().get("sub")
+#         database = db_module.get_db()
+#         result = database.jwt_blocklist.insert_one({
+#             "jti": jti,
+#             "user_id": sub,
+#             "token_type": "refresh",
+#             "revokedAt": datetime.now(timezone.utc),
+#         })
+#         try:
+#             logger.info("Revoked refresh token stored in jwt_blocklist: %s (db=%s)", str(result.inserted_id), current_app.config.get('MONGO_DB'))
+#         except Exception:
+#             pass
+#         resp = {"message": "Refresh token revoked"}
+#         # Do not expose internal debug fields in API responses.
+#         return jsonify(resp), 200
+#     except Exception as e:
+#         logger.error(f"Logout refresh error: {e}")
+#         return jsonify({"error": "Internal server error"}), 500
