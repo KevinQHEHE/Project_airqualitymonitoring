@@ -97,7 +97,7 @@ class FavoriteLocationsManager {
                         <h2 class="location-modal-title">Save Your Location?</h2>
                         <p class="location-modal-text">
                             We can show you the nearest air quality monitoring stations based on your location. 
-                            Your location will be saved locally and never shared. If you choose "Never", we'll show stations near Hanoi, Vietnam.
+                            Your location will be saved locally and never shared. If you choose "Use Hanoi", we'll show stations in Hanoi, Vietnam.
                         </p>
                     </div>
                     
