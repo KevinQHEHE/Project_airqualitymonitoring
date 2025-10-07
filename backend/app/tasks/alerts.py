@@ -1,7 +1,9 @@
-"""Background tasks for monitoring favorite stations and sending alerts.
+"""Background tasks for monitoring user alert subscriptions and sending alerts.
 
 Runs as a Celery task (scheduled from beat). Implements rate limiting and
-graceful error handling when reading data or sending emails.
+graceful error handling when reading data or sending emails. This module
+no longer uses the legacy `preferences.favoriteStations` flow and instead
+relies solely on the `alert_subscriptions` collection for user alerts.
 """
 from __future__ import annotations
 
@@ -19,9 +21,6 @@ from pathlib import Path
 from backend.app.repositories import users_repo, readings_repo, stations_repo
 from backend.app.extensions import mail
 from backend.app import db as db_module
-# alert_history is deprecated for monitoring flows; we now record delivery
-# events in `notification_logs` exclusively. The helper _log_notification_entry
-# is used below.
 
 logger = logging.getLogger(__name__)
 
@@ -64,43 +63,27 @@ def _to_int_or_none(val) -> Optional[int]:
 
 
 def _get_users_with_notifications() -> List[Dict[str, Any]]:
-    """Return users who have notification preferences enabled and have favorites OR active subscriptions."""
-    # Simple query: users where notifications.enabled == true AND have favorites OR subscriptions
+    """
+    Return users who have active alert subscriptions.
+    """
     db = db_module.get_db()
-    
-    # Get users with favorite stations (legacy)
-    cursor_favorites = db.users.find({
-        'preferences.notifications.enabled': True,
-        'preferences.favoriteStations': {'$exists': True, '$ne': []},
+
+    # Load active subscriptions and collect user ids
+    subscriptions = list(db.alert_subscriptions.find({'status': 'active'}))
+    if not subscriptions:
+        return []
+
+    user_ids_with_subs = list({sub['user_id'] for sub in subscriptions})
+
+    # Load users for those ids (keep same status filtering as before)
+    cursor = db.users.find({
+        '_id': {'$in': user_ids_with_subs},
         '$or': [
             {'status': 'active'},
             {'status': {'$exists': False}}
         ]
     })
-    users_with_favorites = list(cursor_favorites)
-    
-    # Get users with active subscriptions (new)
-    subscriptions = list(db.alert_subscriptions.find({'status': 'active'}))
-    user_ids_with_subs = list(set(sub['user_id'] for sub in subscriptions))
-    
-    if user_ids_with_subs:
-        cursor_subscriptions = db.users.find({
-            '_id': {'$in': user_ids_with_subs},
-            '$or': [
-                {'status': 'active'},
-                {'status': {'$exists': False}}
-            ]
-        })
-        users_with_subscriptions = list(cursor_subscriptions)
-    else:
-        users_with_subscriptions = []
-    
-    # Combine and deduplicate by _id
-    all_users = {}
-    for user in users_with_favorites + users_with_subscriptions:
-        all_users[str(user['_id'])] = user
-        
-    return list(all_users.values())
+    return list(cursor)
 
 
 def _latest_aqi_for_station(station_id: any) -> Optional[int]:
@@ -408,73 +391,10 @@ def monitor_favorite_stations():
                     logger.debug('Station %s AQI %s below threshold %s for subscription %s — no action', 
                                 station_id, current_aqi, threshold, subscription_id)
             
-            # Process legacy favorite stations (if no subscriptions or as fallback)
+            
             if not subscriptions:
-                prefs = user.get('preferences') or {}
-                notif = prefs.get('notifications') or {}
-                threshold = int(notif.get('threshold', 100))
-                favorite_ids = prefs.get('favoriteStations') or []
-                
-                logger.debug('User %s preferences: threshold=%s favorites=%s', user.get('email'), threshold, favorite_ids)
-                if not favorite_ids:
-                    logger.debug('User %s has no favorite stations or subscriptions, skipping', user.get('email'))
-                    continue
-
-                # Normalize favorite ids to ints/strings and resolve station docs
-                stations = stations_repo.find_by_station_ids(favorite_ids)
-                if not stations:
-                    logger.debug('No station documents resolved for favorites %s for user %s', favorite_ids, user.get('email'))
-                    continue
-                logger.debug('Resolved %d stations for user %s', len(stations), user.get('email'))
-
-                
-                # Process legacy favorites stations
-                for station in stations:
-                    station_id = station.get('station_id') or str(station.get('_id'))
-                    logger.debug('Checking legacy favorite station %s for user %s', station_id, user.get('email'))
-                    
-                    current_aqi = _latest_aqi_for_station(station_id)
-                    logger.debug('Latest AQI for station %s = %s', station_id, current_aqi)
-                    
-                    if current_aqi is None:
-                        logger.debug('No latest reading for station %s — recording skipped (no_data)', station_id)
-                        try:
-                            _log_notification_entry(subscription_id=None, user_id=user.get('_id'), 
-                                                   station_id=station_id, status='skipped', 
-                                                   details={'reason': 'no_data', 'aqi': -1}, attempts=0)
-                        except Exception:
-                            logger.exception('Failed to log notification_logs entry for no_data for user %s station %s', user.get('_id'), station_id)
-                        continue
-
-                    if current_aqi is not None and current_aqi >= threshold:
-                        logger.debug('Station %s AQI %s >= threshold %s for user %s — evaluating rate limit', 
-                                    station_id, current_aqi, threshold, user.get('email'))
-                        
-                        if _sent_recently(user.get('_id'), station_id, days=1):
-                            logger.debug('Rate limited: user %s already sent alert for station %s in last 24h', user.get('email'), station_id)
-                            try:
-                                _log_notification_entry(subscription_id=None, user_id=user.get('_id'), 
-                                                       station_id=station_id, status='skipped', 
-                                                       details={'reason': 'rate_limited', 'aqi': current_aqi}, attempts=0)
-                            except Exception:
-                                logger.exception('Failed to log notification_logs entry for rate_limited for user %s station %s', user.get('_id'), station_id)
-                            continue
-
-                        logger.debug('Sending alert email to %s for station %s (AQI=%s)', user.get('email'), station_id, current_aqi)
-                        sent, message_id, response = _send_alert_email(user, station, current_aqi)
-                        status = 'sent' if sent else 'failed'
-                        logger.debug('Email send result for user %s station %s: %s (message_id=%s)', user.get('email'), station_id, status, message_id)
-                        
-                        try:
-                            _log_notification_entry(subscription_id=None, user_id=user.get('_id'), 
-                                                   station_id=station_id, status=status, 
-                                                   details={**(response or {}), 'aqi': current_aqi}, 
-                                                   message_id=message_id, attempts=1)
-                        except Exception:
-                            logger.exception('Failed to log notification_logs entry for user %s station %s', user.get('_id'), station_id)
-                    else:
-                        logger.debug('Station %s AQI %s below threshold %s for user %s — no action', 
-                                    station_id, current_aqi, threshold, user.get('email'))
+                logger.debug('User %s has no active alert_subscriptions; skipping', user.get('email'))
+                continue
 
         except Exception:
             logger.exception('Error processing notifications for user %s', user.get('_id'))
@@ -560,48 +480,8 @@ def monitor_user_notifications(user: Dict[str, Any]) -> None:
                 except Exception:
                     logger.exception('Failed to log notification for user %s station %s', user_id, station_id)
 
-        # If no subscriptions, fall back to legacy favorite stations
         if not subscriptions:
-            prefs = user.get('preferences') or {}
-            notif = prefs.get('notifications') or {}
-            threshold = int(notif.get('threshold', 100))
-            favorite_ids = prefs.get('favoriteStations') or []
-            if not favorite_ids:
-                return
-            stations = stations_repo.find_by_station_ids(favorite_ids)
-            if not stations:
-                return
-
-            for station in stations:
-                station_id = station.get('station_id') or str(station.get('_id'))
-                current_aqi = _latest_aqi_for_station(station_id)
-                if current_aqi is None:
-                    try:
-                        _log_notification_entry(subscription_id=None, user_id=user_id,
-                                                station_id=station_id, status='skipped',
-                                                details={'reason': 'no_data', 'aqi': -1}, attempts=0)
-                    except Exception:
-                        logger.exception('Failed to log no_data for user %s station %s', user_id, station_id)
-                    continue
-
-                if current_aqi is not None and current_aqi >= threshold:
-                    if _sent_recently(user_id, station_id, days=1):
-                        try:
-                            _log_notification_entry(subscription_id=None, user_id=user_id,
-                                                    station_id=station_id, status='skipped',
-                                                    details={'reason': 'rate_limited', 'aqi': current_aqi}, attempts=0)
-                        except Exception:
-                            logger.exception('Failed to log rate_limited for user %s station %s', user_id, station_id)
-                        continue
-
-                    sent, message_id, response = _send_alert_email(user, station, current_aqi)
-                    status = 'sent' if sent else 'failed'
-                    try:
-                        _log_notification_entry(subscription_id=None, user_id=user_id,
-                                                station_id=station_id, status=status,
-                                                details={**(response or {}), 'aqi': current_aqi},
-                                                message_id=message_id, attempts=1)
-                    except Exception:
-                        logger.exception('Failed to log notification for user %s station %s', user_id, station_id)
+            logger.debug('monitor_user_notifications: user %s has no active subscriptions; nothing to do', user.get('email'))
+            return
     except Exception:
         logger.exception('monitor_user_notifications: unexpected error for user %s', user.get('_id') if user else None)
