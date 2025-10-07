@@ -1,0 +1,45 @@
+@startuml Flow 1 - Import Vietnam Stations
+!theme plain
+title Flow 1: Ingest Thông tin Trạm
+
+actor User
+participant Script as "import_vietnam_stations.py"
+participant Utils as "mongo_utils"
+database DB as "MongoDB"
+
+User -> Script: Execute script
+activate Script
+
+Script -> Script: 1. Load JSON file\n(vietnam_stations_*.json)
+Script -> Script: 2. Validate & fix coordinates\n[lat,lon] → [lon,lat]
+
+Script -> DB: 3. Connect to MongoDB
+DB --> Script: Connection ready
+
+Script -> Utils: 4. bulk_upsert_stations()
+activate Utils
+note right
+  Bulk UpdateOne operations:
+  - Filter: {_id: station_idx}
+  - Update: $set document
+  - upsert: true
+end note
+
+Utils -> DB: bulk_write(operations)
+DB --> Utils: Result (inserted, modified)
+Utils --> Script: Statistics
+deactivate Utils
+
+Script -> User: ✓ Summary:\n- X processed\n- Y inserted\n- Z updated
+deactivate Script
+
+note over DB
+  **Collection: waqi_stations**
+  Document: {
+    _id: station_idx,
+    city: {name, url, geo},
+    tz: timezone
+  }
+end note
+
+@enduml

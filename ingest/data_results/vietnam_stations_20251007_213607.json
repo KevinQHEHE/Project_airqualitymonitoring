@@ -1,0 +1,67 @@
+{
+  "metadata": {
+    "collection": "waqi_stations",
+    "source": "WAQI API",
+    "export_time": "2025-10-07T21:36:07.945661",
+    "total_stations": 2,
+    "country": "Vietnam"
+  },
+  "data": [
+    {
+      "_id": 1584,
+      "city": {
+        "name": "Da Nang, Vietnam (TP Đà Nẵng)",
+        "url": "https://api.waqi.info/feed/@1584/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            16.074,
+            108.217
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13658,
+      "city": {
+        "name": "Đà Nẵng/Hòa Thuận Tây, Hải Châu - KTTV - Trạm cảm biến, Vietnam",
+        "url": "https://api.waqi.info/feed/@13658/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            16.043252,
+            108.206826
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    }
+  ]
+}
