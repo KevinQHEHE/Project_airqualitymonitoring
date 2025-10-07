@@ -1,40 +1,37 @@
 {
-  "$id": "https://example.com/schemas/waqi_stations.schema.json",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "waqi_stations",
-  "type": "object",
-  "additionalProperties": false,
+  "bsonType": "object",
   "required": [
     "_id",
+    "station_id",
     "city"
   ],
   "properties": {
     "_id": {
-      "type": "integer",
-      "description": "WAQI idx (use as _id)"
+      "bsonType": "int"
+    },
+    "station_id": {
+      "bsonType": "int"
     },
     "city": {
-      "type": "object",
+      "bsonType": "object",
       "required": [
         "name",
         "url",
         "geo"
       ],
-      "additionalProperties": false,
       "properties": {
         "name": {
-          "type": "string"
+          "bsonType": "string"
         },
         "url": {
-          "type": "string"
+          "bsonType": "string"
         },
         "geo": {
-          "type": "object",
+          "bsonType": "object",
           "required": [
             "type",
             "coordinates"
           ],
-          "additionalProperties": false,
           "properties": {
             "type": {
               "enum": [
@@ -42,44 +39,43 @@
               ]
             },
             "coordinates": {
-              "type": "array",
+              "bsonType": "array",
               "minItems": 2,
-              "maxItems": 2,
-              "items": {
-                "type": "number"
-              },
-              "description": "[lon, lat] — GeoJSON"
+              "maxItems": 2
             }
           }
         }
       }
     },
     "time": {
-      "type": "object",
-      "additionalProperties": false,
+      "bsonType": "object",
       "properties": {
         "tz": {
-          "type": "string"
+          "bsonType": "string"
         }
       }
     },
     "attributions": {
-      "type": "array",
+      "bsonType": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
+        "bsonType": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "bsonType": "string"
           },
           "url": {
-            "type": "string"
+            "bsonType": "string"
           },
           "logo": {
-            "type": "string"
+            "bsonType": "string"
           }
         }
       }
+    },
+    "latest_reading_at": {
+      "bsonType": "string"
     }
-  }
+  },
+  "title": "waqi_stations",
+  "$schema": "http://json-schema.org/draft-07/schema#"
 }

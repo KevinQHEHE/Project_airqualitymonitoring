@@ -1,0 +1,27 @@
+{
+  "validator": {
+    "$jsonSchema": {
+      "bsonType": "object",
+      "required": [
+        "key",
+        "value",
+        "createdAt",
+        "expiresAt"
+      ],
+      "properties": {
+        "key": {
+          "bsonType": "string"
+        },
+        "value": {
+          "bsonType": "object"
+        },
+        "createdAt": {
+          "bsonType": "date"
+        },
+        "expiresAt": {
+          "bsonType": "date"
+        }
+      }
+    }
+  }
+}

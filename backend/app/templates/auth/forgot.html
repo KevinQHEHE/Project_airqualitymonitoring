@@ -192,14 +192,24 @@
         const data = await response.json();
         
         if (response.ok) {
-          // Success - show message and redirect to verify-code page where user can paste token
-          showAlert('If an account exists with this email, you will receive a reset token shortly. You will be redirected to the code verification page.', 'success');
-          $('#email').val(''); // Clear form
-          setTimeout(() => {
-            window.location.href = `/verify-code`;
-          }, 1200);
+          // Inspect returned JSON for whether the user exists. The server
+          // keeps the top-level message generic to avoid enumeration, but
+          // exposes a small `user_exists` flag for client UX.
+          const exists = data && data.user_exists === true;
+          if (!exists) {
+            // User does not exist: stay on the same page and show a helpful message.
+            showAlert('No account found for that email. Please check the address or register a new account.', 'warning');
+            // Keep the entered email so the user can correct it; do not redirect.
+            $('#email').focus();
+          } else {
+            showAlert('If an account exists with this email, you will receive a reset token shortly. You will be redirected to the code verification page.', 'success');
+            $('#email').val(''); // Clear form
+            setTimeout(() => {
+              window.location.href = `/verify-code`;
+            }, 1200);
+          }
         } else {
-          // For security, still show success message and redirect
+          // For security, still show success message and redirect to verify-code
           showAlert('If an account exists with this email, you will receive a reset token shortly. You will be redirected to the code verification page.', 'success');
           setTimeout(() => {
             window.location.href = `/verify-code`;

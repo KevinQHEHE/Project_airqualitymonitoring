@@ -1,0 +1,342 @@
+@startuml air_quality_database_schema
+!define COLLECTION_COLOR #E1F5FE
+!define EMBEDDED_COLOR #FFF9C4
+!define TIMESERIES_COLOR #E8F5E9
+
+skinparam class {
+  BackgroundColor<<collection>> COLLECTION_COLOR
+  BackgroundColor<<embedded>> EMBEDDED_COLOR
+  BackgroundColor<<timeseries>> TIMESERIES_COLOR
+  BorderColor Black
+  ArrowColor Black
+}
+skinparam classAttributeIconSize 0
+hide empty methods
+hide stereotypes
+
+' =================== STATIONS ===================
+
+class waqi_stations <<collection>> {
+  **_id** : int (PK)
+  **station_id** : int (unique)
+  **city** : City
+  time : TimeInfo
+  attributions : Attribution[]
+  latest_reading_at : string
+  --
+  **Indexes:**
+  • city.geo (2dsphere)
+  • city (asc)
+  • station_id (unique)
+}
+
+class City <<embedded>> {
+  **name** : string
+  **url** : string
+  **geo** : Point
+}
+
+class Point <<embedded>> {
+  **type** : "Point"
+  **coordinates** : [lon, lat]
+}
+
+class TimeInfo <<embedded>> {
+  tz : string
+}
+
+class Attribution <<embedded>> {
+  name : string
+  url : string
+  logo : string
+}
+
+waqi_stations *-- "1" City : city
+City *-- "1" Point : geo
+waqi_stations *-- "0..1" TimeInfo : time
+waqi_stations *-- "0..*" Attribution : attributions
+
+' =================== READINGS (TIMESERIES) ===================
+
+class waqi_station_readings <<timeseries>> {
+  **_id** : ObjectId (PK)
+  **ts** : date (timeField)
+  **meta** : ReadingMeta (metaField)
+  measurements : Measurements
+  location : Point
+  --
+  **Timeseries Config:**
+  • timeField: ts
+  • metaField: meta
+  • granularity: hours
+  --
+  **Indexes:**
+  • meta.station_idx, ts (desc)
+  • ts (desc)
+  • location (2dsphere)
+}
+
+class ReadingMeta <<embedded>> {
+  **station_idx** : int
+  station_name : string
+  city_name : string
+}
+
+class Measurements <<embedded>> {
+  aqi : int
+  pm25 : double
+  pm10 : double
+  o3 : double
+  no2 : double
+  so2 : double
+  co : double
+  t : double (temperature)
+  h : double (humidity)
+  p : double (pressure)
+  w : double (wind)
+}
+
+waqi_station_readings *-- "1" ReadingMeta : meta
+waqi_station_readings *-- "0..1" Measurements : measurements
+waqi_station_readings *-- "0..1" Point : location
+
+' =================== FORECASTS ===================
+
+class waqi_daily_forecasts <<collection>> {
+  **_id** : ObjectId (PK)
+  **station_idx** : int
+  **day** : string (YYYY-MM-DD)
+  **fetched_at** : date
+  **pollutants** : Pollutants
+  last_forecast_run_at : date
+  --
+  **Indexes:**
+  • station_id, forecast_date (desc)
+  • forecast_date (desc)
+}
+
+class Pollutants <<embedded>> {
+  pm25 : PollutantStats
+  pm10 : PollutantStats
+}
+
+class PollutantStats <<embedded>> {
+  avg : int
+  min : int
+  max : int
+}
+
+waqi_daily_forecasts *-- "1" Pollutants : pollutants
+Pollutants *-- "0..1" PollutantStats : pm25
+Pollutants *-- "0..1" PollutantStats : pm10
+
+' =================== USERS & AUTH ===================
+
+class users <<collection>> {
+  **_id** : ObjectId (PK)
+  **username** : string (unique)
+  **email** : string (unique)
+  **passwordHash** : string
+  **role** : enum["user", "admin"]
+  status : enum["active", "inactive"]
+  preferences : Preferences
+  createdAt : date
+  updatedAt : date
+  --
+  **Indexes:**
+  • email (unique)
+  • username (unique)
+}
+
+class Preferences <<embedded>> {
+  language : string
+  theme : enum["light", "dark"]
+  favoriteStations : int[]
+  defaultStation : int
+  notifications : NotifyPrefs
+}
+
+class NotifyPrefs <<embedded>> {
+  email : bool
+  webpush : bool
+}
+
+users *-- "0..1" Preferences : preferences
+Preferences *-- "0..1" NotifyPrefs : notifications
+
+class password_resets <<collection>> {
+  **_id** : ObjectId (PK)
+  **tokenHash** : string
+  **user_id** : ObjectId (FK → users._id)
+  **expiresAt** : date
+  **createdAt** : date
+  used : bool
+  --
+  **Indexes:**
+  • tokenHash (asc)
+  • expiresAt (TTL)
+}
+
+class jwt_blocklist <<collection>> {
+  **_id** : ObjectId (PK)
+  **jti** : string (unique)
+  **user_id** : string
+  **token_type** : enum["access", "refresh"]
+  **revokedAt** : date
+}
+
+' =================== ALERTS & NOTIFICATIONS ===================
+
+class alert_subscriptions <<collection>> {
+  **_id** : ObjectId (PK)
+  **user_id** : ObjectId (FK → users._id)
+  **station_id** : int (FK → waqi_stations._id)
+  **alert_threshold** : int [0-500]
+  **status** : enum["active", "paused", "expired"]
+  **createdAt** : date
+  updatedAt : date
+  last_triggered : date
+  email_count : int
+  metadata : object
+  station_name : string
+  --
+  **Indexes:**
+  • user_id (asc)
+  • station_id (asc)
+  • station_id, alert_threshold, status
+  • user_id, status
+}
+
+class notification_logs <<collection>> {
+  **_id** : ObjectId (PK)
+  subscription_id : ObjectId (FK → alert_subscriptions._id)
+  **user_id** : ObjectId (FK → users._id)
+  **station_id** : int (FK → waqi_stations._id)
+  **sentAt** : date
+  **status** : enum["delivered", "failed", "deferred", "pending"]
+  **attempts** : int (≥0)
+  response : object
+  message_id : string
+  --
+  **Indexes:**
+  • subscription_id (asc)
+  • user_id (asc)
+  • station_id (asc)
+  • sentAt (TTL 90 days)
+}
+
+' =================== CACHING & VALIDATION ===================
+
+class api_response_cache <<collection>> {
+  **_id** : ObjectId (PK)
+  **key** : string
+  **value** : object
+  **createdAt** : date
+  **expiresAt** : date
+  --
+  **Indexes:**
+  • expiresAt (TTL)
+}
+
+class email_validation_cache <<collection>> {
+  **_id** : ObjectId (PK)
+  **email** : string (unique)
+  **status** : enum["valid", "invalid", "unknown"]
+  **createdAt** : date
+  **expiresAt** : date
+  reason : string
+  details : object
+  --
+  **Indexes:**
+  • email (unique)
+  • expiresAt (TTL)
+}
+
+' =================== MONITORING ===================
+
+class current_reading_checkpoints <<collection>> {
+  **_id** : ObjectId (PK)
+  **timestamp** : date
+  **created_at** : date
+  **stats** : CheckpointStats
+}
+
+class CheckpointStats <<embedded>> {
+  total_stations : int
+  successful_stations : int
+  failed_stations : int
+  total_readings : int
+  failed_station_ids : int[]
+}
+
+current_reading_checkpoints *-- "1" CheckpointStats : stats
+
+' =================== RELATIONSHIPS ===================
+
+' User → Alert Subscriptions
+users "1" -- "0..*" alert_subscriptions : subscribes >
+users "1" -- "0..*" notification_logs : receives >
+users "1" -- "0..*" password_resets : resets >
+users "1" -- "0..*" jwt_blocklist : revokes tokens >
+
+' Station → Readings/Forecasts/Alerts
+waqi_stations "1" -- "0..*" waqi_station_readings : has >
+waqi_stations "1" -- "0..*" waqi_daily_forecasts : forecasts >
+waqi_stations "1" -- "0..*" alert_subscriptions : monitored by >
+
+' Alert Subscription → Notifications
+alert_subscriptions "1" -- "0..*" notification_logs : triggers >
+
+' Notes
+note top of waqi_station_readings
+  **Timeseries Collection**
+  Automatically bucketed by MongoDB
+  Optimized for time-based queries
+  Stores hourly air quality readings
+end note
+
+note top of users
+  **Authentication & Authorization**
+  Bcrypt hashed passwords
+  Role-based access control (RBAC)
+  User preferences stored inline
+end note
+
+note top of alert_subscriptions
+  **Alert System**
+  Threshold-based notifications
+  Status tracking (active/paused/expired)
+  Email count for rate limiting
+end note
+
+note right of notification_logs
+  **Notification Tracking**
+  90-day retention via TTL
+  Delivery status monitoring
+  Retry attempt tracking
+end note
+
+note bottom of api_response_cache
+  **Performance Caching**
+  TTL-based expiration
+  Generic key-value store
+end note
+
+legend right
+  **Legend**
+  |= Symbol |= Meaning |
+  | **bold** | Required field |
+  | PK | Primary Key |
+  | FK | Foreign Key |
+  | [] | Array type |
+  | enum[...] | Enumerated values |
+  | 2dsphere | Geospatial index |
+  | TTL | Time-To-Live index |
+  
+  **Collection Types**
+  | <<collection>> | Regular MongoDB collection |
+  | <<timeseries>> | MongoDB timeseries collection |
+  | <<embedded>> | Embedded document type |
+endlegend
+
+@enduml

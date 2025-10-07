@@ -96,7 +96,7 @@ def register_blueprints(app):
     # from backend.app.blueprints.api.aggregates.routes import aggregates_bp
     # from backend.app.blueprints.api.exports.routes import exports_bp
     # from backend.app.blueprints.api.realtime.routes import realtime_bp
-    from backend.app.blueprints.api.scheduler.routes import scheduler_bp
+    # from backend.app.blueprints.api.scheduler.routes import scheduler_bp
     
     # Import Web blueprint
     from backend.app.blueprints.web.routes import web_bp
@@ -114,7 +114,7 @@ def register_blueprints(app):
     app.register_blueprint(subscriptions_bp)
     # Register admin users blueprint (admin-only endpoints)
     app.register_blueprint(admin_users_bp, url_prefix='/api/admin/users')
-    app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
+    # app.register_blueprint(scheduler_bp, url_prefix='/api/scheduler')
     
     # Provide a hyphenated alias for a small set of routes (avoid registering blueprint twice)
     try:

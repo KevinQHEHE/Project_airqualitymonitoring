@@ -12,6 +12,7 @@ The helpers fall back to defaults and emit warnings when parsing fails.
 
 import os
 import logging
+from typing import Optional
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -38,7 +39,7 @@ def _strip_inline_comment(val: str) -> str:
     return val
 
 
-def _get_env(name: str, default: str | None = None) -> str | None:
+def _get_env(name: str, default: Optional[str] = None) -> Optional[str]:
     raw = os.environ.get(name)
     if raw is None:
         return default

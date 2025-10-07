@@ -238,23 +238,8 @@ def register():
             "username": username.lower(),
             "email": email.lower(),
             "passwordHash": pw_hash,
-            # Do not write a top-level `email_verified` field because the
-            # MongoDB users collection enforces a strict schema. Store
-            # verification status under `preferences` instead when needed.
-            # NOTE: Email verification emails are currently disabled by
-            # configuration above. Do not write verification flags here to
-            # avoid introducing fields that older code may not expect.
             "role": "user",
-            # Optionally write a top-level status field on registration when
-            # configuration requests it. This is disabled by default to
-            # preserve compatibility with deployments that manage status
-            # through admin APIs or expect the field to be absent.
             **({"status": "active"} if current_app.config.get('REGISTER_SET_STATUS_ON_REGISTRATION') else {}),
-            # NOTE: Do not write a top-level `status` field here to avoid
-            # MongoDB document validation failures on deployments that use a
-            # stricter users collection schema. Login checks default to
-            # "active" when the field is absent, so omitting it here is
-            # safe and keeps the registration flow compatible.
             "createdAt": datetime.now(timezone.utc),
             "updatedAt": datetime.now(timezone.utc),
         }
@@ -351,9 +336,6 @@ def login():
                 pass
             return jsonify({"error": "invalid credentials"}), 401
 
-        # Email verification enforcement removed: do not block login based on
-        # any email verification flags. This simplifies UX for now and avoids
-        # 403 responses when accounts lack verification fields.
 
         identity = str(user.get('_id') or '')
         claims = {
@@ -467,60 +449,6 @@ def check_email():
         logger.error(f"Check email error: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
-
-@auth_bp.route('/check-email-debug', methods=['GET'])
-@limiter.limit("5 per minute")
-def check_email_debug():
-    """Dev-only endpoint: return the raw email validation payload.
-
-    Only available when the Flask app is running in DEBUG mode. Use this to
-    inspect the full ValidationResult returned by the registration validator
-    without changing cached values or global settings.
-    Query param: ?email=foo@example.com
-    """
-    try:
-        # Only allow in debug to avoid leaking provider/internal details in prod
-        if not current_app.config.get('DEBUG'):
-            return jsonify({"error": "not_found"}), 404
-
-        email = (request.args.get('email') or '').strip()
-        if not email:
-            return jsonify({"error": "email is required"}), 400
-        if not _validate_email(email):
-            return jsonify({"error": "invalid_format", "message": "invalid email format"}), 400
-
-        # Check existing account
-        try:
-            user = users_repo.find_by_email(email)
-        except Exception:
-            user = None
-        if user:
-            return jsonify({"available": False, "checked": True, "reason": "exists", "debug": {"note": "user exists"}}), 200
-
-        try:
-            allowed, validation_result = validate_registration_email(email)
-        except Exception as e:
-            body = {"available": True, "checked": False, "debug": {"error": str(e)}}
-            return jsonify(body), 200
-
-        body = {"available": bool(allowed), "checked": True}
-        try:
-            if validation_result is not None:
-                # ValidationResult is an object with attributes; expose its dict for debug only
-                body['debug'] = {'email_validation': validation_result.__dict__}
-                reason = getattr(validation_result, 'reason', None)
-                if reason:
-                    body['reason'] = reason
-        except Exception:
-            # ignore debug serialization errors
-            pass
-
-        return jsonify(body), 200
-    except Exception as e:
-        logger.error(f"Check email debug error: {e}")
-        return jsonify({"error": "Internal server error"}), 500
-
-
 # Flask-Limiter will raise a 429; return JSON rather than HTML
 @auth_bp.errorhandler(429)
 def ratelimit_handler(e):
@@ -616,16 +544,21 @@ def forgot_password():
         except Exception:
             user = None
 
-        if user and user.get('provider') and user.get('provider') != 'local':
-            # Log for operators (do not reveal to caller). Do not send reset email for
-            # social/OAuth accounts.
+        user_exists = bool(user)
+
+        # If user exists but is an external provider account, skip sending a reset
+        # email. Return the generic message but include the user_exists flag.
+        if user_exists and user.get('provider') and user.get('provider') != 'local':
             try:
                 logger.info(f"Password reset request for {email} skipped: provider={user.get('provider')}")
             except Exception:
                 pass
-            return jsonify({"message": "If an account exists for that email, a reset link has been sent."}), 200
+            return jsonify({"message": "If an account exists for that email, a reset link has been sent.", "user_exists": True}), 200
 
-        created, token = create_password_reset_request(email, token_ttl_minutes=15)
+        created = False
+        token = None
+        if user_exists:
+            created, token = create_password_reset_request(email, token_ttl_minutes=15)
 
         # Compose a friendly reset link if we know a base URL
         try:
@@ -644,15 +577,11 @@ def forgot_password():
 
             send_password_reset_email(email, token=token, reset_link=reset_page)
 
-        # Always respond with success message. If running in DEBUG and token was created,
-        # include the token in the response under `dev_token` to make local testing easier.
-        resp = {"message": "If an account exists for that email, a reset link has been sent."}
-        try:
-            if current_app.config.get('DEBUG') and created and token:
-                resp['dev_token'] = token
-        except Exception:
-            # ignore config access errors
-            pass
+        # Always respond with success message to avoid enumeration. Include
+        # a non-sensitive `user_exists` flag to let the client choose the UX.
+        resp = {"message": "If an account exists for that email, a reset link has been sent.", "user_exists": user_exists}
+        # Do not return tokens in responses even in DEBUG. Developers can
+        # inspect logs or run local debug tooling to retrieve test tokens.
         return jsonify(resp), 200
     except Exception as e:
         logger.error(f"Forgot password error: {e}")
@@ -742,40 +671,23 @@ def logout_access():
         sub = get_jwt().get("sub")
         ttype = get_jwt().get("type", "access")
         database = db_module.get_db()
-        database.jwt_blocklist.insert_one({
+        result = database.jwt_blocklist.insert_one({
             "jti": jti,
             "user_id": sub,
             "token_type": ttype,
             "revokedAt": datetime.now(timezone.utc),
         })
-        return jsonify({"message": "Logged out (access token revoked)"}), 200
+        try:
+            logger.info("Revoked access token stored in jwt_blocklist: %s (db=%s)", str(result.inserted_id), current_app.config.get('MONGO_DB'))
+        except Exception:
+            pass
+        resp = {"message": "Logged out (access token revoked)"}
+        # Never include internal DB identifiers in responses. Use server logs
+        # (already logged above) for debugging purposes.
+        return jsonify(resp), 200
     except Exception as e:
         logger.error(f"Logout error: {e}")
         return jsonify({"error": "Internal server error"}), 500
-
-
-@auth_bp.route('/logout_refresh', methods=['POST'])
-@jwt_required(refresh=True)
-def logout_refresh():
-    """Revoke the presented refresh token.
-
-    Requires Authorization: Bearer <refresh_token>
-    """
-    try:
-        jti = get_jwt().get("jti")
-        sub = get_jwt().get("sub")
-        database = db_module.get_db()
-        database.jwt_blocklist.insert_one({
-            "jti": jti,
-            "user_id": sub,
-            "token_type": "refresh",
-            "revokedAt": datetime.now(timezone.utc),
-        })
-        return jsonify({"message": "Refresh token revoked"}), 200
-    except Exception as e:
-        logger.error(f"Logout refresh error: {e}")
-        return jsonify({"error": "Internal server error"}), 500
-
 
 @auth_bp.route('/verify', methods=['GET'])
 @jwt_required()
@@ -792,3 +704,31 @@ def verify_access_token():
     except Exception as e:
         logger.info(f"Token verification failed: {e}")
         return jsonify({"error": "NOT FOUND"}), 404
+ 
+# @auth_bp.route('/logout_refresh', methods=['POST'])
+# @jwt_required(refresh=True)
+# def logout_refresh():
+#     """Revoke the presented refresh token.
+
+#     Requires Authorization: Bearer <refresh_token>
+#     """
+#     try:
+#         jti = get_jwt().get("jti")
+#         sub = get_jwt().get("sub")
+#         database = db_module.get_db()
+#         result = database.jwt_blocklist.insert_one({
+#             "jti": jti,
+#             "user_id": sub,
+#             "token_type": "refresh",
+#             "revokedAt": datetime.now(timezone.utc),
+#         })
+#         try:
+#             logger.info("Revoked refresh token stored in jwt_blocklist: %s (db=%s)", str(result.inserted_id), current_app.config.get('MONGO_DB'))
+#         except Exception:
+#             pass
+#         resp = {"message": "Refresh token revoked"}
+#         # Do not expose internal debug fields in API responses.
+#         return jsonify(resp), 200
+#     except Exception as e:
+#         logger.error(f"Logout refresh error: {e}")
+#         return jsonify({"error": "Internal server error"}), 500

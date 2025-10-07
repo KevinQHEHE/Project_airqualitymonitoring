@@ -1,0 +1,44 @@
+{
+  "validator": {
+    "$jsonSchema": {
+      "bsonType": "object",
+      "properties": {
+        "aqi": {
+          "bsonType": [
+            "string",
+            "int"
+          ],
+          "description": "Field: aqi"
+        },
+        "createdAt": {
+          "bsonType": "date",
+          "description": "Field: createdAt"
+        },
+        "iaqi": {
+          "bsonType": "object",
+          "description": "Field: iaqi"
+        },
+        "location": {
+          "bsonType": "object",
+          "description": "Field: location"
+        },
+        "meta": {
+          "bsonType": "object",
+          "description": "Field: meta"
+        },
+        "station_id": {
+          "bsonType": "string",
+          "description": "Field: station_id"
+        },
+        "time": {
+          "bsonType": "object",
+          "description": "Field: time"
+        },
+        "ts": {
+          "bsonType": "date",
+          "description": "Field: ts"
+        }
+      }
+    }
+  }
+}

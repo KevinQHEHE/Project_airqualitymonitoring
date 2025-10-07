@@ -1,4 +1,6 @@
-{
+// Create collection: alert_subscriptions
+
+db.createCollection("alert_subscriptions", {
   "validator": {
     "$jsonSchema": {
       "bsonType": "object",
@@ -52,17 +54,14 @@
         },
         "station_name": {
           "bsonType": "string"
-        },
-        "name": {
-          "bsonType": "string"
-        },
-        "display_name": {
-          "bsonType": "string"
-        },
-        "canonical_display_name": {
-          "bsonType": "string"
         }
       }
     }
   }
-}
+});
+
+// Create indexes for alert_subscriptions
+db.alert_subscriptions.createIndex({"user_id": 1});
+db.alert_subscriptions.createIndex({"station_id": 1});
+db.alert_subscriptions.createIndex({"station_id": 1, "alert_threshold": 1, "status": 1});
+db.alert_subscriptions.createIndex({"user_id": 1, "status": 1});

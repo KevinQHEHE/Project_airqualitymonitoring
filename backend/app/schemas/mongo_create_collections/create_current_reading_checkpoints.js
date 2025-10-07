@@ -1,0 +1,44 @@
+// Create collection: current_reading_checkpoints
+
+db.createCollection("current_reading_checkpoints", {
+  "validator": {
+    "$jsonSchema": {
+      "bsonType": "object",
+      "required": [
+        "timestamp",
+        "created_at",
+        "stats"
+      ],
+      "properties": {
+        "timestamp": {
+          "bsonType": "date"
+        },
+        "created_at": {
+          "bsonType": "date"
+        },
+        "stats": {
+          "bsonType": "object",
+          "properties": {
+            "total_stations": {
+              "bsonType": "int"
+            },
+            "successful_stations": {
+              "bsonType": "int"
+            },
+            "failed_stations": {
+              "bsonType": "int"
+            },
+            "total_readings": {
+              "bsonType": "int"
+            },
+            "failed_station_ids": {
+              "bsonType": "array"
+            }
+          }
+        }
+      }
+    }
+  }
+});
+
+// Create indexes for current_reading_checkpoints

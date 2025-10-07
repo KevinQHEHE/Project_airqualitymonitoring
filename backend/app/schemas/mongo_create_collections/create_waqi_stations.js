@@ -1,14 +1,19 @@
-// waqi_stations
+// Create collection: waqi_stations
+
 db.createCollection("waqi_stations", {
   "validator": {
     "$jsonSchema": {
       "bsonType": "object",
       "required": [
         "_id",
+        "station_id",
         "city"
       ],
       "properties": {
         "_id": {
+          "bsonType": "int"
+        },
+        "station_id": {
           "bsonType": "int"
         },
         "city": {
@@ -40,15 +45,11 @@ db.createCollection("waqi_stations", {
                 "coordinates": {
                   "bsonType": "array",
                   "minItems": 2,
-                  "maxItems": 2,
-                  "items": {
-                    "bsonType": "double"
-                  }
+                  "maxItems": 2
                 }
               }
             }
-          },
-          "additionalProperties": false
+          }
         },
         "time": {
           "bsonType": "object",
@@ -56,8 +57,7 @@ db.createCollection("waqi_stations", {
             "tz": {
               "bsonType": "string"
             }
-          },
-          "additionalProperties": false
+          }
         },
         "attributions": {
           "bsonType": "array",
@@ -73,16 +73,18 @@ db.createCollection("waqi_stations", {
               "logo": {
                 "bsonType": "string"
               }
-            },
-            "additionalProperties": false
+            }
           }
+        },
+        "latest_reading_at": {
+          "bsonType": "string"
         }
-      },
-      "additionalProperties": false
+      }
     }
   }
 });
 
-db.waqi_stations.createIndex({ "city.geo": "2dsphere" });
-db.waqi_stations.createIndex({ "city.name": 1 });
-db.waqi_stations.createIndex({ "city.url": 1 });
+// Create indexes for waqi_stations
+db.waqi_stations.createIndex({"location": "2dsphere"});
+db.waqi_stations.createIndex({"city": 1});
+db.waqi_stations.createIndex({"station_id": 1}, { "unique": true });
