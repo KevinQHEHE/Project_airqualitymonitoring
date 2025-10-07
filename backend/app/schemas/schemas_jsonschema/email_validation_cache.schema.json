@@ -1,0 +1,35 @@
+{
+  "bsonType": "object",
+  "required": [
+    "email",
+    "status",
+    "createdAt",
+    "expiresAt"
+  ],
+  "properties": {
+    "email": {
+      "bsonType": "string"
+    },
+    "status": {
+      "enum": [
+        "valid",
+        "invalid",
+        "unknown"
+      ]
+    },
+    "reason": {
+      "bsonType": "string"
+    },
+    "details": {
+      "bsonType": "object"
+    },
+    "createdAt": {
+      "bsonType": "date"
+    },
+    "expiresAt": {
+      "bsonType": "date"
+    }
+  },
+  "title": "email_validation_cache",
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

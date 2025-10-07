@@ -1,4 +1,6 @@
-{
+// Create collection: notification_logs
+
+db.createCollection("notification_logs", {
   "validator": {
     "$jsonSchema": {
       "bsonType": "object",
@@ -49,4 +51,10 @@
       }
     }
   }
-}
+});
+
+// Create indexes for notification_logs
+db.notification_logs.createIndex({"subscription_id": 1});
+db.notification_logs.createIndex({"user_id": 1});
+db.notification_logs.createIndex({"station_id": 1});
+db.notification_logs.createIndex({"sentAt": 1});

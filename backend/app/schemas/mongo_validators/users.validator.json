@@ -24,23 +24,11 @@
             "admin"
           ]
         },
-        "location": {
-          "bsonType": "object",
-          "properties": {
-            "type": {
-              "enum": [
-                "Point"
-              ]
-            },
-            "coordinates": {
-              "bsonType": "array",
-              "minItems": 2,
-              "maxItems": 2,
-              "items": {
-                "bsonType": "double"
-              }
-            }
-          }
+        "status": {
+          "enum": [
+            "active",
+            "inactive"
+          ]
         },
         "preferences": {
           "bsonType": "object",
@@ -63,28 +51,18 @@
             "defaultStation": {
               "bsonType": "int"
             },
-            "notifications": {}
-          },
-          "additionalProperties": false
+            "notifications": {
+              "bsonType": "object"
+            }
+          }
         },
         "createdAt": {
           "bsonType": "date"
         },
         "updatedAt": {
           "bsonType": "date"
-        },
-        "status": {
-          "bsonType": "string",
-          "enum": [
-            "active",
-            "inactive"
-          ]
-        },
-        "deletedAt": {
-          "bsonType": "date"
         }
-      },
-      "additionalProperties": false
+      }
     }
   }
 }

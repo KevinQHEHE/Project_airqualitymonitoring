@@ -5,6 +5,7 @@
       "required": [
         "station_idx",
         "day",
+        "fetched_at",
         "pollutants"
       ],
       "properties": {
@@ -14,253 +15,46 @@
         "day": {
           "bsonType": "string"
         },
+        "fetched_at": {
+          "bsonType": "date"
+        },
+        "last_forecast_run_at": {
+          "bsonType": "date"
+        },
         "pollutants": {
           "bsonType": "object",
           "properties": {
             "pm25": {
               "bsonType": "object",
-              "required": [
-                "avg",
-                "min",
-                "max"
-              ],
               "properties": {
                 "avg": {
-                  "oneOf": [
-                    {
-                      "bsonType": "double"
-                    },
-                    {
-                      "bsonType": "int"
-                    },
-                    {
-                      "bsonType": "long"
-                    },
-                    {
-                      "bsonType": "decimal"
-                    }
-                  ]
+                  "bsonType": "int"
                 },
                 "min": {
-                  "oneOf": [
-                    {
-                      "bsonType": "double"
-                    },
-                    {
-                      "bsonType": "int"
-                    },
-                    {
-                      "bsonType": "long"
-                    },
-                    {
-                      "bsonType": "decimal"
-                    }
-                  ]
+                  "bsonType": "int"
                 },
                 "max": {
-                  "oneOf": [
-                    {
-                      "bsonType": "double"
-                    },
-                    {
-                      "bsonType": "int"
-                    },
-                    {
-                      "bsonType": "long"
-                    },
-                    {
-                      "bsonType": "decimal"
-                    }
-                  ]
+                  "bsonType": "int"
                 }
-              },
-              "additionalProperties": false
+              }
             },
             "pm10": {
               "bsonType": "object",
-              "required": [
-                "avg",
-                "min",
-                "max"
-              ],
               "properties": {
                 "avg": {
-                  "oneOf": [
-                    {
-                      "bsonType": "double"
-                    },
-                    {
-                      "bsonType": "int"
-                    },
-                    {
-                      "bsonType": "long"
-                    },
-                    {
-                      "bsonType": "decimal"
-                    }
-                  ]
+                  "bsonType": "int"
                 },
                 "min": {
-                  "oneOf": [
-                    {
-                      "bsonType": "double"
-                    },
-                    {
-                      "bsonType": "int"
-                    },
-                    {
-                      "bsonType": "long"
-                    },
-                    {
-                      "bsonType": "decimal"
-                    }
-                  ]
+                  "bsonType": "int"
                 },
                 "max": {
-                  "oneOf": [
-                    {
-                      "bsonType": "double"
-                    },
-                    {
-                      "bsonType": "int"
-                    },
-                    {
-                      "bsonType": "long"
-                    },
-                    {
-                      "bsonType": "decimal"
-                    }
-                  ]
+                  "bsonType": "int"
                 }
-              },
-              "additionalProperties": false
-            },
-            "o3": {
-              "bsonType": "object",
-              "required": [
-                "avg",
-                "min",
-                "max"
-              ],
-              "properties": {
-                "avg": {
-                  "oneOf": [
-                    {
-                      "bsonType": "double"
-                    },
-                    {
-                      "bsonType": "int"
-                    },
-                    {
-                      "bsonType": "long"
-                    },
-                    {
-                      "bsonType": "decimal"
-                    }
-                  ]
-                },
-                "min": {
-                  "oneOf": [
-                    {
-                      "bsonType": "double"
-                    },
-                    {
-                      "bsonType": "int"
-                    },
-                    {
-                      "bsonType": "long"
-                    },
-                    {
-                      "bsonType": "decimal"
-                    }
-                  ]
-                },
-                "max": {
-                  "oneOf": [
-                    {
-                      "bsonType": "double"
-                    },
-                    {
-                      "bsonType": "int"
-                    },
-                    {
-                      "bsonType": "long"
-                    },
-                    {
-                      "bsonType": "decimal"
-                    }
-                  ]
-                }
-              },
-              "additionalProperties": false
-            },
-            "uvi": {
-              "bsonType": "object",
-              "required": [
-                "avg",
-                "min",
-                "max"
-              ],
-              "properties": {
-                "avg": {
-                  "oneOf": [
-                    {
-                      "bsonType": "double"
-                    },
-                    {
-                      "bsonType": "int"
-                    },
-                    {
-                      "bsonType": "long"
-                    },
-                    {
-                      "bsonType": "decimal"
-                    }
-                  ]
-                },
-                "min": {
-                  "oneOf": [
-                    {
-                      "bsonType": "double"
-                    },
-                    {
-                      "bsonType": "int"
-                    },
-                    {
-                      "bsonType": "long"
-                    },
-                    {
-                      "bsonType": "decimal"
-                    }
-                  ]
-                },
-                "max": {
-                  "oneOf": [
-                    {
-                      "bsonType": "double"
-                    },
-                    {
-                      "bsonType": "int"
-                    },
-                    {
-                      "bsonType": "long"
-                    },
-                    {
-                      "bsonType": "decimal"
-                    }
-                  ]
-                }
-              },
-              "additionalProperties": false
+              }
             }
-          },
-          "additionalProperties": false
-        },
-        "fetched_at": {
-          "bsonType": "date"
+          }
         }
-      },
-      "additionalProperties": false
+      }
     }
   }
 }

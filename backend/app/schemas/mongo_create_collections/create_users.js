@@ -1,4 +1,5 @@
-// users
+// Create collection: users
+
 db.createCollection("users", {
   "validator": {
     "$jsonSchema": {
@@ -10,9 +11,6 @@ db.createCollection("users", {
         "role"
       ],
       "properties": {
-        "_id": {
-          "bsonType": "objectId"
-        },
         "username": {
           "bsonType": "string"
         },
@@ -28,23 +26,11 @@ db.createCollection("users", {
             "admin"
           ]
         },
-        "location": {
-          "bsonType": "object",
-          "properties": {
-            "type": {
-              "enum": [
-                "Point"
-              ]
-            },
-            "coordinates": {
-              "bsonType": "array",
-              "minItems": 2,
-              "maxItems": 2,
-              "items": {
-                "bsonType": "double"
-              }
-            }
-          }
+        "status": {
+          "enum": [
+            "active",
+            "inactive"
+          ]
         },
         "preferences": {
           "bsonType": "object",
@@ -67,31 +53,22 @@ db.createCollection("users", {
             "defaultStation": {
               "bsonType": "int"
             },
-            "notifications": {}
-          },
-          "additionalProperties": false
+            "notifications": {
+              "bsonType": "object"
+            }
+          }
         },
         "createdAt": {
           "bsonType": "date"
         },
         "updatedAt": {
           "bsonType": "date"
-        },
-        "status": {
-          "enum": [
-            "active",
-            "inactive"
-          ]
-        },
-        "deletedAt": {
-          "bsonType": "date"
         }
-      },
-      "additionalProperties": false
+      }
     }
   }
 });
 
-db.users.createIndex({ email: 1 }, { unique: true });
-db.users.createIndex({ username: 1 }, { unique: true });
-db.users.createIndex({ location: "2dsphere" });
+// Create indexes for users
+db.users.createIndex({"email": 1}, { "unique": true });
+db.users.createIndex({"username": 1}, { "unique": true });

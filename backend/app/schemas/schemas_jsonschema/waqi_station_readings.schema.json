@@ -1,70 +1,42 @@
 {
-  "$id": "https://example.com/schemas/waqi_station_readings.schema.json",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "waqi_station_readings",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "ts",
-    "meta",
-    "aqi",
-    "time"
-  ],
+  "bsonType": "object",
   "properties": {
-    "ts": {
-      "type": "string",
-      "format": "date-time",
-      "description": "UTC from time.s + tz"
-    },
-    "meta": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "station_idx"
-      ],
-      "properties": {
-        "station_idx": {
-          "type": "integer",
-          "description": "WAQI idx ref"
-        }
-      }
-    },
     "aqi": {
-      "type": "number"
-    },
-    "time": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "s",
-        "tz"
+      "bsonType": [
+        "string",
+        "int"
       ],
-      "properties": {
-        "v": {
-          "type": "integer"
-        },
-        "s": {
-          "type": "string"
-        },
-        "tz": {
-          "type": "string"
-        }
-      }
+      "description": "Field: aqi"
+    },
+    "createdAt": {
+      "bsonType": "date",
+      "description": "Field: createdAt"
     },
     "iaqi": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "v"
-        ],
-        "properties": {
-          "v": {
-            "type": "number"
-          }
-        }
-      }
+      "bsonType": "object",
+      "description": "Field: iaqi"
+    },
+    "location": {
+      "bsonType": "object",
+      "description": "Field: location"
+    },
+    "meta": {
+      "bsonType": "object",
+      "description": "Field: meta"
+    },
+    "station_id": {
+      "bsonType": "string",
+      "description": "Field: station_id"
+    },
+    "time": {
+      "bsonType": "object",
+      "description": "Field: time"
+    },
+    "ts": {
+      "bsonType": "date",
+      "description": "Field: ts"
     }
-  }
+  },
+  "title": "waqi_station_readings",
+  "$schema": "http://json-schema.org/draft-07/schema#"
 }

@@ -1,0 +1,25 @@
+{
+  "bsonType": "object",
+  "required": [
+    "key",
+    "value",
+    "createdAt",
+    "expiresAt"
+  ],
+  "properties": {
+    "key": {
+      "bsonType": "string"
+    },
+    "value": {
+      "bsonType": "object"
+    },
+    "createdAt": {
+      "bsonType": "date"
+    },
+    "expiresAt": {
+      "bsonType": "date"
+    }
+  },
+  "title": "api_response_cache",
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

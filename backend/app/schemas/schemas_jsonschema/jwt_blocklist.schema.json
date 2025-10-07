@@ -1,0 +1,28 @@
+{
+  "bsonType": "object",
+  "required": [
+    "jti",
+    "user_id",
+    "token_type",
+    "revokedAt"
+  ],
+  "properties": {
+    "jti": {
+      "bsonType": "string"
+    },
+    "user_id": {
+      "bsonType": "string"
+    },
+    "token_type": {
+      "enum": [
+        "access",
+        "refresh"
+      ]
+    },
+    "revokedAt": {
+      "bsonType": "date"
+    }
+  },
+  "title": "jwt_blocklist",
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
