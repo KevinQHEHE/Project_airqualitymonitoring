@@ -1,8 +1,3 @@
-<img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" style="height:64px;margin-right:32px"/>
-
-# MongoDB Queries cho từng Flow - Tài liệu đối chiếu
-
-Dưới đây là tất cả các MongoDB queries được sử dụng trong từng bước của các flows, bạn có thể copy vào MongoDB shell để đối chiếu data.[^1][^2][^3][^4][^5][^6]
 
 ## Flow 1: Import Thông tin Trạm
 
@@ -414,20 +409,4 @@ db.waqi_station_readings.find({
   "meta.station_idx": 123
 }).sort({ ts: -1 }).limit(10).explain("executionStats")
 ```
-
-Tất cả queries trên đều được trích xuất trực tiếp từ source code và có thể copy-paste vào MongoDB shell để test.[^2][^3][^4][^5][^6][^1]
-
-<div align="center">⁂</div>
-
-[^1]: mongo_utils.py
-
-[^2]: get_station_reading.py
-
-[^3]: import_vietnam_stations.py
-
-[^4]: forecast_ingest.py
-
-[^5]: backup_data.py
-
-[^6]: rollback_data.py
 
