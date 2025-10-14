@@ -432,14 +432,6 @@ The application automatically starts background schedulers when running:
 
 View scheduler status in application logs.
 
-### Historical Data Backfill
-
-To backfill historical data:
-
-```bash
-python ingest/catchup.py --start-date 2024-01-01 --end-date 2024-12-31
-```
-
 ## API Documentation
 
 ### Authentication
