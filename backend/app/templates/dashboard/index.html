@@ -1500,8 +1500,8 @@
         <div class="col-md-6 col-lg-4 mb-3">
           <div class="station-card" data-station-id="${escapeHtml(String(stationId))}" onclick="selectStationFromList('${escapeAttr(String(stationId))}', '${escapeAttr(name)}')" style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.3s ease;">
           <div class="d-flex justify-content-between align-items-start mb-2">
-            <h6 class="mb-1" style="color: #1e293b; font-size: 0.9rem;">${escapeHtml(name)}</h6>
-            <div class="aqi-badge" id="badge-${idx}" style="padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; background:#e2e8f0; color:#334155;">—</div>
+            <h6 class="mb-1" style="color: #1e293b; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; margin-right: 0.5rem;" title="${escapeHtml(name)}">${escapeHtml(name)}</h6>
+            <div class="aqi-badge" id="badge-${idx}" style="padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; background:#e2e8f0; color:#334155; flex-shrink: 0;">—</div>
           </div>
           <div class="station-preview">
             <div class="row text-center mb-2">
