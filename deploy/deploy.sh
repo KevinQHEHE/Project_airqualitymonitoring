@@ -144,7 +144,6 @@ echo -e "${YELLOW}[6/9] Verifying deployment files...${NC}"
 CRITICAL_FILES=(
     ".env"
     "backend/app/__init__.py"
-    "backend/app/wsgi.py"
     "requirements.txt"
 )
 
