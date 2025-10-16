@@ -637,4 +637,3 @@ db.waqi_stations.createIndex({"station_id": 1}, { "unique": true });
 
 
 //////////////////////// SAMPLE QUERYS ////////////////////////
-
