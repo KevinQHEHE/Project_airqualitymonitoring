@@ -138,6 +138,75 @@
       .theme-toggle { margin-left: 8px; }
       #adminNavItem .btn, #adminNavItem a.btn { padding: 0 10px; min-width: 76px; }
     }
+
+    /* Notification styles */
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      min-width: 300px;
+      max-width: 400px;
+      padding: 15px 20px;
+      border-radius: 8px;
+      color: #fff;
+      font-family: 'Poppins', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 10000;
+      animation: slideIn 0.3s ease-out;
+      word-wrap: break-word;
+      line-height: 1.4;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .notification.success {
+      background: linear-gradient(135deg, #28a745, #20c997);
+      border-left: 4px solid #1e7e34;
+    }
+
+    .notification.error {
+      background: linear-gradient(135deg, #dc3545, #fd7e14);
+      border-left: 4px solid #c82333;
+    }
+
+    .notification.warning {
+      background: linear-gradient(135deg, #ffc107, #fd7e14);
+      border-left: 4px solid #e0a800;
+      color: #212529;
+    }
+
+    .notification.info {
+      background: linear-gradient(135deg, #17a2b8, #6f42c1);
+      border-left: 4px solid #138496;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    /* Mobile responsive */
+    @media (max-width: 767px) {
+      .notification {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        min-width: auto;
+        max-width: none;
+        padding: 12px 16px;
+        font-size: 13px;
+      }
+    }
   </style>
 </head>
 <body class="">
