@@ -192,7 +192,7 @@ ExecStart=$PROJECT_DIR/venv/bin/gunicorn \\
     --error-logfile $PROJECT_DIR/logs/gunicorn-error.log \\
     --log-level info \\
     --capture-output \\
-    backend.app.wsgi:app
+    wsgi:app
 
 ExecReload=/bin/kill -s HUP \$MAINPID
 KillMode=mixed
