@@ -1,0 +1,76 @@
+@startuml Flow 3 - Forecast Data Ingestion
+!theme plain
+title Flow 3: Ingest Dữ liệu Dự báo (7 ngày)
+
+actor User
+participant Service as "ForecastIngestionService"
+participant API as "WAQI API"
+database DB as "MongoDB"
+
+User -> Service: Execute script
+activate Service
+
+Service -> DB: 1. Get all station IDs
+DB --> Service: List of stations
+
+loop For each station (rate-limited)
+  Service -> API: GET /feed/@{idx}/
+  API --> Service: Forecast data
+  note right
+    data.forecast.daily:
+    - pm25: [{day, avg, min, max}]
+    - pm10: [...]
+    - o3: [...]
+    - uvi: [...]
+  end note
+  
+  Service -> Service: 2. Merge by day
+  note right
+    Input: Separate arrays per pollutant
+    Output: [{day, pollutants: {...}}]
+    Example:
+    {
+      day: "2025-10-08",
+      pollutants: {
+        pm25: {avg, min, max},
+        pm10: {avg, min, max}
+      }
+    }
+  end note
+  
+  Service -> DB: 3. Get existing forecasts
+  DB --> Service: Existing docs by day
+  
+  Service -> Service: 4. Compare & filter
+  note right
+    Skip update if:
+    - run_at <= last_forecast_run_at
+    - AND pollutant values unchanged
+  end note
+  
+  alt Has changes
+    Service -> DB: 5. Bulk upsert
+    note right
+      Compound key:
+      {station_idx, day}
+      Update: pollutants + timestamps
+    end note
+    DB --> Service: Result (matched, modified, upserted)
+  else No changes
+    Service -> Service: Skip station
+  end
+end
+
+Service -> User: ✓ Summary:\n- X/Y stations\n- Z forecasts processed
+deactivate Service
+
+note over DB
+  **Collection: waqi_daily_forecasts**
+  Document per (station, day):
+  - station_idx
+  - day (YYYY-MM-DD)
+  - pollutants {...}
+  - fetched_at, last_forecast_run_at
+end note
+
+@enduml

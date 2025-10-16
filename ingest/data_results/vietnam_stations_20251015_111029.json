@@ -1,0 +1,1355 @@
+{
+  "metadata": {
+    "collection": "waqi_stations",
+    "source": "WAQI API",
+    "export_time": "2025-10-15T11:10:29.105991",
+    "total_stations": 48,
+    "country": "Vietnam"
+  },
+  "data": [
+    {
+      "_id": 13668,
+      "city": {
+        "name": "Lạng Sơn/phường Chi Lăng - TP Lạng Sơn, Vietnam",
+        "url": "https://api.waqi.info/feed/@13668/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            21.843325,
+            106.7506
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13667,
+      "city": {
+        "name": "Lạng Sơn/xã Hồng Phong - Cao Lộc, Vietnam",
+        "url": "https://api.waqi.info/feed/@13667/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            21.930528,
+            106.681389
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13665,
+      "city": {
+        "name": "Lạng Sơn/Đông Tân - Hữu Lũng, Vietnam",
+        "url": "https://api.waqi.info/feed/@13665/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            21.539472,
+            106.3625
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13027,
+      "city": {
+        "name": "Thái nguyên/Đường Hùng Vương - Tp Thái Nguyên, Vietnam",
+        "url": "https://api.waqi.info/feed/@13027/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            21.593151,
+            105.8431043
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 5506,
+      "city": {
+        "name": "Viet Tri, Vietnam (Tp Việt Trì)",
+        "url": "https://api.waqi.info/feed/@5506/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            21.33847,
+            105.3673
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 8688,
+      "city": {
+        "name": "United Nations International School of Hanoi, Vietnam (Trường Quốc tế Liên Hợp Quốc Hà Nội)",
+        "url": "https://api.waqi.info/feed/@8688/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            21.0811211,
+            105.8180306
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "UNIS - United Nations International School Of Hanoi",
+          "url": "http://unishanoi.org/",
+          "logo": "Vietnam-Hanoi.UNIS.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": -476599,
+      "city": {
+        "name": "Phố Nguyễn Đình Thi",
+        "url": "https://api.waqi.info/feed/A476599/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            21.042778,
+            105.829319
+          ]
+        },
+        "location": "Apartment E, Phố Nguyễn Đình Thi, Thuy Khue Ward, Tay Ho District, Hà Nội, 10040, Vietnam"
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Citizen Science project sensor.community",
+          "url": "https://sensor.community/"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13026,
+      "city": {
+        "name": "Hà Nội/Chi cục BVMT, Vietnam",
+        "url": "https://api.waqi.info/feed/@13026/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            21.01525,
+            105.80013
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Cổng thông tin quan trắc môi trường thủ đô Hà Nội",
+          "url": "https://moitruongthudo.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 8641,
+      "city": {
+        "name": "Hanoi US Embassy, Vietnam (Đại sứ quán Mỹ, Hà Nội)",
+        "url": "https://api.waqi.info/feed/@8641/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            21.0215063,
+            105.8188748
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": -80656,
+      "city": {
+        "name": "Bán Đảo Linh Đàm",
+        "url": "https://api.waqi.info/feed/A80656/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            20.968,
+            105.834
+          ]
+        },
+        "location": "Hồ Linh Đàm, Bán Đảo Linh Đàm, Hoàng Mai, Hoang Mai District, Hanoi, 100000, Vietnam"
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Citizen Science project sensor.community",
+          "url": "https://sensor.community/"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": -112819,
+      "city": {
+        "name": "Phố Nguyễn Duy Trinh",
+        "url": "https://api.waqi.info/feed/A112819/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            20.964,
+            105.83
+          ]
+        },
+        "location": "Great La Vita Travel Company, 912, Phố Nguyễn Duy Trinh, Hoàng Mai, Hoang Mai District, Hanoi, 100000, Vietnam"
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Citizen Science project sensor.community",
+          "url": "https://sensor.community/"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 1583,
+      "city": {
+        "name": "Hanoi, Vietnam (Hà Nội)",
+        "url": "https://api.waqi.info/feed/@1583/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            21.0491,
+            105.8831
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13414,
+      "city": {
+        "name": "Bắc Ninh/KCN Tiên Sơn, Vietnam",
+        "url": "https://api.waqi.info/feed/@13414/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            21.1194449,
+            105.9896021
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 12961,
+      "city": {
+        "name": "Bắc Ninh/TT Quan trắc - phường Suối Hoa - TP Bắc Ninh, Vietnam",
+        "url": "https://api.waqi.info/feed/@12961/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            21.1873402,
+            106.0742958
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 12965,
+      "city": {
+        "name": "Bắc Ninh/UBND Đại Đồng, Vietnam",
+        "url": "https://api.waqi.info/feed/@12965/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            21.089142,
+            105.990311
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13684,
+      "city": {
+        "name": "Hưng Yên/Nhà văn hóa xã Tân Quang - h.Văn Lâm, Vietnam",
+        "url": "https://api.waqi.info/feed/@13684/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            20.980478,
+            105.974463
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 12957,
+      "city": {
+        "name": "Bắc Ninh/Khu liên cơ Thuận Thành, Vietnam",
+        "url": "https://api.waqi.info/feed/@12957/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            21.0272212,
+            106.0342099
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 12975,
+      "city": {
+        "name": "Bắc Ninh/Binh Dinh, Vietnam",
+        "url": "https://api.waqi.info/feed/@12975/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            21.0353984,
+            106.1025755
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13253,
+      "city": {
+        "name": "Bắc Ninh/UBND xã Cao Đức - Gia Bình, Vietnam",
+        "url": "https://api.waqi.info/feed/@13253/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            21.0832037,
+            106.2807861
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13683,
+      "city": {
+        "name": "Hưng Yên/Sở TNMT - 437 Nguyễn Văn Linh, Tp Hưng Yên, Vietnam",
+        "url": "https://api.waqi.info/feed/@13683/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            20.661683,
+            106.058761
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 14641,
+      "city": {
+        "name": "Thái Bình/Trạm quan trắc khí tại Thái Thụy, Vietnam",
+        "url": "https://api.waqi.info/feed/@14641/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            20.461641,
+            106.516972
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13763,
+      "city": {
+        "name": "Ninh Bình/Cúc Phương, Đông Phong, Nho Quan - KTTV - Trạm cảm biến, Vietnam",
+        "url": "https://api.waqi.info/feed/@13763/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            20.320741,
+            105.745489
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 14927,
+      "city": {
+        "name": "Thanh Hoá/UBND P. Lam Sơn, TX. Bỉm Sơn, Vietnam",
+        "url": "https://api.waqi.info/feed/@14927/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            19.91053,
+            105.4039
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13666,
+      "city": {
+        "name": "Nghệ An/Trường Thi, Thành phố Vinh - KTTV - Trạm cảm biến, Vietnam",
+        "url": "https://api.waqi.info/feed/@13666/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            18.675369,
+            105.690945
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 14640,
+      "city": {
+        "name": "Quảng Bình/Khu kinh tế Hòn La, Vietnam",
+        "url": "https://api.waqi.info/feed/@14640/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            17.932938,
+            106.49662
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 12488,
+      "city": {
+        "name": "Thừa Thiên Huế/83 Hùng Vương, Vietnam",
+        "url": "https://api.waqi.info/feed/@12488/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            16.46226,
+            107.596351
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13417,
+      "city": {
+        "name": "Gia Lai/BQL KCN Trà Đa, Vietnam",
+        "url": "https://api.waqi.info/feed/@13417/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            14.017737,
+            108.035181
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13012,
+      "city": {
+        "name": "Gia Lai/phường Thống Nhất - Pleiku, Vietnam",
+        "url": "https://api.waqi.info/feed/@13012/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            13.998599,
+            107.996482
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13762,
+      "city": {
+        "name": "Gia Lai/Phù Đổng, Thành phố Pleiku - KTTV - Trạm cảm biến, Vietnam",
+        "url": "https://api.waqi.info/feed/@13762/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            13.968848,
+            108.017617
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13418,
+      "city": {
+        "name": "Gia Lai/UBND thị xã An Khê, Vietnam",
+        "url": "https://api.waqi.info/feed/@13418/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            13.953878,
+            108.656162
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 1585,
+      "city": {
+        "name": "Nha Trang, Vietnam",
+        "url": "https://api.waqi.info/feed/@1585/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            12.284358,
+            109.192524
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": -476452,
+      "city": {
+        "name": "Lâm Đồng: Vườn hoa - đối diện THCS Lam Sơn - Phường 6 - TP Đà Lạt (KK)",
+        "url": "https://api.waqi.info/feed/A476452/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            11.9527,
+            108.4298
+          ]
+        },
+        "location": "Phường 6, Da Lat City, Lâm Đồng Province, 66113, Vietnam"
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13659,
+      "city": {
+        "name": "Tây Ninh/Thị xã Tràng Bảng, Vietnam",
+        "url": "https://api.waqi.info/feed/@13659/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            11.030287,
+            106.35631
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": -541225,
+      "city": {
+        "name": "Hẻm 350 Đường Tô Hiến Thành",
+        "url": "https://api.waqi.info/feed/A541225/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            10.7744,
+            106.661
+          ]
+        },
+        "location": "Nhà C2, Hẻm 350 Đường Tô Hiến Thành, Ward 14, District 10, Phường Diên Hồng, Ho Chi Minh City, 72000, Vietnam"
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "uRad Monitor",
+          "url": "https://uradmonitor.com/"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": -476167,
+      "city": {
+        "name": "HCM: Đ. Lê Hữu Kiều - P. Bình Trưng Tây - Quận 2 (Ngã ba Lê Hữu Kiểu và Trương Văn Bang) (KK)",
+        "url": "https://api.waqi.info/feed/A476167/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            10.7832,
+            106.7528
+          ]
+        },
+        "location": "Binh Trung Tay Ward, Thu Duc City, Ho Chi Minh City, 08408, Vietnam"
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": -102721,
+      "city": {
+        "name": "đường Ngô Quang Thắm",
+        "url": "https://api.waqi.info/feed/A102721/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            10.658,
+            106.724
+          ]
+        },
+        "location": "R.Ba Hoi, đường Ngô Quang Thắm, Long Thoi Commune, Nhà Bè District, Ho Chi Minh City, Vietnam"
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Citizen Science project sensor.community",
+          "url": "https://sensor.community/"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13756,
+      "city": {
+        "name": "Tp Hồ Chí Minh/Đường Nguyễn Văn Tạo, Ấp 3, Nhà Bè - KTTV - Trạm cảm biến, Vietnam",
+        "url": "https://api.waqi.info/feed/@13756/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            10.65961,
+            106.727916
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 14643,
+      "city": {
+        "name": "Vũng Tàu/Tiểu học Tóc Tiên - TX.Phú Mỹ, Vietnam",
+        "url": "https://api.waqi.info/feed/@14643/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            10.589853,
+            107.131743
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 14644,
+      "city": {
+        "name": "Vũng Tàu/Ngã tư Phan Đăng Lưu và 27_4 - Tp.Bà Rịa, Vietnam",
+        "url": "https://api.waqi.info/feed/@14644/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            10.502431,
+            107.169408
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 14642,
+      "city": {
+        "name": "Vũng Tàu/Ngã tư Giếng nước - Tp.Vũng Tàu, Vietnam",
+        "url": "https://api.waqi.info/feed/@14642/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            10.367976,
+            107.0844
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 14930,
+      "city": {
+        "name": "Vĩnh Long/UBND tỉnh, đường Hoàng Thái Hiếu, Vietnam",
+        "url": "https://api.waqi.info/feed/@14930/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            10.251317,
+            105.946931
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 14929,
+      "city": {
+        "name": "Vĩnh Long/Khu hành chính Tx.Bình Minh, Vietnam",
+        "url": "https://api.waqi.info/feed/@14929/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            10.06934,
+            105.820391
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13687,
+      "city": {
+        "name": "Cần Thơ/Ninh Kiều - KTTV - Trạm cảm biến, Vietnam",
+        "url": "https://api.waqi.info/feed/@13687/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            10.026977,
+            105.768249
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": -469825,
+      "city": {
+        "name": "Trà Vinh: Tp. Trà Vinh (KK)",
+        "url": "https://api.waqi.info/feed/A469825/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            9.923886,
+            106.339604
+          ]
+        },
+        "location": "Co-opMart TraVinh, Nguyễn Đáng, Phường 6, Trà Vinh City, Trà Vinh Province, Vietnam"
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13662,
+      "city": {
+        "name": "Trà Vinh/xã Dân Thành, TX Duyên Hải, Vietnam",
+        "url": "https://api.waqi.info/feed/@13662/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            9.599143,
+            106.51985
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13661,
+      "city": {
+        "name": "Trà Vinh/xã Đông Hải, huyện Duyên Hải, Vietnam",
+        "url": "https://api.waqi.info/feed/@13661/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            9.575555,
+            106.488361
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 1584,
+      "city": {
+        "name": "Da Nang, Vietnam (TP Đà Nẵng)",
+        "url": "https://api.waqi.info/feed/@1584/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            16.074,
+            108.217
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    },
+    {
+      "_id": 13658,
+      "city": {
+        "name": "Đà Nẵng/Hòa Thuận Tây, Hải Châu - KTTV - Trạm cảm biến, Vietnam",
+        "url": "https://api.waqi.info/feed/@13658/?token=",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            16.043252,
+            108.206826
+          ]
+        }
+      },
+      "time": {
+        "tz": "+07:00"
+      },
+      "attributions": [
+        {
+          "name": "Vietnam Center For Environmental Monitoring Portal (cổng thông tin quan trắc môi trường)",
+          "url": "http://cem.gov.vn/",
+          "logo": "Vietnam-CEM.png"
+        },
+        {
+          "name": "World Air Quality Index Project",
+          "url": "https://waqi.info/"
+        }
+      ]
+    }
+  ]
+}

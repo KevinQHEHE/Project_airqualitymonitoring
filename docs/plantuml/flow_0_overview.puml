@@ -1,0 +1,137 @@
+@startuml System Overview - All Flows
+!theme plain
+title Air Quality Monitoring System - Data Flow Overview
+
+' Define components
+actor "Admin/Scheduler" as Admin
+participant "Import Stations" as ImportScript
+participant "Readings Ingest" as ReadingsScript
+participant "Forecast Ingest" as ForecastScript
+participant "Backup Script" as BackupScript
+participant "Restore Script" as RestoreScript
+participant "WAQI API" as API
+database "MongoDB Atlas" as DB
+participant "Backup Archive" as Archive
+
+' Flow 1: Import Stations (one-time or periodic)
+Admin -> ImportScript: 1. Import stations from JSON
+activate ImportScript
+ImportScript -> DB: Upsert waqi_stations
+note right
+  Compound key: _id (station_idx)
+  • city info
+  • geo coordinates
+  • timezone
+end note
+DB --> ImportScript: ✓ X stations
+ImportScript --> Admin: Complete
+deactivate ImportScript
+
+|||
+
+' Flow 2: Hourly Readings (scheduled)
+Admin -> ReadingsScript: 2. Fetch current readings\n(hourly schedule)
+activate ReadingsScript
+ReadingsScript -> DB: Check checkpoint
+DB --> ReadingsScript: Last run timestamp
+
+alt New hour
+  ReadingsScript -> DB: Get all stations
+  loop Each station (rate-limited)
+    ReadingsScript -> API: GET current data
+    API --> ReadingsScript: AQI, pollutants
+    ReadingsScript -> DB: Upsert reading
+    note right
+      Compound key:
+      (station_idx, ts)
+      • aqi, iaqi
+      • timestamp (hour)
+    end note
+    ReadingsScript -> DB: Update latest_reading_at
+  end
+  ReadingsScript -> DB: Save checkpoint
+end
+ReadingsScript --> Admin: ✓ Y readings
+deactivate ReadingsScript
+
+|||
+
+' Flow 3: Daily Forecasts (scheduled)
+Admin -> ForecastScript: 3. Fetch forecasts\n(daily schedule)
+activate ForecastScript
+ForecastScript -> DB: Get all stations
+loop Each station (rate-limited)
+  ForecastScript -> API: GET forecast data
+  API --> ForecastScript: 7-day forecasts
+  ForecastScript -> ForecastScript: Merge by day
+  ForecastScript -> DB: Check existing
+  alt Has changes
+    ForecastScript -> DB: Upsert forecasts
+    note right
+      Compound key:
+      (station_idx, day)
+      • pollutants (pm25, pm10, o3, uvi)
+      • timestamps
+    end note
+  end
+end
+ForecastScript --> Admin: ✓ Z forecasts
+deactivate ForecastScript
+
+|||
+
+' Flow 4: Backup & Restore
+group Backup (periodic)
+  Admin -> BackupScript: 4a. Create backup
+  activate BackupScript
+  BackupScript -> DB: Stream all collections
+  DB --> BackupScript: Documents (batched)
+  BackupScript -> Archive: Write .tar archive
+  note right
+    • JSON Lines format
+    • Metadata included
+    • Timestamped
+  end note
+  BackupScript --> Admin: ✓ Backup created
+  deactivate BackupScript
+end
+
+|||
+
+group Restore (when needed)
+  Admin -> RestoreScript: 4b. Restore from backup
+  activate RestoreScript
+  RestoreScript -> Archive: Extract files
+  Archive --> RestoreScript: .jsonl + metadata
+  RestoreScript -> BackupScript: Safety snapshot
+  RestoreScript -> Admin: Confirm restore?
+  Admin --> RestoreScript: YES
+  RestoreScript -> DB: Drop/create collections
+  RestoreScript -> DB: Batch insert documents
+  RestoreScript -> DB: Verify counts
+  RestoreScript --> Admin: ✓ Restore complete
+  deactivate RestoreScript
+end
+
+note over DB
+  **Collections:**
+  • waqi_stations
+  • waqi_station_readings
+  • waqi_daily_forecasts
+  • current_reading_checkpoints
+end note
+
+note over API
+  **Rate Limits:**
+  1000 requests/hour
+  Retry on 429
+end note
+
+note over Archive
+  **Backup Strategy:**
+  • Daily auto-backup
+  • 7-day retention
+  • Manual restore
+end note
+
+@enduml

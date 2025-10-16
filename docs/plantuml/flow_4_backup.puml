@@ -1,0 +1,53 @@
+@startuml Flow 4a - Database Backup
+!theme plain
+title Flow 4a: Backup Database
+
+actor User
+participant Script as "backup_data.py"
+database DB as "MongoDB"
+participant FS as "File System"
+
+User -> Script: Execute backup
+activate Script
+
+Script -> Script: 1. Generate timestamp\n(backup_YYYYMMDD_HHMMSS)
+
+Script -> DB: 2. Connect & list collections
+DB --> Script: Collection names
+
+loop For each collection
+  Script -> DB: Stream documents\n(batch_size=1000)
+  DB --> Script: Documents cursor
+  
+  Script -> FS: 3. Write to .jsonl file
+  note right
+    Format: JSON Lines
+    One document per line
+    Preserve MongoDB types
+    (ObjectId, ISODate, etc.)
+  end note
+end
+
+Script -> DB: 4. Get collection metadata
+DB --> Script: Validators, timeseries config
+
+Script -> FS: 5. Save collections_metadata.json
+
+Script -> FS: 6. Create tar archive
+note right
+  backup_data/
+    backup_YYYYMMDD_HHMMSS.tar
+end note
+
+Script -> FS: 7. Cleanup temp files
+
+Script -> User: ✓ Backup complete:\nX collections → archive
+deactivate Script
+
+note over FS
+  **Archive contents:**
+  • {collection}.jsonl (data)
+  • collections_metadata.json
+end note
+
+@enduml

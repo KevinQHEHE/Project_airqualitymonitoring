@@ -1,0 +1,85 @@
+@startuml Flow 4b - Database Restore
+!theme plain
+title Flow 4b: Restore Database from Backup
+
+actor User
+participant Script as "rollback_data.py"
+participant Backup as "backup_data.py"
+participant FS as "File System"
+database DB as "MongoDB"
+
+User -> Script: Execute restore [options]
+activate Script
+
+Script -> FS: 1. Extract archive
+FS --> Script: .jsonl files + metadata
+
+Script -> DB: 2. Build restore plan
+DB --> Script: Current collections
+note right
+  Compare:
+  - to_drop (extras)
+  - to_create (new)
+  - to_restore (all)
+end note
+
+Script -> User: 3. Show plan & confirm
+User --> Script: Type "YES" or use the yes flag
+
+alt dry-run
+  Script -> User: Preview only, exit
+  destroy Script
+end
+
+alt no_snapshot_not_set
+  Script -> Backup: 4. Pre-restore snapshot
+  activate Backup
+  Backup -> FS: Save safety backup
+  Backup --> Script: Snapshot created
+  deactivate Backup
+end
+
+alt force
+  Script -> DB: 5. Disable validators
+  note right: Temporarily turn off schema validation
+end
+
+alt replace_existing
+  Script -> DB: 6. Drop & recreate collections
+  note right
+    Auto-detect time-series
+    from metadata or data sample
+  end note
+end
+
+loop For each collection
+  Script -> FS: 7. Stream read .jsonl
+  FS --> Script: Documents (batch)
+  
+  Script -> DB: 8. Batch insert (1000/batch)
+  note right: Deserialize MongoDB types
+  DB --> Script: Insert result
+end
+
+alt force
+  Script -> DB: 9. Restore validators
+end
+
+Script -> DB: 10. Verify restore
+DB --> Script: Document counts
+Script -> FS: Compare with file counts
+FS --> Script: File line counts
+note right: Hash-based integrity check
+
+Script -> User: ✓ Restore complete:\nVerification summary
+deactivate Script
+
+note over Script
+  **Safety Features:**
+  • Pre-restore snapshot
+  • Confirmation prompt
+  • Dry-run mode
+  • Integrity verification
+end note
+
+@enduml

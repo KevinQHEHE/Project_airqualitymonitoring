@@ -430,7 +430,7 @@
               <p style="color: rgba(255,255,255,0.8); margin: 0;">Check air quality in your city</p>
             </div>
             
-            <div class="search-container" style="max-width: 600px; margin: 0 auto;">
+            <div class="search-container" style="max-width: 700px; margin: 0 auto;">
               <div class="search-input-group" style="position: relative; margin-bottom: 1rem;">
                 <input type="text" class="search-input" id="citySearch" 
                        placeholder="Enter city, station name, or station ID (e.g., Hanoi, Chi Lăng, 13668)..." 
@@ -447,10 +447,11 @@
               </div>
               
               <div class="quick-search" style="display: flex; justify-content: center; gap: 1rem; margin-top: 1rem;">
-                <button class="quick-search-btn" onclick="quickSearch('Lạng Sơn')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem;">🏔️ Lạng Sơn</button>
-                <button class="quick-search-btn" onclick="quickSearch('Hanoi')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem;">🏙️ Hà Nội</button>
-                <button class="quick-search-btn" onclick="quickSearch('Hồ Chí Minh')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem;">🌆 Hồ Chí Minh</button>
-                <button class="quick-search-btn" onclick="quickSearch('Da Nang')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem;">🏖️ Đà Nẵng</button>
+                <button class="quick-search-btn" onclick="quickSearch('Hà Nội')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem;">🏙️ Hà Nội</button>
+                <button class="quick-search-btn" onclick="quickSearch('Ho Chi Minh')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem;">🌆 Hồ Chí Minh</button>
+                <button class="quick-search-btn" onclick="quickSearch('Đà Nẵng')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem;">🏖️ Đà Nẵng</button>
+                <button class="quick-search-btn" onclick="quickSearch('Nha Trang')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem;">🌴 Nha Trang</button>
+                <button class="quick-search-btn" onclick="quickSearch('Vũng Tàu')" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem;">🏞️ Vũng Tàu</button>
               </div>
             </div>
           </div>
@@ -1495,7 +1496,6 @@
     const cards = stations.map((st, idx) => {
       const stationId = st.station_id || (st._id || '').toString();
       const name = st.name || (st.city && st.city.name) || 'Station';
-      const coords = st.location ? `${Number(st.location.latitude || 0).toFixed(3)}, ${Number(st.location.longitude || 0).toFixed(3)}` : '—';
       return `
         <div class="col-md-6 col-lg-4 mb-3">
           <div class="station-card" data-station-id="${escapeHtml(String(stationId))}" onclick="selectStationFromList('${escapeAttr(String(stationId))}', '${escapeAttr(name)}')" style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.3s ease;">
@@ -1520,8 +1520,8 @@
               <div class="font-weight-bold" id="pm25-${idx}">—</div>
             </div>
             <div class="col-6">
-              <div class="small text-muted">Coordinates</div>
-              <div class="small text-muted">${coords}</div>
+              <div class="small text-muted">Temperature</div>
+              <div class="font-weight-bold" id="temp-${idx}">—</div>
             </div>
             </div>
           </div>
@@ -1539,16 +1539,19 @@
         if (!latest) return;
         const aqi = latest.aqi ?? '—';
         const pm25 = latest.pm25 ?? '—';
+        const temp = latest.t ?? latest.temp ?? latest.temperature ?? '—';
         const statusObj = typeof aqi === 'number' ? getAQIStatus(aqi) : null;
         const badge = document.getElementById(`badge-${idx}`);
         const statusEl = document.getElementById(`status-${idx}`);
         const pmEl = document.getElementById(`pm25-${idx}`);
+        const tempEl = document.getElementById(`temp-${idx}`);
         if (badge && statusObj) {
           badge.className = `aqi-badge ${statusObj.class}`;
           badge.textContent = aqi;
         }
         if (statusEl && statusObj) statusEl.textContent = statusObj.status;
         if (pmEl) pmEl.textContent = pm25 !== '—' ? `${pm25} μg/m³` : '—';
+        if (tempEl) tempEl.textContent = temp !== '—' ? `${temp}°C` : '—';
       } catch (e) {
         // ignore per-card errors
       }

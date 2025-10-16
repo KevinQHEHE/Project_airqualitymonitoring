@@ -1,0 +1,71 @@
+@startuml Flow 2 - Station Readings Ingestion
+!theme plain
+title Flow 2: Ingest Dữ liệu Đọc từ Trạm (Hourly)
+
+actor User
+participant Manager as "CurrentReadingManager"
+participant API as "WAQI API"
+participant Utils as "mongo_utils"
+database DB as "MongoDB"
+
+User -> Manager: Execute script
+activate Manager
+
+Manager -> DB: 1. Check last checkpoint
+DB --> Manager: last_checkpoint_hour
+
+alt Already processed this hour
+  Manager -> User: ⊘ Skip: Already done
+  destroy Manager
+end
+
+Manager -> DB: 2. Get all station IDs
+DB --> Manager: List of stations
+
+loop For each station (rate-limited)
+  Manager -> API: GET /feed/@{idx}/
+  API --> Manager: Current data (aqi, time, iaqi)
+  
+  Manager -> Manager: 3. Parse & normalize
+  note right
+    - Convert timezone to UTC
+    - Normalize to hour precision
+    - Build reading document
+  end note
+  
+  Manager -> DB: Check latest_reading_at
+  DB --> Manager: Last reading time
+  
+  alt New reading (time changed)
+    Manager -> Utils: 4. Upsert reading
+    activate Utils
+    note right
+      Compound key:
+      {meta.station_idx, ts}
+    end note
+    Utils -> DB: bulk_write / insert_many
+    DB --> Utils: Success
+    deactivate Utils
+    
+    Manager -> DB: 5. Update latest_reading_at
+  else Duplicate
+    Manager -> Manager: Skip insert
+  end
+end
+
+Manager -> DB: 6. Save checkpoint
+note right
+  {timestamp, stats}
+end note
+
+Manager -> User: ✓ Summary:\n- X/Y stations\n- Z readings
+deactivate Manager
+
+note over DB
+  **Collections:**
+  - waqi_station_readings
+  - current_reading_checkpoints
+  - waqi_stations (updated)
+end note
+
+@enduml
